@@ -1,5 +1,12 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="clr-namespace:Nyx">
+
+    <!-- Animated mouse-wheel scrolling everywhere -->
+    <Style TargetType="ScrollViewer">
+        <Setter Property="local:SmoothScroll.Enabled" Value="True"/>
+    </Style>
+
 
     <!-- ======================= Palette ======================= -->
     <Color x:Key="BgColor">#FF1A1E25</Color>
