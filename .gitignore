@@ -1,0 +1,38 @@
+# .NET build output
+bin/
+obj/
+*.user
+.vs/
+publish/
+*.pdb
+
+# Never commit build/runtime artefacts that an in-place install may drop
+# next to the sources (the installer targets the same folder).
+ui/*.dll
+ui/*.exe
+ui/*.deps.json
+ui/*.runtimeconfig.json
+ui/cs/
+ui/de/
+ui/es/
+ui/fr/
+ui/it/
+ui/ja/
+ui/ko/
+ui/pl/
+ui/pt-BR/
+ui/ru/
+ui/tr/
+ui/zh-Hans/
+ui/zh-Hant/
+
+# Local packaging artefacts
+dist/
+out/
+redist/
+*.bak
+
+# Never commit real tunnel configs / secrets
+warp.conf
+geo.conf
+config.json

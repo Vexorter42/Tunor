@@ -1,0 +1,54 @@
+<UserControl x:Class="Nyx.Views.SettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource BgBrush}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
+        <StackPanel MaxWidth="640" HorizontalAlignment="Left">
+
+            <TextBlock Text="Настройки" Style="{StaticResource H1}"/>
+            <TextBlock Text="Параметры settings.json" Style="{StaticResource Dim}" Margin="0,4,0,24"/>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Режимы работы" Style="{StaticResource H2}"/>
+
+                    <CheckBox x:Name="ChkTun" Content="TUN  — системный сетевой интерфейс"
+                              Margin="0,16,0,0" Checked="Toggle_Changed" Unchecked="Toggle_Changed"/>
+                    <TextBlock Text="Прозрачный перехват всего сетевого трафика"
+                               Style="{StaticResource Dim}" Margin="26,2,0,0"/>
+
+                    <CheckBox x:Name="ChkProxy" Content="Proxy  — HTTP/SOCKS-прокси"
+                              Margin="0,12,0,0" Checked="Toggle_Changed" Unchecked="Toggle_Changed"/>
+                    <TextBlock Text="Запуск локального HTTP/SOCKS-прокси"
+                               Style="{StaticResource Dim}" Margin="26,2,0,0"/>
+
+                    <CheckBox x:Name="ChkLogging" Content="Logging  — запись логов"
+                              Margin="0,12,0,0" Checked="Toggle_Changed" Unchecked="Toggle_Changed"/>
+                    <TextBlock Text="Сохранение логов sing-box"
+                               Style="{StaticResource Dim}" Margin="26,2,0,0"/>
+
+                    <CheckBox x:Name="ChkAccept" Content="Accept  — принять условия"
+                              Margin="0,12,0,0" Checked="Toggle_Changed" Unchecked="Toggle_Changed"/>
+                    <TextBlock Text="Согласие с условиями использования"
+                               Style="{StaticResource Dim}" Margin="26,2,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Маршрут по умолчанию (final)" Style="{StaticResource H2}"/>
+                    <TextBlock Text="Куда направлять трафик, не подходящий ни под одно правило"
+                               Style="{StaticResource Dim}" Margin="0,4,0,12"/>
+                    <RadioButton x:Name="RbDirect" Content="direct  — напрямую"
+                                 GroupName="Final" Margin="0,4,0,0"
+                                 Checked="Final_Changed"/>
+                    <RadioButton x:Name="RbProxy" Content="proxy  — через прокси"
+                                 GroupName="Final" Margin="0,8,0,0"
+                                 Checked="Final_Changed"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock x:Name="SaveHint" Text="" Style="{StaticResource Dim}" Margin="4,12,0,0"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

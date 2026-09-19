@@ -1,0 +1,53 @@
+<Window x:Class="Nyx.Views.GenerateConfigDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Генерация конфига"
+        Width="580" Height="560"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}"
+        Icon="../Assets/app.ico">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock x:Name="TitleText" Style="{StaticResource H1}"/>
+            <TextBlock x:Name="IntroText" Style="{StaticResource Dim}" Margin="0,6,0,0"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- Settings table (WARP only) -->
+                <Border x:Name="SettingsCard" Style="{StaticResource Card}"
+                        Margin="0,0,0,14" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="Настройки в боте" Style="{StaticResource H2}" Margin="0,0,0,10"/>
+                        <StackPanel x:Name="SettingsList"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Steps -->
+                <TextBlock Text="Шаги" Style="{StaticResource H2}" Margin="0,0,0,8"/>
+                <StackPanel x:Name="StepsList"/>
+
+                <!-- Note -->
+                <Border x:Name="NoteCard" Style="{StaticResource Card}" Margin="0,14,0,0"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="NoteText" Style="{StaticResource Dim}" TextWrapping="Wrap"/>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right"
+                    Margin="0,16,0,0">
+            <Button x:Name="LinkButton" Style="{StaticResource PrimaryButton}"
+                    Click="LinkButton_Click" Margin="0,0,8,0" MinWidth="220"/>
+            <Button Content="Закрыть" Style="{StaticResource SecondaryButton}"
+                    Click="Close_Click" MinWidth="100"/>
+        </StackPanel>
+    </Grid>
+</Window>
