@@ -92,27 +92,14 @@ public partial class HomePage : UserControl
             }
 
             UpdateStatus.Text = $"Доступна версия {info.Latest}";
-            var msg = $"Доступно обновление!\n\nТекущая: {info.Current}\nНовая: {info.Latest}\n\n" +
-                      (string.IsNullOrWhiteSpace(info.Notes) ? "" : info.Notes + "\n\n") +
-                      "Скачать и установить сейчас? Приложение перезапустится.";
-            if (MessageBox.Show(msg, "Обновление", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
-                return;
 
-            UpdateStatus.Text = "Скачиваем обновление…";
-            var progress = new Progress<double>(p =>
-                Dispatcher.Invoke(() => UpdateStatus.Text = $"Скачиваем… {p * 100:0}%"));
-            var (ok, message) = await Services.UpdateService.DownloadAndApplyAsync(info, progress);
-            if (ok)
-            {
-                UpdateStatus.Text = "Устанавливаем обновление… приложение закроется";
-                await System.Threading.Tasks.Task.Delay(1200);
+            var dlg = new UpdateDialog(info) { Owner = Window.GetWindow(this) };
+            dlg.ShowDialog();
+
+            if (dlg.InstallStarted)
                 (Window.GetWindow(this) as MainWindow)?.ShutdownForUpdate();
-            }
             else
-            {
-                UpdateStatus.Text = "Не удалось обновить";
-                MessageBox.Show(message, "Обновление", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+                UpdateStatus.Text = $"Доступна версия {info.Latest} — обновление отложено";
         }
         catch (Exception ex)
         {

@@ -1,0 +1,82 @@
+<Window x:Class="Nyx.Views.UpdateDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Обновление Nyx"
+        Width="540" Height="500"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource BgBrush}"
+        Icon="../Assets/app.ico">
+    <Grid Margin="28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0">
+            <TextBlock x:Name="TitleText" Text="Доступно обновление" Style="{StaticResource H1}"/>
+            <Border x:Name="KindBadge" Style="{StaticResource Badge}" HorizontalAlignment="Left"
+                    Margin="0,12,0,0">
+                <TextBlock x:Name="KindText" FontSize="11.5" FontWeight="SemiBold"
+                           Foreground="{StaticResource AccentBrush}"/>
+            </Border>
+        </StackPanel>
+
+        <!-- Version transition -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,18,0,0" Padding="20,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Установлена" Style="{StaticResource Dim}"/>
+                    <TextBlock x:Name="CurrentVersionText" FontSize="20" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextDimBrush}" Margin="0,2,0,0"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="→" FontSize="22" VerticalAlignment="Center"
+                           Margin="12,10,12,0" Foreground="{StaticResource TextDimBrush}"/>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Новая версия" Style="{StaticResource Dim}"/>
+                    <TextBlock x:Name="NewVersionText" FontSize="20" FontWeight="Bold"
+                               Foreground="{StaticResource AccentBrush}" Margin="0,2,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Release notes -->
+        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,14,0,0" Padding="20,16">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Что нового" Style="{StaticResource H2}"
+                           Margin="0,0,0,10"/>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="NotesText" TextWrapping="Wrap" LineHeight="20"
+                               Foreground="{StaticResource TextBrush}" FontSize="13"/>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
+        <!-- Progress -->
+        <StackPanel x:Name="ProgressPanel" Grid.Row="3" Margin="0,16,0,0" Visibility="Collapsed">
+            <Grid Margin="0,0,0,8">
+                <TextBlock x:Name="ProgressText" Style="{StaticResource Dim}" HorizontalAlignment="Left"/>
+                <TextBlock x:Name="ProgressPercent" Style="{StaticResource Dim}" HorizontalAlignment="Right"
+                           Foreground="{StaticResource AccentBrush}"/>
+            </Grid>
+            <ProgressBar x:Name="Bar" Minimum="0" Maximum="100"/>
+        </StackPanel>
+
+        <!-- Actions -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button x:Name="BtnLater" Content="Позже" Style="{StaticResource SecondaryButton}"
+                    Click="Later_Click" MinWidth="110" Margin="0,0,10,0"/>
+            <Button x:Name="BtnUpdate" Content="Обновить" Style="{StaticResource PrimaryButton}"
+                    Click="Update_Click" MinWidth="150"/>
+        </StackPanel>
+    </Grid>
+</Window>

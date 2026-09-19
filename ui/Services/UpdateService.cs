@@ -42,9 +42,22 @@ public class UpdateConfig
     }
 }
 
+public enum UpdateKind { None, Patch, Minor, Major }
+
 public class UpdateInfo
 {
     public bool Available { get; init; }
+    public UpdateKind Kind { get; init; }
+
+    /// <summary>Short Russian label for the badge, e.g. "Крупное обновление".</summary>
+    public string KindLabel => Kind switch
+    {
+        UpdateKind.Major => "MAJOR — крупное обновление",
+        UpdateKind.Minor => "MINOR — новые возможности",
+        UpdateKind.Patch => "PATCH — исправления",
+        _ => "",
+    };
+
     public string Current { get; init; } = "";
     public string Latest { get; init; } = "";
     public string Notes { get; init; } = "";
@@ -90,10 +103,22 @@ public static class UpdateService
             if (string.IsNullOrWhiteSpace(latest) || string.IsNullOrWhiteSpace(url))
                 return new UpdateInfo { Error = "Некорректный version.json" };
 
-            var newer = TryParse(latest) > CurrentVersion;
+            var latestV = TryParse(latest);
+            var cur = CurrentVersion;
+            var newer = latestV > cur;
+
+            var kind = UpdateKind.None;
+            if (newer)
+            {
+                if (latestV.Major > cur.Major) kind = UpdateKind.Major;
+                else if (latestV.Minor > cur.Minor) kind = UpdateKind.Minor;
+                else kind = UpdateKind.Patch;
+            }
+
             return new UpdateInfo
             {
                 Available = newer,
+                Kind = kind,
                 Current = CurrentVersionString,
                 Latest = latest,
                 Notes = notes,

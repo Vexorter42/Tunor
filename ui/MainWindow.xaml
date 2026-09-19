@@ -12,30 +12,40 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="218"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
         <!-- Sidebar -->
-        <Border Grid.Column="0" Background="{StaticResource BgPanelBrush}">
+        <Border Grid.Column="0" Background="{StaticResource BgPanelBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
             <DockPanel LastChildFill="True">
                 <!-- Header -->
-                <StackPanel DockPanel.Dock="Top" Margin="20,24,20,24">
-                    <TextBlock Text="Nyx" Style="{StaticResource H1}"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <Ellipse x:Name="StatusDot" Width="8" Height="8"
-                                 Fill="{StaticResource DangerBrush}" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="StatusText" Text="Stopped" Margin="6,0,0,0"
-                                   Style="{StaticResource Dim}" VerticalAlignment="Center"/>
+                <StackPanel DockPanel.Dock="Top" Margin="22,26,22,22">
+                    <StackPanel Orientation="Horizontal">
+                        <Image Source="Assets/app.ico" Width="30" Height="30"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <TextBlock Text="Nyx" Style="{StaticResource H1}"
+                                   Margin="11,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
+                    <Border x:Name="StatusPill" Style="{StaticResource Badge}"
+                            HorizontalAlignment="Left" Margin="0,16,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="StatusDot" Width="7" Height="7"
+                                     Fill="{StaticResource DangerBrush}" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="StatusText" Text="Остановлен" Margin="7,0,0,0"
+                                       FontSize="11.5" FontWeight="SemiBold" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextDimBrush}"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- Footer (version) -->
-                <TextBlock x:Name="VersionLabel" DockPanel.Dock="Bottom" Text="v1.0" Margin="20,0,20,16"
+                <TextBlock x:Name="VersionLabel" DockPanel.Dock="Bottom" Text="v1.0" Margin="22,0,22,18"
                            Style="{StaticResource Dim}"/>
 
                 <!-- Nav -->
-                <StackPanel Margin="12,0">
+                <StackPanel Margin="14,0">
                     <RadioButton x:Name="NavHome" Content="Главная" Style="{StaticResource NavButton}"
                                  GroupName="Nav" IsChecked="True" Checked="Nav_Checked" Tag="home"/>
                     <RadioButton x:Name="NavSettings" Content="Настройки" Style="{StaticResource NavButton}"

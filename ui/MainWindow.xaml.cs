@@ -136,8 +136,15 @@ public partial class MainWindow : Window
     private void UpdateStatus()
     {
         var running = ProcessService.IsRunning;
-        StatusDot.Fill = (SolidColorBrush)FindResource(running ? "SuccessBrush" : "DangerBrush");
-        StatusText.Text = running ? "Running" : "Stopped";
+        var accent = (SolidColorBrush)FindResource(running ? "SuccessBrush" : "DangerBrush");
+
+        StatusDot.Fill = accent;
+        StatusText.Text = running ? "Подключено" : "Отключено";
+        StatusText.Foreground = accent;
+        // Tint the pill with a translucent version of the same colour.
+        var c = accent.Color;
+        StatusPill.Background = new SolidColorBrush(Color.FromArgb(0x2E, c.R, c.G, c.B));
+
         _tray?.UpdateStatus(running);
     }
 
