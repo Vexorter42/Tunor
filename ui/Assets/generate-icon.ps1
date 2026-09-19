@@ -5,8 +5,8 @@ $sizes = @(16, 24, 32, 48, 64, 128, 256)
 $pngs = @()
 
 # Palette (matches Styles/Theme.xaml)
-$bgTop    = [System.Drawing.Color]::FromArgb(255, 22, 24, 28)
-$bgBottom = [System.Drawing.Color]::FromArgb(255,  8,  9, 10)
+$bgTop    = [System.Drawing.Color]::FromArgb(255, 42, 48, 58)
+$bgBottom = [System.Drawing.Color]::FromArgb(255, 20, 23, 28)
 $accent   = [System.Drawing.Color]::FromArgb(255, 61, 220, 92)
 
 foreach ($size in $sizes) {

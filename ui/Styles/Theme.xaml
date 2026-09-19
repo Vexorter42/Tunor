@@ -2,18 +2,18 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- ======================= Palette ======================= -->
-    <Color x:Key="BgColor">#FF08090A</Color>
-    <Color x:Key="BgPanelColor">#FF121316</Color>
-    <Color x:Key="BgInputColor">#FF0D0E10</Color>
-    <Color x:Key="BgHoverColor">#FF1C1E22</Color>
+    <Color x:Key="BgColor">#FF1A1E25</Color>
+    <Color x:Key="BgPanelColor">#FF242932</Color>
+    <Color x:Key="BgInputColor">#FF1F242B</Color>
+    <Color x:Key="BgHoverColor">#FF2E343E</Color>
     <Color x:Key="AccentColor">#FF3DDC5C</Color>
     <Color x:Key="AccentHoverColor">#FF5BE877</Color>
-    <Color x:Key="AccentSoftColor">#2E3DDC5C</Color>
-    <Color x:Key="DangerColor">#FFFF5A5A</Color>
+    <Color x:Key="AccentSoftColor">#383DDC5C</Color>
+    <Color x:Key="DangerColor">#FFFF6B6B</Color>
     <Color x:Key="SuccessColor">#FF3DDC5C</Color>
     <Color x:Key="TextColor">#FFF4F6F7</Color>
-    <Color x:Key="TextDimColor">#FF8B929C</Color>
-    <Color x:Key="BorderColor">#FF23262B</Color>
+    <Color x:Key="TextDimColor">#FF959DA9</Color>
+    <Color x:Key="BorderColor">#FF3A404A</Color>
 
     <SolidColorBrush x:Key="BgBrush" Color="{StaticResource BgColor}"/>
     <SolidColorBrush x:Key="BgPanelBrush" Color="{StaticResource BgPanelColor}"/>
@@ -213,7 +213,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="#FF34383F"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="#FF4A515C"/>
                         </Trigger>
                         <Trigger Property="IsFocused" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
@@ -412,10 +412,10 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Border x:Name="T" Background="#FF2B2F35" CornerRadius="4" Margin="3,0"/>
+                    <Border x:Name="T" Background="#FF3D444F" CornerRadius="4" Margin="3,0"/>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="T" Property="Background" Value="#FF3C424A"/>
+                            <Setter TargetName="T" Property="Background" Value="#FF505863"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
