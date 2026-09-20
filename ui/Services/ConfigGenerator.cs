@@ -121,6 +121,10 @@ public static class ConfigGenerator
             }
             else if (g.IsLocal)
             {
+                // Rule-set files are downloaded, not bundled. Skip any that are not on
+                // disk yet — the engine refuses to start if a local rule-set is missing.
+                if (!LocalRuleSetExists(g.Path)) continue;
+
                 ruleSet.Add(new JsonObject
                 {
                     ["type"] = "local", ["path"] = g.Path,
@@ -172,6 +176,18 @@ public static class ConfigGenerator
             foreach (var x in xs) a.Add(x);
             return a;
         }
+    }
+
+    /// <summary>Rule-set paths are relative to the engine's working directory (build/).</summary>
+    private static bool LocalRuleSetExists(string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return false;
+        try
+        {
+            var full = Path.GetFullPath(Path.Combine(Paths.BuildDir, relativePath));
+            return File.Exists(full);
+        }
+        catch { return false; }
     }
 
     // --- .conf parsing -> wireguard endpoint (with AmneziaWG fields) ---

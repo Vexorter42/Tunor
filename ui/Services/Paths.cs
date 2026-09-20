@@ -10,6 +10,8 @@ public static class Paths
     public static string BuildDir => Path.Combine(AppRoot, "build");
     public static string DataDir => Path.Combine(AppRoot, "data");
     public static string RulesetsDir => Path.Combine(DataDir, "rulesets");
+    public static string LicensesDir => Path.Combine(AppRoot, "licenses");
+    public static string ThirdPartyNotices => Path.Combine(AppRoot, "THIRD-PARTY-NOTICES.md");
 
     public static string SettingsJson => Path.Combine(AppRoot, "settings.json");
     public static string UpdateJson => Path.Combine(AppRoot, "update.json");

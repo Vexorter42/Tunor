@@ -1,0 +1,103 @@
+<Window x:Class="Nyx.Views.FirstRunWizard"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Добро пожаловать в Nyx"
+        Width="660" Height="600"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="{StaticResource BgBrush}"
+        Icon="../Assets/app.ico">
+    <Grid Margin="30,26,30,26">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <Image Source="../Assets/app.ico" Width="34" Height="34"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                <TextBlock x:Name="StepTitle" Style="{StaticResource H1}"/>
+                <TextBlock x:Name="StepSubtitle" Style="{StaticResource Dim}" Margin="0,2,0,0"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Step dots -->
+        <ItemsControl x:Name="Dots" Grid.Row="1" Margin="0,18,0,0">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+        </ItemsControl>
+
+        <!-- Step content -->
+        <Grid Grid.Row="2" Margin="0,18,0,0">
+
+            <!-- 0: agreement -->
+            <Border x:Name="Step0" Style="{StaticResource Card}">
+                <DockPanel>
+                    <CheckBox x:Name="ChkAccept" DockPanel.Dock="Bottom" Margin="0,14,0,0"
+                              Checked="Accept_Changed" Unchecked="Accept_Changed"
+                              Content="Я прочитал и принимаю условия"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <TextBlock x:Name="AgreementText" TextWrapping="Wrap" LineHeight="20"
+                                   FontSize="12.5" Foreground="{StaticResource TextBrush}"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- 1: how it works -->
+            <Border x:Name="Step1" Style="{StaticResource Card}" Visibility="Collapsed">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="HowItWorks"/>
+                </ScrollViewer>
+            </Border>
+
+            <!-- 2: rule lists -->
+            <Border x:Name="Step2" Style="{StaticResource Card}" Visibility="Collapsed">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+                        <ProgressBar x:Name="ListsBar" Minimum="0" Maximum="100" Visibility="Collapsed"/>
+                        <TextBlock x:Name="ListsStatus" Style="{StaticResource Dim}" Margin="0,10,0,0"
+                                   TextWrapping="Wrap"/>
+                        <Button x:Name="BtnDownloadLists" Content="⇩  Скачать списки"
+                                Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left"
+                                Margin="0,14,0,0" MinWidth="180" Click="DownloadLists_Click"/>
+                    </StackPanel>
+                    <TextBlock TextWrapping="Wrap" LineHeight="20" FontSize="12.5"
+                               Foreground="{StaticResource TextBrush}"
+                               Text="Правила маршрутизации — это списки доменов, которые решают, какой трафик идти через туннель, а какой напрямую. Они не входят в установщик: Nyx скачивает их прямо из первоисточника (проект itdoginfo/allow-domains) через зеркало, чтобы обойти блокировку GitHub.&#10;&#10;Загрузка начнётся сама — если что-то не скачается, нажми кнопку ещё раз.&#10;&#10;Без списков Nyx тоже работает: через туннель пойдёт только то, что ты добавишь вручную в разделе «Правила». Списки можно дотянуть позже там же."/>
+                </DockPanel>
+            </Border>
+
+            <!-- 3: WARP config -->
+            <Border x:Name="Step3" Style="{StaticResource Card}" Visibility="Collapsed">
+                <DockPanel>
+                    <Button DockPanel.Dock="Bottom" Content="Открыть @warp_generator_bot"
+                            Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left"
+                            Margin="0,16,0,0" MinWidth="240" Click="OpenBot_Click"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="WarpSteps"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- 4: done -->
+            <Border x:Name="Step4" Style="{StaticResource Card}" Visibility="Collapsed">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="DoneSteps"/>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Navigation -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button x:Name="BtnBack" Content="Назад" Style="{StaticResource SecondaryButton}"
+                    Click="Back_Click" MinWidth="110" Margin="0,0,10,0"/>
+            <Button x:Name="BtnNext" Content="Далее" Style="{StaticResource PrimaryButton}"
+                    Click="Next_Click" MinWidth="150"/>
+        </StackPanel>
+    </Grid>
+</Window>

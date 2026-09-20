@@ -58,9 +58,35 @@ public partial class MainWindow : Window
             _tray = new TrayIcon(this);
             _tray.Show();
             if (App.IsAutostart) Hide();
+            else ShowFirstRunIfNeeded();
         };
 
         Closing += OnClosing;
+    }
+
+    /// <summary>
+    /// First launch after an install: show the licence agreement + tutorial.
+    /// Accepting is a gate — without it the app closes again.
+    /// </summary>
+    private void ShowFirstRunIfNeeded()
+    {
+        try
+        {
+            if (SettingsService.Load().Accept) return;
+
+            new FirstRunWizard { Owner = this }.ShowDialog();
+
+            if (!SettingsService.Load().Accept)
+            {
+                _forceExit = true;
+                Close();
+                return;
+            }
+
+            // Rule lists may have been downloaded during the wizard.
+            _rules.Reload();
+        }
+        catch { /* never block the UI on the wizard */ }
     }
 
     private DateTime _lastResumeRestart = DateTime.MinValue;

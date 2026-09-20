@@ -20,7 +20,7 @@ public partial class RulesPage : UserControl
         Loaded += (_, _) => Reload();
     }
 
-    private void Reload()
+    public void Reload()
     {
         _groups = new ObservableCollection<RuleGroup>(RulesService.Load());
         GroupsList.ItemsSource = _groups;
