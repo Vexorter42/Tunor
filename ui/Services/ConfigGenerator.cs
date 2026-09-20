@@ -44,9 +44,26 @@ public static class ConfigGenerator
         catch { /* never block startup on this */ }
     }
 
+    /// <summary>True when warp.conf holds a usable tunnel. Re-read on each access.</summary>
+    public static bool WarpConfigured => IsUsableConf(Paths.WarpConf);
+
+    /// <summary>True when geo.conf holds a usable tunnel. geo detours through warp.</summary>
+    public static bool GeoConfigured => WarpConfigured && IsUsableConf(Paths.GeoConf);
+
     public static void Generate()
     {
         var settings = SettingsService.Load();
+
+        // An endpoint built from a placeholder .conf never comes up, and the engine then
+        // repeats "WireGuard is not ready yet" forever. Leave such endpoints out entirely
+        // and route around them instead.
+        var warpOk = WarpConfigured;
+        var geoOk = warpOk && IsUsableConf(Paths.GeoConf);
+
+        var endpoints = new JsonArray();
+        if (warpOk) endpoints.Add(BuildWireguard("warp-out", Paths.WarpConf, null));
+        if (geoOk) endpoints.Add(BuildWireguard("geo-out", Paths.GeoConf, "warp-out"));
+
         var root = new JsonObject
         {
             ["log"] = new JsonObject
@@ -57,13 +74,48 @@ public static class ConfigGenerator
             ["dns"] = BuildDns(),
             ["inbounds"] = BuildInbounds(settings),
             ["outbounds"] = new JsonArray(new JsonObject { ["type"] = "direct", ["tag"] = "direct-out" }),
-            ["endpoints"] = new JsonArray(
-                BuildWireguard("warp-out", Paths.WarpConf, null),
-                BuildWireguard("geo-out", Paths.GeoConf, "warp-out")),
-            ["route"] = BuildRoute(settings),
+            ["endpoints"] = endpoints,
+            ["route"] = BuildRoute(settings, warpOk, geoOk),
         };
 
         File.WriteAllText(Paths.ConfigJson, root.ToJsonString(Opts));
+    }
+
+    /// <summary>
+    /// A .conf is usable only if it carries real key material and a reachable peer. The
+    /// installer ships templates with random keys and Endpoint 127.0.0.1 so the app has
+    /// something valid to parse — those must not become live endpoints.
+    /// </summary>
+    private const string PlaceholderMarker = "NYX-PLACEHOLDER";
+
+    private static bool IsUsableConf(string path)
+    {
+        if (!File.Exists(path)) return false;
+
+        // The shipped warp.conf points at the real Cloudflare endpoint and carries a real
+        // peer key — only the private key is random — so it is indistinguishable from a
+        // working config by its fields alone. The templates carry an explicit marker.
+        try
+        {
+            if (File.ReadAllText(path).Contains(PlaceholderMarker, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+        catch { return false; }
+
+        var (iface, peer) = ParseConf(path);
+        if (string.IsNullOrWhiteSpace(iface.GetValueOrDefault("PrivateKey"))) return false;
+        if (string.IsNullOrWhiteSpace(peer.GetValueOrDefault("PublicKey"))) return false;
+
+        var endpoint = peer.GetValueOrDefault("Endpoint", "");
+        var idx = endpoint.LastIndexOf(':');
+        if (idx <= 0) return false;
+
+        var host = endpoint[..idx].Trim('[', ']');
+        if (!int.TryParse(endpoint[(idx + 1)..], out var port) || port <= 0) return false;
+
+        return host.Length > 0
+            && host != "127.0.0.1" && host != "::1"
+            && host != "0.0.0.0" && host != "localhost";
     }
 
     private static JsonObject BuildDns() => new()
@@ -101,7 +153,7 @@ public static class ConfigGenerator
         };
     }
 
-    private static JsonObject BuildRoute(AppSettings s)
+    private static JsonObject BuildRoute(AppSettings s, bool warpOk, bool geoOk)
     {
         var groups = RulesService.Load();
         var ruleSet = new JsonArray();
@@ -147,25 +199,31 @@ public static class ConfigGenerator
             else warpTags.Add(g.Tag);
         }
 
+        // Never name an outbound that was not created — the engine refuses such a config.
+        // Without a geo tunnel its traffic falls back to warp (tunnelled) rather than
+        // direct (where it was blocked in the first place).
+        var warpTarget = warpOk ? "warp-out" : "direct-out";
+        var geoTarget = geoOk ? "geo-out" : warpTarget;
+
         var rules = new JsonArray
         {
             new JsonObject { ["action"] = "sniff" },
             new JsonObject { ["action"] = "hijack-dns", ["protocol"] = "dns" },
             new JsonObject { ["action"] = "route", ["outbound"] = "direct-out", ["ip_is_private"] = true },
             new JsonObject { ["action"] = "route", ["outbound"] = "direct-out", ["inbound"] = "direct-in" },
-            new JsonObject { ["action"] = "route", ["outbound"] = "warp-out", ["inbound"] = "warp-in" },
-            new JsonObject { ["action"] = "route", ["outbound"] = "geo-out", ["inbound"] = "geo-in" },
+            new JsonObject { ["action"] = "route", ["outbound"] = warpTarget, ["inbound"] = "warp-in" },
+            new JsonObject { ["action"] = "route", ["outbound"] = geoTarget, ["inbound"] = "geo-in" },
         };
         if (warpTags.Count > 0)
-            rules.Add(new JsonObject { ["action"] = "route", ["outbound"] = "warp-out", ["rule_set"] = ToArray(warpTags) });
+            rules.Add(new JsonObject { ["action"] = "route", ["outbound"] = warpTarget, ["rule_set"] = ToArray(warpTags) });
         if (geoTags.Count > 0)
-            rules.Add(new JsonObject { ["action"] = "route", ["outbound"] = "geo-out", ["rule_set"] = ToArray(geoTags) });
+            rules.Add(new JsonObject { ["action"] = "route", ["outbound"] = geoTarget, ["rule_set"] = ToArray(geoTags) });
 
         return new JsonObject
         {
             ["rules"] = rules,
             ["rule_set"] = ruleSet,
-            ["final"] = s.Final == "proxy" ? "warp-out" : "direct-out",
+            ["final"] = s.Final == "proxy" ? warpTarget : "direct-out",
             ["auto_detect_interface"] = true,
             ["default_domain_resolver"] = "main-dns",
         };

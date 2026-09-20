@@ -50,7 +50,17 @@ public static class ProcessService
     }
 
     private static void Log(string line, bool isError = false)
-        => LogReceived?.Invoke(null, new LogEventArgs(line, isError));
+        => LogReceived?.Invoke(null, new LogEventArgs(StripAnsi(line), isError));
+
+    /// <summary>
+    /// The engine colours its output with ANSI escapes. A WPF TextBox renders those as
+    /// literal junk ("[31mERROR[0m ..."), so strip them before the line goes anywhere.
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex AnsiRe =
+        new("\x1b\\[[0-9;?]*[ -/]*[@-~]", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static string StripAnsi(string s)
+        => string.IsNullOrEmpty(s) || !s.Contains('\x1b') ? s : AnsiRe.Replace(s, "");
 
     // ---------------------------------------------------------------- start
 
@@ -171,7 +181,8 @@ public static class ProcessService
             if (p == null) return false;
             var stdout = p.StandardOutput.ReadToEnd().Trim();
             p.WaitForExit(15000);
-            Log($"[ui] очистка TUN-адаптера: {(string.IsNullOrEmpty(stdout) ? "нет результата" : stdout)}");
+            if (stdout.Contains("removed", StringComparison.OrdinalIgnoreCase))
+                Log("[ui] убран оставшийся TUN-адаптер");
             return stdout.Contains("removed", StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception ex)
@@ -187,6 +198,7 @@ public static class ProcessService
     {
         await Task.Run(() =>
         {
+            var killed = false;
             foreach (var p in GetSingBoxProcesses())
             {
                 try
@@ -197,10 +209,10 @@ public static class ProcessService
                     }
                     else
                     {
-                        // Last resort — this is what leaves the adapter behind.
                         p.Kill(true);
                         p.WaitForExit(3000);
-                        Log("[ui] sing-box остановлен принудительно (мягкая остановка не сработала)", true);
+                        killed = true;
+                        Log("[ui] sing-box остановлен");
                     }
                 }
                 catch (Exception ex)
@@ -209,6 +221,12 @@ public static class ProcessService
                 }
                 finally { p.Dispose(); }
             }
+
+            // A killed engine leaves its sing-tun adapter registered, and the next start
+            // then dies with "create adapter: file already exists". Clearing it here makes
+            // the following start succeed first time instead of failing and retrying.
+            if (killed) RemoveStaleTunAdapter();
+
             StopLiveCapture();
         });
 
@@ -221,26 +239,68 @@ public static class ProcessService
     /// removes its own TUN adapter. Killing it outright leaves the adapter registered
     /// and the next start fails with "create adapter: file already exists".
     /// </summary>
-    private static bool TryGracefulStop(Process p, int timeoutMs = 6000)
+    /// <remarks>
+    /// Measured against sing-box 1.14.1-lx.8: it does not exit on Ctrl+C even with its
+    /// own console and no redirection. The attempt is kept because it costs little and a
+    /// future engine build may honour it, but the timeout is short — in practice the kill
+    /// below is what stops the engine, and StopAsync cleans up the TUN adapter afterwards.
+    /// </remarks>
+    private static bool TryGracefulStop(Process p, int timeoutMs = 1500)
     {
         try
         {
+            EnsureCtrlHandlerInstalled();
             FreeConsole();
             if (!AttachConsole((uint)p.Id)) return false;
             try
             {
-                // NULL handler with add=true makes *this* process ignore the Ctrl+C we raise.
-                SetConsoleCtrlHandler(IntPtr.Zero, true);
+                ReassertCtrlHandler();
+                // Group 0 is mandatory for CTRL_C_EVENT (the API refuses any other group),
+                // so the signal reaches every process on this console — this one included.
+                // _ctrlHandler swallows it.
                 if (!GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)) return false;
+                return p.WaitForExit(timeoutMs);
             }
-            finally
-            {
-                SetConsoleCtrlHandler(IntPtr.Zero, false);
-                FreeConsole();
-            }
-            return p.WaitForExit(timeoutMs);
+            finally { FreeConsole(); }
         }
         catch { return false; }
+    }
+
+    /// <summary>
+    /// Installs a permanent Ctrl+C handler that swallows the signal we raise on the
+    /// engine's console.
+    ///
+    /// This must be permanent. The previous version set the "ignore" flag just before
+    /// raising the event and cleared it in a finally block — but GenerateConsoleCtrlEvent
+    /// only *queues* the signal, and delivery runs on a separate thread in each attached
+    /// process. The guard was routinely gone by the time the signal came back to us, the
+    /// default handler ran, and the UI died: "the app closes when I press Restart".
+    /// </summary>
+    private static void EnsureCtrlHandlerInstalled()
+    {
+        lock (_ctrlLock)
+        {
+            if (_ctrlHandler != null) return;
+            // Held in a static field: the CLR must not collect a delegate the OS calls.
+            var handler = new ConsoleCtrlDelegate(
+                type => type == CTRL_C_EVENT || type == CTRL_BREAK_EVENT);
+            if (SetConsoleCtrlHandler(handler, true)) _ctrlHandler = handler;
+        }
+    }
+
+    /// <summary>
+    /// Re-registers the handler after attaching to another process's console. Attaching
+    /// can reset the console-control state, and losing the handler here would put the
+    /// self-kill back. Remove-then-add keeps exactly one registration.
+    /// </summary>
+    private static void ReassertCtrlHandler()
+    {
+        lock (_ctrlLock)
+        {
+            if (_ctrlHandler == null) return;
+            SetConsoleCtrlHandler(_ctrlHandler, false);
+            SetConsoleCtrlHandler(_ctrlHandler, true);
+        }
     }
 
     public static async Task RestartAsync()
@@ -270,7 +330,7 @@ public static class ProcessService
             {
                 try
                 {
-                    if (!TryGracefulStop(p, 3000))
+                    if (!TryGracefulStop(p, 1200))
                     {
                         p.Kill(true);
                         p.WaitForExit(1500);
@@ -285,9 +345,16 @@ public static class ProcessService
     }
 
     private const uint CTRL_C_EVENT = 0;
+    private const uint CTRL_BREAK_EVENT = 1;
+
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    private delegate bool ConsoleCtrlDelegate(uint ctrlType);
+
+    private static ConsoleCtrlDelegate? _ctrlHandler;
+    private static readonly object _ctrlLock = new();
 
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool AttachConsole(uint pid);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool FreeConsole();
-    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetConsoleCtrlHandler(ConsoleCtrlDelegate handler, bool add);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GenerateConsoleCtrlEvent(uint ctrlEvent, uint processGroupId);
 }

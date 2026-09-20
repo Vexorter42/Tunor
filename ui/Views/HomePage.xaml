@@ -18,6 +18,13 @@
                                    FontSize="16" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
                     </StackPanel>
 
+                    <!-- Shown when warp.conf / geo.conf are still the shipped templates. -->
+                    <Border x:Name="SetupWarning" Visibility="Collapsed" Margin="0,14,0,0"
+                            Background="{StaticResource BgInputBrush}" CornerRadius="10" Padding="12,10">
+                        <TextBlock x:Name="SetupWarningText" TextWrapping="Wrap" LineHeight="18"
+                                   FontSize="12.5" Foreground="{StaticResource TextBrush}"/>
+                    </Border>
+
                     <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
                         <Button x:Name="BtnStart" Content="▶  Запустить"
                                 Style="{StaticResource PrimaryButton}"

@@ -30,6 +30,26 @@ public partial class HomePage : UserControl
         BtnStart.Content = running ? "↻  Перезапустить" : "▶  Запустить";
         BtnStart.IsEnabled = true;
         BtnStop.IsEnabled = running;
+        UpdateSetupWarning();
+    }
+
+    /// <summary>
+    /// Says so plainly when a tunnel is still the shipped placeholder. Otherwise the only
+    /// clue was the engine repeating "WireGuard is not ready yet" in the log while every
+    /// connection quietly went direct.
+    /// </summary>
+    private void UpdateSetupWarning()
+    {
+        string? text = null;
+        if (!ConfigGenerator.WarpConfigured)
+            text = "Конфиг WARP ещё не заполнен — весь трафик идёт напрямую, мимо туннеля. " +
+                   "Сгенерируй конфиг и перетащи .conf на окно (или вставь в «Конфиги» → warp.conf).";
+        else if (!ConfigGenerator.GeoConfigured)
+            text = "Конфиг geo не заполнен — правила geo-* пока идут через WARP. " +
+                   "Это нормально: geo нужен, только если важна страна выхода.";
+
+        SetupWarningText.Text = text ?? "";
+        SetupWarning.Visibility = text == null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private async void BtnStartOrRestart_Click(object sender, RoutedEventArgs e)
