@@ -127,32 +127,62 @@ public class TrayIcon : IDisposable
         _window.Close();
     }
 
-    /// <summary>Tray mark: the Nyx crescent, tinted by connection state.</summary>
+    /// <summary>
+    /// Tray mark: the Nyx sign — traffic leaving a broken ring — tinted by connection
+    /// state. Geometry mirrors Assets/make_icon.py; change both together. Drawn large
+    /// and downsampled, since GDI+ anti-aliasing alone is coarse at 32px. No background
+    /// plate here: the tray sits straight on the taskbar.
+    /// </summary>
     private static Icon BuildIcon(bool running)
     {
         const int size = 32;
-        var moonColor = running ? Accent : Color.FromArgb(0x6E, 0x76, 0x80);
+        const int draw = size * 4;
+        var colour = running ? Accent : Color.FromArgb(0x6E, 0x76, 0x80);
+
+        const double exitDeg = 315.0;   // the arrow leaves towards the upper right
+        const float gapDeg = 86f;
+
+        using var big = new Bitmap(draw, draw);
+        using (var g = Graphics.FromImage(big))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            float cx = draw * 0.485f, cy = draw * 0.520f, r = draw * 0.300f;
+
+            using (var pen = new Pen(colour, draw * 0.125f))
+                g.DrawArc(pen, cx - r, cy - r, r * 2, r * 2,
+                          (float)exitDeg + gapDeg / 2, 360f - gapDeg);
+
+            // Shaft and head share one direction vector, so they meet without a seam.
+            var ux = (float)Math.Cos(exitDeg * Math.PI / 180.0);
+            var uy = (float)Math.Sin(exitDeg * Math.PI / 180.0);
+            float px = -uy, py = ux;
+
+            float tipX = cx + ux * r * 1.33f, tipY = cy + uy * r * 1.33f;
+            var headHalf = r * 0.34f;
+            var headLen = headHalf * 2f;
+            float baseX = tipX - ux * headLen, baseY = tipY - uy * headLen;
+
+            using (var pen = new Pen(colour, draw * 0.125f))
+                g.DrawLine(pen,
+                    cx - ux * r * 0.34f, cy - uy * r * 0.34f,
+                    baseX + ux * headLen * 0.45f, baseY + uy * headLen * 0.45f);
+
+            using (var brush = new SolidBrush(colour))
+                g.FillPolygon(brush, new[]
+                {
+                    new PointF(tipX, tipY),
+                    new PointF(baseX + px * headHalf, baseY + py * headHalf),
+                    new PointF(baseX - px * headHalf, baseY - py * headHalf),
+                });
+        }
 
         using var bmp = new Bitmap(size, size);
         using (var g = Graphics.FromImage(bmp))
         {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            float cx = size * 0.5f, cy = size * 0.5f, r = size * 0.38f;
-            using (var moon = new SolidBrush(moonColor))
-                g.FillEllipse(moon, cx - r, cy - r, r * 2, r * 2);
-
-            // Punch out an offset disc to carve the crescent (transparent bite).
-            using (var path = new GraphicsPath())
-            {
-                float pr = r * 0.84f, px = cx + r * 0.44f, py = cy - r * 0.30f;
-                path.AddEllipse(px - pr, py - pr, pr * 2, pr * 2);
-                var prev = g.CompositingMode;
-                g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
-                using (var clear = new SolidBrush(Color.Transparent))
-                    g.FillPath(clear, path);
-                g.CompositingMode = prev;
-            }
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+            g.DrawImage(big, 0, 0, size, size);
         }
 
         var hIcon = bmp.GetHicon();
