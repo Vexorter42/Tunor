@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>Nyx</AssemblyName>
+    <RootNamespace>Nyx</RootNamespace>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+  </PropertyGroup>
+
+  <!-- The Windows app is not touched: its portable services are LINKED in, not copied,
+       so the logic exists once and cannot drift between the two builds. Anything
+       platform-bound (ProcessService, TaskService, TrayIcon) has its own macOS
+       implementation here; Paths.cs is replaced wholesale by MacPaths.cs. -->
+  <ItemGroup>
+    <Compile Include="..\..\ui\Services\ConfigGenerator.cs" Link="Shared\ConfigGenerator.cs" />
+    <Compile Include="..\..\ui\Services\RulesService.cs" Link="Shared\RulesService.cs" />
+    <Compile Include="..\..\ui\Services\SettingsService.cs" Link="Shared\SettingsService.cs" />
+    <Compile Include="..\..\ui\Services\ConfImporter.cs" Link="Shared\ConfImporter.cs" />
+    <Compile Include="..\..\ui\Services\RulesetDownloader.cs" Link="Shared\RulesetDownloader.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Headless" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Skia" Version="12.1.2" />
+  </ItemGroup>
+
+</Project>

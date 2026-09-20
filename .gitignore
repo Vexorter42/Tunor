@@ -36,3 +36,7 @@ redist/
 warp.conf
 geo.conf
 config.json
+
+# macOS build artefacts and the downloaded engine (72 MB, fetched at package time)
+mac/out/
+mac/engine/
