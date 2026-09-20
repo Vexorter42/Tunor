@@ -106,3 +106,11 @@ $bytes = $out.ToArray(); $out.Dispose()
 $outPath = Join-Path $PSScriptRoot 'app.ico'
 [System.IO.File]::WriteAllBytes($outPath, $bytes)
 Write-Output "Wrote $($bytes.Length) bytes -> $outPath"
+
+# Also write the 256px frame as a standalone PNG. In-app <Image> elements use it
+# instead of the .ico: WPF decodes an icon's FIRST frame (16x16) and scales that
+# up, so a 30px logo sourced from the .ico comes out blurry.
+$largest = ($pngs | Sort-Object { $_.size } | Select-Object -Last 1)
+$pngPath = Join-Path $PSScriptRoot 'app.png'
+[System.IO.File]::WriteAllBytes($pngPath, $largest.bytes)
+Write-Output "Wrote $($largest.size)x$($largest.size) PNG -> $pngPath"

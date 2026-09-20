@@ -26,7 +26,7 @@
                 <!-- Header -->
                 <StackPanel DockPanel.Dock="Top" Margin="22,26,22,22">
                     <StackPanel Orientation="Horizontal">
-                        <Image Source="Assets/app.ico" Width="30" Height="30"
+                        <Image Source="Assets/app.png" Width="30" Height="30"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                         <TextBlock Text="Nyx" Style="{StaticResource H1}"
                                    Margin="11,0,0,0" VerticalAlignment="Center"/>

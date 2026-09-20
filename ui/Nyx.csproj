@@ -9,12 +9,17 @@
     <LangVersion>latest</LangVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!-- WFAC010 tells WinForms apps to drop DPI settings from the manifest and call
+         Application.SetHighDpiMode instead. This is a WPF app: its entry point never
+         runs WinForms' ApplicationConfiguration.Initialize(), so the manifest is the
+         only thing that makes the process DPI-aware. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
     <AssemblyName>Nyx</AssemblyName>
     <RootNamespace>Nyx</RootNamespace>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>1.5.0</Version>
-    <FileVersion>1.5.0</FileVersion>
-    <AssemblyVersion>1.5.0</AssemblyVersion>
+    <Version>1.5.1</Version>
+    <FileVersion>1.5.1</FileVersion>
+    <AssemblyVersion>1.5.1</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +28,9 @@
 
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
+    <!-- 256px source for in-app <Image> elements: WPF decodes an .ico's FIRST
+         frame (16x16) and upscales it, which looks blurry at 30-34px. -->
+    <Resource Include="Assets\app.png" />
   </ItemGroup>
 
 </Project>
