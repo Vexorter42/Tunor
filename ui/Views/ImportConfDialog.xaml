@@ -1,0 +1,86 @@
+<Window x:Class="Nyx.Views.ImportConfDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Импорт конфига"
+        Width="520" Height="470"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource BgBrush}"
+        Icon="../Assets/app.ico">
+    <Grid Margin="26">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Импорт конфига" Style="{StaticResource H1}"/>
+            <TextBlock x:Name="FileNameText" Style="{StaticResource Dim}" Margin="0,6,0,0"
+                       TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+
+        <!-- Detection -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,16,0,0" Padding="20,16">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Border x:Name="KindBadge" Style="{StaticResource Badge}">
+                        <TextBlock x:Name="KindText" FontSize="11.5" FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentBrush}"/>
+                    </Border>
+                    <TextBlock x:Name="ConfidenceText" Style="{StaticResource Dim}"
+                               VerticalAlignment="Center" Margin="10,0,0,0"/>
+                </StackPanel>
+                <TextBlock x:Name="ReasonText" Style="{StaticResource Dim}" Margin="0,10,0,0"
+                           TextWrapping="Wrap"/>
+
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="110"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Сервер" Style="{StaticResource Dim}" Margin="0,0,0,5"/>
+                    <TextBlock x:Name="EndpointText" Grid.Row="0" Grid.Column="1" FontSize="12.5"
+                               Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,5"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Адрес" Style="{StaticResource Dim}" Margin="0,0,0,5"/>
+                    <TextBlock x:Name="AddressText" Grid.Row="1" Grid.Column="1" FontSize="12.5"
+                               Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,5"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="AmneziaWG" Style="{StaticResource Dim}"/>
+                    <TextBlock x:Name="AwgText" Grid.Row="2" Grid.Column="1" FontSize="12.5"
+                               Foreground="{StaticResource TextBrush}"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Target choice -->
+        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,14,0,0" Padding="20,16">
+            <StackPanel>
+                <TextBlock Text="Применить как" Style="{StaticResource H2}" Margin="0,0,0,12"/>
+                <RadioButton x:Name="RbWarp" GroupName="Target"
+                             Content="warp.conf  —  основной туннель (WARP)"/>
+                <RadioButton x:Name="RbGeo" GroupName="Target" Margin="0,10,0,0"
+                             Content="geo.conf  —  geo-туннель (через WARP)"/>
+            </StackPanel>
+        </Border>
+
+        <CheckBox x:Name="ChkRestart" Grid.Row="3" VerticalAlignment="Top" Margin="2,16,0,0"
+                  IsChecked="True" Content="Перезапустить туннель после применения"/>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Отмена" Style="{StaticResource SecondaryButton}"
+                    Click="Cancel_Click" MinWidth="110" Margin="0,0,10,0"/>
+            <Button x:Name="BtnApply" Content="Применить" Style="{StaticResource PrimaryButton}"
+                    Click="Apply_Click" MinWidth="150"/>
+        </StackPanel>
+    </Grid>
+</Window>

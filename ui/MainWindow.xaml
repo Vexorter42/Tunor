@@ -8,7 +8,10 @@
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="True"
         Visibility="Visible"
-        Icon="Assets/app.ico">
+        Icon="Assets/app.ico"
+        AllowDrop="True"
+        DragEnter="Window_DragEnter" DragOver="Window_DragOver"
+        DragLeave="Window_DragLeave" Drop="Window_Drop">
 
     <Grid>
         <Grid.ColumnDefinitions>
@@ -64,5 +67,22 @@
 
         <!-- Content -->
         <ContentControl x:Name="PageHost" Grid.Column="1"/>
+
+        <!-- Drop target overlay -->
+        <Border x:Name="DropOverlay" Grid.ColumnSpan="2" Visibility="Collapsed"
+                Background="#E61A1E25" IsHitTestVisible="False">
+            <Border Margin="40" CornerRadius="20" BorderThickness="2"
+                    BorderBrush="{StaticResource AccentBrush}"
+                    Background="{StaticResource BgPanelBrush}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="Отпустите файл" Style="{StaticResource H1}"
+                               HorizontalAlignment="Center"
+                               Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Text="Конфиг .conf будет определён автоматически — WARP или geo"
+                               Style="{StaticResource Dim}" Margin="0,10,0,0"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </Window>

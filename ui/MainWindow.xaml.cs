@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -161,5 +163,54 @@ public partial class MainWindow : Window
             "autostart" => _autostart,
             _ => _home,
         };
+    }
+
+    // ------------------------------------------------------ drag & drop import
+
+    private void Window_DragEnter(object sender, DragEventArgs e) => UpdateDropState(e);
+    private void Window_DragOver(object sender, DragEventArgs e) => UpdateDropState(e);
+
+    private void Window_DragLeave(object sender, DragEventArgs e)
+        => DropOverlay.Visibility = Visibility.Collapsed;
+
+    private void UpdateDropState(DragEventArgs e)
+    {
+        var ok = GetDroppedConfigs(e).Count > 0;
+        DropOverlay.Visibility = ok ? Visibility.Visible : Visibility.Collapsed;
+        e.Effects = ok ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private static List<string> GetDroppedConfigs(DragEventArgs e)
+    {
+        var result = new List<string>();
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return result;
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] files) return result;
+        foreach (var f in files)
+            if (ConfImporter.LooksLikeConf(f)) result.Add(f);
+        return result;
+    }
+
+    private async void Window_Drop(object sender, DragEventArgs e)
+    {
+        DropOverlay.Visibility = Visibility.Collapsed;
+        e.Handled = true;
+
+        var files = GetDroppedConfigs(e);
+        if (files.Count == 0) return;
+
+        var restart = false;
+        foreach (var file in files.Take(4))
+        {
+            var detection = ConfImporter.Detect(file);
+            var dlg = new ImportConfDialog(file, detection) { Owner = this };
+            dlg.ShowDialog();
+            if (dlg.Applied && dlg.ShouldRestart) restart = true;
+        }
+
+        if (restart)
+        {
+            try { await ProcessService.RestartAsync(); } catch { }
+        }
     }
 }
