@@ -193,6 +193,35 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------ drag & drop import
 
+    /// <summary>
+    /// Nyx runs elevated, Explorer does not. UIPI silently drops window messages sent
+    /// from a lower integrity level to a higher one, so dragging a .conf from Explorer
+    /// onto this window never arrived — nothing highlighted, nothing happened. These
+    /// three messages are what OLE drag-and-drop needs; allowing them is the standard
+    /// (and deliberately narrow) exception an elevated app has to make to accept drops.
+    /// </summary>
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;
+            foreach (var msg in new uint[] { WM_DROPFILES, WM_COPYDATA, WM_COPYGLOBALDATA })
+                ChangeWindowMessageFilterEx(hwnd, msg, MSGFLT_ALLOW, IntPtr.Zero);
+        }
+        catch { /* drag-and-drop is a convenience; never block startup on it */ }
+    }
+
+    private const uint WM_DROPFILES = 0x0233;
+    private const uint WM_COPYDATA = 0x004A;
+    private const uint WM_COPYGLOBALDATA = 0x0049;
+    private const uint MSGFLT_ALLOW = 1;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern bool ChangeWindowMessageFilterEx(
+        IntPtr hwnd, uint message, uint action, IntPtr changeInfo);
+
     private void Window_DragEnter(object sender, DragEventArgs e) => UpdateDropState(e);
     private void Window_DragOver(object sender, DragEventArgs e) => UpdateDropState(e);
 

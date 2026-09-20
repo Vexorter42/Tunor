@@ -17,9 +17,9 @@
     <AssemblyName>Nyx</AssemblyName>
     <RootNamespace>Nyx</RootNamespace>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>1.5.2</Version>
-    <FileVersion>1.5.2</FileVersion>
-    <AssemblyVersion>1.5.2</AssemblyVersion>
+    <Version>1.5.3</Version>
+    <FileVersion>1.5.3</FileVersion>
+    <AssemblyVersion>1.5.3</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
