@@ -31,6 +31,30 @@
                         Click="UpdateRulesets_Click"/>
             </StackPanel>
             <TextBlock x:Name="StatusText" Margin="0,6,0,0" Style="{StaticResource Dim}"/>
+
+            <!-- Where will this go? -->
+            <Border Style="{StaticResource Card}" Padding="14,10" Margin="0,10,0,0">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Куда пойдёт:" Foreground="{StaticResource TextBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox x:Name="LookupBox" Grid.Column="1" KeyDown="LookupBox_KeyDown"
+                                 ToolTip="Домен, адрес сайта целиком, IP или имя процесса вроде Discord.exe"/>
+                        <Button x:Name="LookupBtn" Grid.Column="2" Content="Проверить" Padding="14,6"
+                                Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                                Click="Lookup_Click"/>
+                    </Grid>
+                    <TextBlock x:Name="LookupResult" Margin="0,8,0,0" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextBrush}" Visibility="Collapsed"/>
+                    <TextBlock x:Name="LookupDetail" Margin="0,2,0,0" TextWrapping="Wrap"
+                               Style="{StaticResource Dim}" Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
         </StackPanel>
 
         <Grid Grid.Row="2">
@@ -43,6 +67,12 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="Группы" Style="{StaticResource H2}"
                                Margin="16,12,16,8"/>
+                    <TextBox x:Name="SearchBox" DockPanel.Dock="Top" Margin="12,0,12,8"
+                             TextChanged="SearchBox_TextChanged"
+                             ToolTip="Ищет по названиям групп и по доменам и процессам внутри них"/>
+                    <TextBlock x:Name="SearchHint" DockPanel.Dock="Top" Margin="16,0,16,6"
+                               Style="{StaticResource Dim}" FontSize="11" TextWrapping="Wrap"
+                               Text="Поиск по группам и их содержимому"/>
                     <ListBox x:Name="GroupsList" Background="Transparent" BorderThickness="0"
                              Foreground="{StaticResource TextBrush}"
                              SelectionChanged="GroupsList_SelectionChanged"

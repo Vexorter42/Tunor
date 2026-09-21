@@ -37,6 +37,9 @@ public partial class UpdateRulesetsDialog : Window
 
             foreach (var r in results)
                 if (r.Ok) { AnyDownloaded = true; break; }
+
+            // A manual refresh resets the weekly background timer.
+            if (AnyDownloaded) ListsUpdater.MarkUpdated();
         }
         catch (Exception ex)
         {

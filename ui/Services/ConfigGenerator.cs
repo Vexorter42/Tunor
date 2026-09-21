@@ -50,6 +50,63 @@ public static class ConfigGenerator
     }
 
     /// <summary>
+    /// Candidate ports for the stats API. Deliberately not 9090, the usual Clash port:
+    /// a bind failure there would stop the whole engine from starting, and people who
+    /// need Nyx have often tried Clash first.
+    /// </summary>
+    private static readonly int[] ControllerPorts = { 29090, 29091, 29092, 29093, 29094, 29095 };
+
+    /// <summary>
+    /// Makes sure the stats API has a port and a secret, persisting both. The port is
+    /// probed only when none is stored yet, so it stays stable while the engine is
+    /// running (and holding it). Returns false when no candidate port is free.
+    /// </summary>
+    private static bool EnsureController(AppSettings s)
+    {
+        var changed = false;
+        if (string.IsNullOrEmpty(s.ControllerSecret))
+        {
+            s.ControllerSecret = Convert.ToHexString(
+                System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+            changed = true;
+        }
+        if (s.ControllerPort == 0)
+        {
+            var free = ControllerPorts.FirstOrDefault(IsPortFree);
+            if (free == 0) return false;   // leave the API out rather than risk the engine
+            s.ControllerPort = free;
+            changed = true;
+        }
+        if (changed)
+            try { SettingsService.Save(s); } catch { }
+        return true;
+    }
+
+    /// <summary>Forgets the stats port so the next build probes for a free one.</summary>
+    public static void ResetControllerPort()
+    {
+        try
+        {
+            var s = SettingsService.Load();
+            s.ControllerPort = 0;
+            SettingsService.Save(s);
+        }
+        catch { }
+    }
+
+    private static bool IsPortFree(int port)
+    {
+        try
+        {
+            var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+            l.Start();
+            l.Stop();
+            return true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
     /// Records which build wrote config.json. Kept beside it rather than inside it:
     /// sing-box rejects unknown fields, so a marker in the config would break it.
     /// </summary>
@@ -91,6 +148,22 @@ public static class ConfigGenerator
             ["endpoints"] = endpoints,
             ["route"] = BuildRoute(settings, warpOk, geoOk),
         };
+
+        // Stats API for the Connections page. Windows only for now: the macOS engine
+        // build has not been checked for it, and a missing feature would stop it starting.
+        if (OperatingSystem.IsWindows() && EnsureController(settings))
+        {
+            root["experimental"] = new JsonObject
+            {
+                ["clash_api"] = new JsonObject
+                {
+                    // Loopback only, with a secret: nothing outside this machine can
+                    // reach it, and nothing on it can without the token.
+                    ["external_controller"] = $"127.0.0.1:{settings.ControllerPort}",
+                    ["secret"] = settings.ControllerSecret,
+                },
+            };
+        }
 
         File.WriteAllText(Paths.ConfigJson, root.ToJsonString(Opts));
         try { File.WriteAllText(StampFile, GeneratorVersion); } catch { }
@@ -254,7 +327,14 @@ public static class ConfigGenerator
         {
             ["rules"] = rules,
             ["rule_set"] = ruleSet,
-            ["final"] = s.Final == "proxy" ? warpTarget : "direct-out",
+            // geoTarget/warpTarget already fall back (geo → warp → direct) when a tunnel
+            // is not configured, so an unset geo never strands the default route.
+            ["final"] = s.Final switch
+            {
+                "geo" => geoTarget,
+                "proxy" => warpTarget,
+                _ => "direct-out",
+            },
             ["auto_detect_interface"] = true,
             ["default_domain_resolver"] = "main-dns",
         };

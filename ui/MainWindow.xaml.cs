@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private readonly RulesPage _rules = new();
     private readonly ConfigsPage _configs = new();
     private readonly LogsPage _logs = new();
+    private readonly ConnectionsPage _connections = new();
     private readonly AutostartPage _autostart = new();
 
     private TrayIcon? _tray;
@@ -59,6 +60,8 @@ public partial class MainWindow : Window
             _tray.Show();
             if (App.IsAutostart) Hide();
             else ShowFirstRunIfNeeded();
+
+            _ = ListsUpdater.RunIfDueAsync();
         };
 
         Closing += OnClosing;
@@ -186,6 +189,7 @@ public partial class MainWindow : Window
             "rules" => _rules,
             "configs" => _configs,
             "logs" => _logs,
+            "connections" => _connections,
             "autostart" => _autostart,
             _ => _home,
         };

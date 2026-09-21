@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using Nyx.Services;
 
@@ -28,6 +29,7 @@ public partial class RulesPage : UserControl
             GroupsList.SelectedIndex = 0;
         else
             ShowGroup(null);
+        if (Query.Length > 0) ApplySearch();
     }
 
     private void GroupsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -83,6 +85,7 @@ public partial class RulesPage : UserControl
                 KindProcess.IsChecked = g.ItemKind == RuleItemKind.ProcessName;
                 ItemsList.ItemsSource = g.Items;
                 UpdateItemPlaceholder();
+                ApplyItemFilter();
             }
         }
         finally { _suppress = false; }
@@ -228,6 +231,98 @@ public partial class RulesPage : UserControl
         catch (Exception ex)
         {
             StatusText.Text = "Ошибка: " + ex.Message;
+        }
+    }
+
+    // ---------------------------------------------------------------- search
+
+    private string Query => SearchBox.Text.Trim();
+
+    private static bool Hit(string? text, string q)
+        => !string.IsNullOrEmpty(text) && text.Contains(q, StringComparison.OrdinalIgnoreCase);
+
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplySearch();
+
+    /// <summary>
+    /// Filters the group list by name and by content, and narrows the open group's items
+    /// to the matching ones — finding which list holds a domain meant scrolling through
+    /// every group by hand.
+    /// </summary>
+    private void ApplySearch()
+    {
+        var q = Query;
+        var view = CollectionViewSource.GetDefaultView(_groups);
+        if (view == null) return;
+
+        view.Filter = q.Length == 0
+            ? null
+            : o => o is RuleGroup g && (Hit(g.Tag, q) || g.Items.Any(i => Hit(i, q)));
+
+        var shown = view.Cast<object>().Count();
+        SearchHint.Text = q.Length == 0 ? "Поиск по группам и их содержимому"
+                        : shown == 0 ? "Ничего не найдено"
+                        : $"Найдено групп: {shown}";
+
+        // Keep a sensible selection: the current one if it still matches, else the first.
+        if (GroupsList.SelectedItem == null || !view.Contains(GroupsList.SelectedItem))
+            GroupsList.SelectedIndex = shown > 0 ? 0 : -1;
+
+        ApplyItemFilter();
+    }
+
+    private void ApplyItemFilter()
+    {
+        if (_current == null || !_current.IsInline) return;
+        var view = CollectionViewSource.GetDefaultView(_current.Items);
+        if (view == null) return;
+
+        var q = Query;
+        // Filter the items only when the query is about them; a match on the group's
+        // name alone should still show the whole group.
+        view.Filter = q.Length == 0 || !_current.Items.Any(i => Hit(i, q))
+            ? null
+            : o => o is string s && Hit(s, q);
+    }
+
+    // ---------------------------------------------------------------- lookup
+
+    private void LookupBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) Lookup_Click(sender, e);
+    }
+
+    private async void Lookup_Click(object sender, RoutedEventArgs e)
+    {
+        var input = LookupBox.Text;
+        if (string.IsNullOrWhiteSpace(input)) return;
+
+        LookupBtn.IsEnabled = false;
+        LookupResult.Visibility = Visibility.Visible;
+        LookupResult.Text = "Проверяю…";
+        LookupDetail.Visibility = Visibility.Collapsed;
+        try
+        {
+            // The lookup reads rules.json: unsaved edits here would give a stale answer.
+            RulesService.Save(_groups);
+            var r = await RouteLookup.CheckAsync(input);
+
+            LookupResult.Text = $"{r.Input}  →  {r.Route}";
+            var detail = r.Why;
+            if (r.Unchecked.Count > 0)
+                detail += $"\nНе проверено (скачиваются движком сами): {string.Join(", ", r.Unchecked)}";
+            if (r.Hits.Count == 0 && !r.Input.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                && r.Input.Count(c => c == '.') >= 2)
+                detail += "\nДомены в группах совпадают только целиком: «example.com» не покрывает «www.example.com».";
+            LookupDetail.Text = detail;
+            LookupDetail.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            LookupResult.Text = "Не удалось проверить: " + ex.Message;
+        }
+        finally
+        {
+            LookupBtn.IsEnabled = true;
         }
     }
 }

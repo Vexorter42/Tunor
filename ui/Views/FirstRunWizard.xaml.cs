@@ -169,7 +169,7 @@ public partial class FirstRunWizard : Window
         Add(WarpSteps, 1, "Открой бота @warp_generator_bot (кнопка ниже).");
         Add(WarpSteps, 2, "Сгенерируй конфиг: провайдер Cloudflare WARP, формат AmneziaWG. Версия AWG — любая, Nyx понимает 1.0, 2.0 и 3.x.");
         Add(WarpSteps, 3, "Бот пришлёт файл .conf — перетащи его прямо на окно Nyx. Или скопируй текст и вставь в раздел «Конфиги» → warp.conf.");
-        Add(WarpSteps, 4, "Нажми «Сохранить и применить» — конфиг соберётся автоматически.");
+        Add(WarpSteps, 4, "Нажми «Сохранить» — config.json соберётся сам. Если туннель уже запущен, перезапусти его.");
     }
 
     private void BuildDoneSteps()
@@ -242,6 +242,7 @@ public partial class FirstRunWizard : Window
             {
                 RulesService.Save(groups);
                 ConfigGenerator.Generate();
+                ListsUpdater.MarkUpdated();
             }
 
             ListsBar.IsIndeterminate = false;

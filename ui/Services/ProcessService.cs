@@ -61,6 +61,9 @@ public static class ProcessService
     private static void Log(string line, bool isError = false)
         => LogReceived?.Invoke(null, new LogEventArgs(StripAnsi(line), isError));
 
+    /// <summary>Puts an app-side message into the log, marked as coming from the UI.</summary>
+    public static void Note(string message, bool isError = false) => Log("[ui] " + message, isError);
+
     /// <summary>
     /// The engine colours its output with ANSI escapes. A WPF TextBox renders those as
     /// literal junk ("[31mERROR[0m ..."), so strip them before the line goes anywhere.
@@ -77,6 +80,7 @@ public static class ProcessService
     {
         if (IsRunning) return;
         LastFailure = null;
+        _wantRunning = true;
 
         if (!await LaunchAsync())
         {
@@ -179,45 +183,109 @@ public static class ProcessService
         Thread.Sleep(300);
 
         string joined;
-        lock (_errLock) joined = string.Join("\n", _recentErrors);
+        lock (_errLock) joined = string.Join('\n', _recentErrors);
 
-        LastFailure = Explain(joined)
-            ?? "Движок завершился с ошибкой — подробности в разделе «Логи».";
+        var (reason, retryable) = Explain(joined);
+
+        // The stats API port was taken after it was chosen. Pick a free one and rebuild
+        // config.json now, so the watchdog's restart does not hit the same wall.
+        if (joined.Contains("external controller", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                ConfigGenerator.ResetControllerPort();
+                ConfigGenerator.Generate();
+            }
+            catch { retryable = false; }
+        }
+
+        LastFailure = reason ?? "Движок завершился с ошибкой — подробности в разделе «Логи».";
         Log("[ui] " + LastFailure, true);
         StatusChanged?.Invoke(null, EventArgs.Empty);
+
+        _ = WatchdogAsync(retryable);
     }
 
-    /// <summary>Known fatal engine errors, in terms a user can act on.</summary>
-    private static string? Explain(string errors)
+    // ------------------------------------------------------------ watchdog
+
+    /// <summary>True from a start until someone asks for a stop — the watchdog's mandate.</summary>
+    private static volatile bool _wantRunning;
+    private static readonly List<DateTime> _restarts = new();
+    private static readonly int[] BackoffSeconds = { 3, 10, 30 };
+
+    /// <summary>
+    /// Brings the engine back after it dies on its own. Deterministic failures (no TUN
+    /// adapter, busy port, unreadable config) are never retried: a restart would only
+    /// fail the same way, in a loop. Bounded to three attempts in five minutes.
+    /// </summary>
+    private static async Task WatchdogAsync(bool retryable)
+    {
+        if (!retryable || !_wantRunning) return;
+        try { if (!SettingsService.Load().Watchdog) return; } catch { return; }
+
+        int attempt;
+        lock (_restarts)
+        {
+            _restarts.RemoveAll(t => DateTime.UtcNow - t > TimeSpan.FromMinutes(5));
+            if (_restarts.Count >= BackoffSeconds.Length)
+            {
+                Log("[ui] движок падает снова и снова — больше не перезапускаю сам", true);
+                return;
+            }
+            _restarts.Add(DateTime.UtcNow);
+            attempt = _restarts.Count;
+        }
+
+        var delay = BackoffSeconds[attempt - 1];
+        Log($"[ui] перезапускаю движок через {delay} с (попытка {attempt} из {BackoffSeconds.Length})");
+        await Task.Delay(TimeSpan.FromSeconds(delay));
+
+        // The user may have stopped it, or started it by hand, in the meantime.
+        if (!_wantRunning || IsRunning) return;
+        await StartAsync();
+    }
+
+    /// <summary>
+    /// Known fatal engine errors, in terms a user can act on, and whether restarting
+    /// could possibly help.
+    /// </summary>
+    private static (string? text, bool retryable) Explain(string errors)
     {
         bool Has(string s) => errors.Contains(s, StringComparison.OrdinalIgnoreCase);
 
+        // Must come before the generic port check: this one heals itself (see OnEngineExited).
+        if (Has("external controller"))
+            return ("Порт статистики соединений оказался занят другой программой. Nyx выбрал " +
+                    "другой и перезапускает туннель.", true);
+
         if (Has("configure tun interface") &&
             (Has("cannot find the file specified") || Has("не удается найти указанный файл")))
-            return "Windows не смогла создать сетевой адаптер TUN (драйвер Wintun). Чаще всего " +
-                   "мешает другой VPN с TUN-режимом — Hiddify, v2rayN, Clash, AmneziaVPN, " +
-                   "WireGuard: закрой их полностью, включая значок в трее. Если не помогло — " +
-                   "перезагрузи компьютер и проверь, не блокирует ли антивирус. Проверить сам " +
-                   "туннель можно без TUN: выключи его в «Настройках» и подключись через прокси " +
-                   "127.0.0.1:1080.";
+            return ("Windows не смогла создать сетевой адаптер TUN (драйвер Wintun). Чаще всего " +
+                    "мешает другой VPN с TUN-режимом — Hiddify, v2rayN, Clash, AmneziaVPN, " +
+                    "WireGuard: закрой их полностью, включая значок в трее. Если не помогло — " +
+                    "перезагрузи компьютер и проверь, не блокирует ли антивирус. Проверить сам " +
+                    "туннель можно без TUN: выключи его в «Настройках» и подключись через прокси " +
+                    "127.0.0.1:1080.", false);
 
         if (Has("create adapter") || Has("already exists"))
-            return "От прошлого запуска остался сетевой адаптер. Nyx убирает его сам — если " +
-                   "ошибка повторяется, поможет перезагрузка.";
+            // StartAsync removes the leftover adapter, so a retry genuinely can succeed.
+            return ("От прошлого запуска остался сетевой адаптер. Nyx убирает его сам — если " +
+                    "ошибка повторяется, поможет перезагрузка.", true);
 
         if (Has("configure tun interface") || Has("inbound/tun"))
-            return "Не удалось поднять TUN-интерфейс. Закрой другие VPN-программы и перезапусти; " +
-                   "как временную меру можно выключить TUN в «Настройках» и работать через прокси.";
+            return ("Не удалось поднять TUN-интерфейс. Закрой другие VPN-программы и перезапусти; " +
+                    "как временную меру можно выключить TUN в «Настройках» и работать через прокси.",
+                    false);
 
         if (Has("address already in use") || Has("only one usage of each socket address"))
-            return "Порт прокси (1080–1083) занят другой программой. Закрой её или выключи " +
-                   "режим прокси в «Настройках».";
+            return ("Порт прокси (1080–1083) занят другой программой. Закрой её или выключи " +
+                    "режим прокси в «Настройках».", false);
 
         if (Has("decode config") || Has("unknown field") || Has("parse config"))
-            return "Движок не смог прочитать config.json. Нажми «Сохранить и применить» в " +
-                   "«Правилах» — конфиг соберётся заново.";
+            return ("Движок не смог прочитать config.json. Нажми «Сохранить и применить» в " +
+                    "«Правилах» — конфиг соберётся заново.", false);
 
-        return null;
+        return (null, true);   // unknown: worth another try
     }
 
     /// <summary>Removes a leftover sing-tun adapter (only safe while the engine is down).</summary>
@@ -263,6 +331,7 @@ public static class ProcessService
     public static async Task StopAsync()
     {
         _stopping = true;
+        _wantRunning = false;
         LastFailure = null;
         try { await StopCoreAsync(); }
         finally
@@ -403,6 +472,7 @@ public static class ProcessService
     public static void Shutdown()
     {
         _stopping = true;
+        _wantRunning = false;
         _statusTimer?.Dispose();
         try
         {

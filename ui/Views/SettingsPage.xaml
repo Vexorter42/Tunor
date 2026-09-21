@@ -27,6 +27,16 @@
                     <TextBlock Text="Сохранение логов sing-box"
                                Style="{StaticResource Dim}" Margin="26,2,0,0"/>
 
+                    <CheckBox x:Name="ChkWatchdog" Content="Сторож — поднимать движок, если он упал"
+                              Margin="0,12,0,0" Checked="Toggle_Changed" Unchecked="Toggle_Changed"/>
+                    <TextBlock Text="До 3 попыток за 5 минут. Не перезапускает, если причина не лечится перезапуском"
+                               Style="{StaticResource Dim}" Margin="26,2,0,0" TextWrapping="Wrap"/>
+
+                    <CheckBox x:Name="ChkAutoLists" Content="Обновлять списки правил раз в неделю"
+                              Margin="0,12,0,0" Checked="Toggle_Changed" Unchecked="Toggle_Changed"/>
+                    <TextBlock x:Name="ListsAgeText" Text="Скачиваются в фоне через зеркало"
+                               Style="{StaticResource Dim}" Margin="26,2,0,0" TextWrapping="Wrap"/>
+
                     <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
                         <Button Content="Условия использования и туториал"
                                 Style="{StaticResource SecondaryButton}" MinWidth="260"
@@ -47,9 +57,14 @@
                     <RadioButton x:Name="RbDirect" Content="direct  — напрямую"
                                  GroupName="Final" Margin="0,4,0,0"
                                  Checked="Final_Changed"/>
-                    <RadioButton x:Name="RbProxy" Content="proxy  — через прокси"
+                    <RadioButton x:Name="RbProxy" Content="proxy  — через WARP"
                                  GroupName="Final" Margin="0,8,0,0"
                                  Checked="Final_Changed"/>
+                    <RadioButton x:Name="RbGeo" Content="geo  — через geo-туннель"
+                                 GroupName="Final" Margin="0,8,0,0"
+                                 Checked="Final_Changed"/>
+                    <TextBlock Text="Если geo не настроен, трафик пойдёт через WARP, а без WARP — напрямую"
+                               Style="{StaticResource Dim}" Margin="26,6,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 

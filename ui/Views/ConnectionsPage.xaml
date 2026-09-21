@@ -1,0 +1,140 @@
+<UserControl x:Class="Nyx.Views.ConnectionsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource BgBrush}">
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Соединения" Style="{StaticResource H1}"/>
+            <TextBlock Text="Что идёт через туннель прямо сейчас — обновляется каждую секунду"
+                       Style="{StaticResource Dim}" Margin="0,4,0,16"/>
+        </StackPanel>
+
+        <!-- Speed and totals -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Padding="20,14">
+            <UniformGrid Columns="4">
+                <StackPanel>
+                    <TextBlock Text="Загрузка" Style="{StaticResource Dim}"/>
+                    <TextBlock x:Name="DownSpeed" Text="—" FontSize="20" FontWeight="SemiBold"
+                               Foreground="{StaticResource AccentBrush}" Margin="0,2,0,0"/>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Отдача" Style="{StaticResource Dim}"/>
+                    <TextBlock x:Name="UpSpeed" Text="—" FontSize="20" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextBrush}" Margin="0,2,0,0"/>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Всего за сеанс" Style="{StaticResource Dim}"/>
+                    <TextBlock x:Name="Totals" Text="—" FontSize="14"
+                               Foreground="{StaticResource TextBrush}" Margin="0,6,0,0"/>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Активных" Style="{StaticResource Dim}"/>
+                    <TextBlock x:Name="ActiveCount" Text="—" FontSize="14"
+                               Foreground="{StaticResource TextBrush}" Margin="0,6,0,0"/>
+                </StackPanel>
+            </UniformGrid>
+        </Border>
+
+        <!-- Filter -->
+        <Grid Grid.Row="2" Margin="0,12,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="FilterBox" TextChanged="Filter_Changed"
+                     ToolTip="Фильтр по адресу или процессу"/>
+            <CheckBox x:Name="TunnelOnly" Grid.Column="1" Content="Только через туннель"
+                      Margin="16,0,0,0" VerticalAlignment="Center"
+                      Checked="Filter_Changed" Unchecked="Filter_Changed"/>
+        </Grid>
+
+        <!-- List -->
+        <Border Grid.Row="3" Style="{StaticResource Card}" Padding="0">
+            <Grid>
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Margin="18,12,18,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="130"/>
+                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="60"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Адрес" Style="{StaticResource Dim}"/>
+                        <TextBlock Grid.Column="1" Text="Куда" Style="{StaticResource Dim}"/>
+                        <TextBlock Grid.Column="2" Text="Процесс" Style="{StaticResource Dim}"/>
+                        <TextBlock Grid.Column="3" Text="Загружено" Style="{StaticResource Dim}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="4" Text="Отдано" Style="{StaticResource Dim}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="5" Text="Время" Style="{StaticResource Dim}" TextAlignment="Right"/>
+                    </Grid>
+                    <Border DockPanel.Dock="Top" Height="1" Background="{StaticResource BorderBrush}"/>
+
+                    <ListBox x:Name="List" Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Focusable" Value="False"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="Bd" Background="Transparent" Padding="18,6">
+                                                <ContentPresenter/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background"
+                                                            Value="{StaticResource BgHoverBrush}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="130"/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Host}" ToolTip="{Binding Detail}"
+                                               Foreground="{StaticResource TextBrush}"
+                                               TextTrimming="CharacterEllipsis" Margin="0,0,12,0"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Route}" Foreground="{Binding RouteBrush}"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Process}" Foreground="{StaticResource TextDimBrush}"
+                                               TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding Down}" Foreground="{StaticResource TextBrush}"
+                                               TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding Up}" Foreground="{StaticResource TextDimBrush}"
+                                               TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="5" Text="{Binding Age}" Foreground="{StaticResource TextDimBrush}"
+                                               TextAlignment="Right"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+
+                <TextBlock x:Name="EmptyText" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Style="{StaticResource Dim}" TextAlignment="Center" TextWrapping="Wrap"
+                           MaxWidth="420" Margin="20"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

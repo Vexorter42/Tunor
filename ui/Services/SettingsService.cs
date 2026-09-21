@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -33,6 +34,35 @@ public class AppSettings : INotifyPropertyChanged
 
     [JsonPropertyName("paths")]
     public PathSettings Paths { get => _paths; set => Set(ref _paths, value); }
+
+    private bool _watchdog = true;
+    private bool _autoUpdateLists = true;
+    private DateTime? _listsUpdatedAt;
+
+    /// <summary>Restart the engine if it dies on its own. On by default.</summary>
+    [JsonPropertyName("watchdog")]
+    public bool Watchdog { get => _watchdog; set => Set(ref _watchdog, value); }
+
+    /// <summary>Refresh downloaded rule lists in the background once they are a week old.</summary>
+    [JsonPropertyName("autoUpdateLists")]
+    public bool AutoUpdateLists { get => _autoUpdateLists; set => Set(ref _autoUpdateLists, value); }
+
+    [JsonPropertyName("listsUpdatedAt")]
+    public DateTime? ListsUpdatedAt { get => _listsUpdatedAt; set => Set(ref _listsUpdatedAt, value); }
+
+    private int _controllerPort;
+    private string _controllerSecret = "";
+
+    /// <summary>
+    /// Loopback port of the engine's stats API (the Connections page). Chosen once and
+    /// kept; 0 means "pick a free one on the next config build".
+    /// </summary>
+    [JsonPropertyName("controllerPort")]
+    public int ControllerPort { get => _controllerPort; set => Set(ref _controllerPort, value); }
+
+    /// <summary>Bearer token for that API, so other local programs cannot read it.</summary>
+    [JsonPropertyName("controllerSecret")]
+    public string ControllerSecret { get => _controllerSecret; set => Set(ref _controllerSecret, value); }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)

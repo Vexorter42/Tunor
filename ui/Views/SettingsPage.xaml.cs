@@ -27,6 +27,12 @@ public partial class SettingsPage : UserControl
             ChkLogging.IsChecked = _settings.Logging;
             RbDirect.IsChecked = _settings.Final == "direct";
             RbProxy.IsChecked = _settings.Final == "proxy";
+            RbGeo.IsChecked = _settings.Final == "geo";
+            ChkWatchdog.IsChecked = _settings.Watchdog;
+            ChkAutoLists.IsChecked = _settings.AutoUpdateLists;
+            ListsAgeText.Text = _settings.ListsUpdatedAt is { } at
+                ? $"Последнее обновление: {at.ToLocalTime():d MMMM, HH:mm}"
+                : "Скачиваются в фоне через зеркало";
         }
         finally { _loading = false; }
     }
@@ -37,6 +43,8 @@ public partial class SettingsPage : UserControl
         _settings.Tun = ChkTun.IsChecked == true;
         _settings.Proxy = ChkProxy.IsChecked == true;
         _settings.Logging = ChkLogging.IsChecked == true;
+        _settings.Watchdog = ChkWatchdog.IsChecked == true;
+        _settings.AutoUpdateLists = ChkAutoLists.IsChecked == true;
         Persist();
     }
 
@@ -66,7 +74,9 @@ public partial class SettingsPage : UserControl
     private void Final_Changed(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
-        _settings.Final = RbProxy.IsChecked == true ? "proxy" : "direct";
+        _settings.Final = RbGeo.IsChecked == true ? "geo"
+                        : RbProxy.IsChecked == true ? "proxy"
+                        : "direct";
         Persist();
     }
 
@@ -75,7 +85,12 @@ public partial class SettingsPage : UserControl
         try
         {
             SettingsService.Save(_settings);
-            SaveHint.Text = $"Сохранено · {DateTime.Now:HH:mm:ss}";
+            // Every option here ends up in config.json. Saving settings.json alone did
+            // nothing until someone pressed "Save & apply" on the Rules page.
+            ConfigGenerator.Generate();
+            SaveHint.Text = ProcessService.IsRunning
+                ? $"Сохранено · {DateTime.Now:HH:mm:ss} · применится после перезапуска"
+                : $"Сохранено · {DateTime.Now:HH:mm:ss}";
         }
         catch (Exception ex)
         {

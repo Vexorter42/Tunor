@@ -18,6 +18,8 @@
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
             <Button Content="Очистить" Style="{StaticResource SecondaryButton}"
                     Click="Clear_Click" Margin="0,0,8,0"/>
+            <Button Content="Сохранить в файл" Style="{StaticResource SecondaryButton}"
+                    Click="Save_Click" Margin="0,0,16,0"/>
             <CheckBox x:Name="AutoScroll" Content="Автопрокрутка" IsChecked="True"
                       VerticalAlignment="Center"/>
         </StackPanel>
