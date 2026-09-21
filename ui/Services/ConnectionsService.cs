@@ -10,7 +10,12 @@ namespace Nyx.Services;
 public sealed class ConnInfo
 {
     public string Id { get; init; } = "";
+    /// <summary>For display: domain (or IP) with the port.</summary>
     public string Host { get; init; } = "";
+    /// <summary>Domain when the engine sniffed one, otherwise the IP — no port.</summary>
+    public string Target { get; init; } = "";
+    public bool TargetIsIp { get; init; }
+    public string ProcessPath { get; init; } = "";
     public string Outbound { get; init; } = "";
     public string Rule { get; init; } = "";
     public string Process { get; init; } = "";
@@ -76,13 +81,17 @@ public static class ConnectionsService
                             break;   // the first link is the outbound the rule picked
                         }
 
+                    var path = Str(m, "processPath");
                     snap.Connections.Add(new ConnInfo
                     {
                         Id = Str(c, "id"),
                         Host = port.Length > 0 && port != "0" ? $"{target}:{port}" : target,
+                        Target = target,
+                        TargetIsIp = host.Length == 0,
+                        ProcessPath = path,
                         Outbound = outbound,
                         Rule = Str(c, "rule"),
-                        Process = System.IO.Path.GetFileName(Str(m, "processPath")),
+                        Process = System.IO.Path.GetFileName(path),
                         Network = Str(m, "network"),
                         Upload = Long(c, "upload"),
                         Download = Long(c, "download"),

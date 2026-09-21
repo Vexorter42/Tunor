@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private readonly ConfigsPage _configs = new();
     private readonly LogsPage _logs = new();
     private readonly ConnectionsPage _connections = new();
+    private readonly AppsPage _appsPage = new();
     private readonly AutostartPage _autostart = new();
 
     private TrayIcon? _tray;
@@ -35,6 +36,8 @@ public partial class MainWindow : Window
 
         ProcessService.StatusChanged += OnStatusChanged;
         ProcessService.StartStatusPolling();
+        // Records which program talks to which address, for the Apps page.
+        TrafficRecorder.Start();
         UpdateStatus();
 
         // Restart sing-box automatically when the system wakes up from sleep/hibernation
@@ -190,6 +193,7 @@ public partial class MainWindow : Window
             "configs" => _configs,
             "logs" => _logs,
             "connections" => _connections,
+            "apps" => _appsPage,
             "autostart" => _autostart,
             _ => _home,
         };

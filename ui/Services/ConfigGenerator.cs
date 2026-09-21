@@ -263,6 +263,10 @@ public static class ConfigGenerator
         var ruleSet = new JsonArray();
         var warpTags = new List<string>();
         var geoTags = new List<string>();
+        // Process groups get rules of their own, ahead of the domain lists: "send this
+        // app to geo" must win even when one of its domains sits in a WARP list.
+        var warpProcTags = new List<string>();
+        var geoProcTags = new List<string>();
 
         foreach (var g in groups)
         {
@@ -289,18 +293,33 @@ public static class ConfigGenerator
             }
             else // inline
             {
+                var isProcess = g.ItemKind == RuleItemKind.ProcessName;
                 var items = new JsonArray();
-                foreach (var it in g.Items) items.Add(it);
+                foreach (var it in g.Items)
+                {
+                    if (string.IsNullOrWhiteSpace(it)) continue;
+                    items.Add(isProcess ? ProcessPattern(it) : it.Trim());
+                }
+                if (items.Count == 0) continue;   // an empty rule would match nothing anyway
+
                 var ruleObj = new JsonObject();
-                ruleObj[g.ItemKind == RuleItemKind.ProcessName ? "process_name" : "domain"] = items;
+                // process_name is case-sensitive: "telegram.exe" silently never matched a
+                // "Telegram.exe" on disk (checked against the engine). A case-insensitive
+                // regex on the image path fixes that for rules already written by hand.
+                ruleObj[isProcess ? "process_path_regex" : "domain"] = items;
                 ruleSet.Add(new JsonObject
                 {
                     ["type"] = "inline", ["rules"] = new JsonArray(ruleObj), ["tag"] = g.Tag,
                 });
+
+                if (isProcess)
+                {
+                    (IsGeoTag(g.Tag) ? geoProcTags : warpProcTags).Add(g.Tag);
+                    continue;
+                }
             }
 
-            if (g.Tag.StartsWith("geo-", StringComparison.OrdinalIgnoreCase)) geoTags.Add(g.Tag);
-            else warpTags.Add(g.Tag);
+            (IsGeoTag(g.Tag) ? geoTags : warpTags).Add(g.Tag);
         }
 
         // Never name an outbound that was not created — the engine refuses such a config.
@@ -318,10 +337,17 @@ public static class ConfigGenerator
             new JsonObject { ["action"] = "route", ["outbound"] = warpTarget, ["inbound"] = "warp-in" },
             new JsonObject { ["action"] = "route", ["outbound"] = geoTarget, ["inbound"] = "geo-in" },
         };
-        if (warpTags.Count > 0)
-            rules.Add(new JsonObject { ["action"] = "route", ["outbound"] = warpTarget, ["rule_set"] = ToArray(warpTags) });
-        if (geoTags.Count > 0)
-            rules.Add(new JsonObject { ["action"] = "route", ["outbound"] = geoTarget, ["rule_set"] = ToArray(geoTags) });
+        // Order is precedence: apps first (an explicit "this program goes there" beats a
+        // domain list), then WARP lists before geo lists, as before.
+        void Route(List<string> tags, string outbound)
+        {
+            if (tags.Count > 0)
+                rules.Add(new JsonObject { ["action"] = "route", ["outbound"] = outbound, ["rule_set"] = ToArray(tags) });
+        }
+        Route(warpProcTags, warpTarget);
+        Route(geoProcTags, geoTarget);
+        Route(warpTags, warpTarget);
+        Route(geoTags, geoTarget);
 
         return new JsonObject
         {
@@ -337,6 +363,9 @@ public static class ConfigGenerator
             },
             ["auto_detect_interface"] = true,
             ["default_domain_resolver"] = "main-dns",
+            // Tag every connection with its process, not just those a process rule looks
+            // at: the Apps page lists what each program connects to.
+            ["find_process"] = OperatingSystem.IsWindows(),
         };
 
         static JsonArray ToArray(IEnumerable<string> xs)
@@ -345,6 +374,52 @@ public static class ConfigGenerator
             foreach (var x in xs) a.Add(x);
             return a;
         }
+    }
+
+    public static bool IsGeoTag(string tag) => tag.StartsWith("geo-", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Rule-list entry → case-insensitive regex on the process image path.
+    /// "Discord.exe" → <c>(?i)(?:^|[\\/])Discord\.exe$</c>; a bare "discord" also accepts
+    /// the ".exe" people leave off; a pasted full path still means just the file. The
+    /// separator anchor keeps "curl.exe" from matching "xcurl.exe".
+    /// </summary>
+    public static string ProcessPattern(string item)
+    {
+        var name = Path.GetFileName(item.Trim().Trim('"'));
+        var hasExe = name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+        var stem = hasExe ? name[..^4] : name;
+        return @"(?i)(?:^|[\\/])" + Re2Escape(stem) + (hasExe ? @"\.exe" : @"(?:\.exe)?") + "$";
+    }
+
+    /// <summary>
+    /// What <see cref="ProcessPattern"/> will match, in plain C#: does a rule-list entry
+    /// cover this executable? Kept next to it so the two cannot drift apart.
+    /// </summary>
+    public static bool ProcessMatches(string item, string exe)
+    {
+        var name = Path.GetFileName(item.Trim().Trim('"'));
+        var file = Path.GetFileName(exe.Trim().Trim('"'));
+        if (name.Length == 0 || file.Length == 0) return false;
+        return string.Equals(name, file, StringComparison.OrdinalIgnoreCase)
+            || (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(name + ".exe", file, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Escapes exactly RE2's metacharacters — the regex dialect the engine (Go) runs.
+    /// Regex.Escape targets .NET's own dialect; its output happens to be accepted by RE2
+    /// today, but the rule text is for the engine, so it is escaped for the engine.
+    /// </summary>
+    private static string Re2Escape(string s)
+    {
+        var sb = new System.Text.StringBuilder(s.Length + 8);
+        foreach (var c in s)
+        {
+            if (@"\.+*?()|[]{}^$".IndexOf(c) >= 0) sb.Append('\\');
+            sb.Append(c);
+        }
+        return sb.ToString();
     }
 
     /// <summary>Rule-set paths are relative to the engine's working directory (build/).</summary>

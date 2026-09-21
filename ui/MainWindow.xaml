@@ -57,6 +57,8 @@
                                  GroupName="Nav" Checked="Nav_Checked" Tag="rules"/>
                     <RadioButton x:Name="NavConfigs" Content="Конфиги" Style="{StaticResource NavButton}"
                                  GroupName="Nav" Checked="Nav_Checked" Tag="configs"/>
+                    <RadioButton x:Name="NavApps" Content="Приложения" Style="{StaticResource NavButton}"
+                                 GroupName="Nav" Checked="Nav_Checked" Tag="apps"/>
                     <RadioButton x:Name="NavConnections" Content="Соединения" Style="{StaticResource NavButton}"
                                  GroupName="Nav" Checked="Nav_Checked" Tag="connections"/>
                     <RadioButton x:Name="NavLogs" Content="Логи" Style="{StaticResource NavButton}"

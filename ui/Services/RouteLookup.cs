@@ -65,8 +65,12 @@ public static class RouteLookup
                 var wantProcess = g.ItemKind == RuleItemKind.ProcessName;
                 if (wantProcess != isProcess) continue;
                 // sing-box's "domain" is an exact match: "example.com" does not cover
-                // "www.example.com". Process names are compared the same way.
-                if (g.Items.Any(i => string.Equals(i.Trim(), input, StringComparison.OrdinalIgnoreCase)))
+                // "www.example.com". Processes follow the generator's rule: any case, and
+                // ".exe" may be left off.
+                var matched = wantProcess
+                    ? g.Items.Any(i => ConfigGenerator.ProcessMatches(i, input))
+                    : g.Items.Any(i => string.Equals(i.Trim(), input, StringComparison.OrdinalIgnoreCase));
+                if (matched)
                     lock (result.Hits)
                         result.Hits.Add(new LookupHit
                         {
