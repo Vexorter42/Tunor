@@ -35,14 +35,28 @@ public static class ConfigGenerator
         {
             if (!File.Exists(Paths.ConfigJson)) { Generate(); return; }
 
-            var text = File.ReadAllText(Paths.ConfigJson);
-            if (!text.Contains("\"awg\"")) return;   // already in the new format
+            // Rebuild once per app version. Generator fixes only reach a user when
+            // config.json is regenerated, and nothing did that after an update — so a
+            // fix shipped in 1.5.2 (placeholder tunnels left out) never arrived on
+            // machines that updated but never pressed "Save & apply".
+            var oldFormat = File.ReadAllText(Paths.ConfigJson).Contains("\"awg\"");
+            var stamp = File.Exists(StampFile) ? File.ReadAllText(StampFile).Trim() : "";
+            if (!oldFormat && stamp == GeneratorVersion) return;
 
             try { File.Copy(Paths.ConfigJson, Paths.ConfigJson + ".bak", overwrite: true); } catch { }
             Generate();
         }
         catch { /* never block startup on this */ }
     }
+
+    /// <summary>
+    /// Records which build wrote config.json. Kept beside it rather than inside it:
+    /// sing-box rejects unknown fields, so a marker in the config would break it.
+    /// </summary>
+    private static string StampFile => Paths.ConfigJson + ".version";
+
+    private static string GeneratorVersion =>
+        typeof(ConfigGenerator).Assembly.GetName().Version?.ToString() ?? "0";
 
     /// <summary>True when warp.conf holds a usable tunnel. Re-read on each access.</summary>
     public static bool WarpConfigured => IsUsableConf(Paths.WarpConf);
@@ -79,6 +93,7 @@ public static class ConfigGenerator
         };
 
         File.WriteAllText(Paths.ConfigJson, root.ToJsonString(Opts));
+        try { File.WriteAllText(StampFile, GeneratorVersion); } catch { }
     }
 
     /// <summary>
@@ -86,7 +101,19 @@ public static class ConfigGenerator
     /// installer ships templates with random keys and Endpoint 127.0.0.1 so the app has
     /// something valid to parse — those must not become live endpoints.
     /// </summary>
+    /// <summary>Marks every template shipped from 1.5.2 on.</summary>
     private const string PlaceholderMarker = "NYX-PLACEHOLDER";
+
+    /// <summary>
+    /// Older installers wrote a warp.conf template with no marker: real Cloudflare
+    /// endpoint, real peer key, random private key — it passes every field check and
+    /// becomes an endpoint that never handshakes. Its fingerprint is the zero-padded
+    /// address below, which no real WARP account is ever given. The comment alone is not
+    /// enough: someone may have pasted a real config under it without deleting it.
+    /// (The old geo template is already caught by its 127.0.0.1 endpoint.)
+    /// </summary>
+    private const string LegacyWarpComment = "generate via @warp_generator_bot";
+    private const string LegacyWarpAddress = "2606:4700:110:0000:0000:0000:0000:0001";
 
     private static bool IsUsableConf(string path)
     {
@@ -97,7 +124,11 @@ public static class ConfigGenerator
         // working config by its fields alone. The templates carry an explicit marker.
         try
         {
-            if (File.ReadAllText(path).Contains(PlaceholderMarker, StringComparison.OrdinalIgnoreCase))
+            var text = File.ReadAllText(path);
+            if (text.Contains(PlaceholderMarker, StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (text.Contains(LegacyWarpComment, StringComparison.OrdinalIgnoreCase) &&
+                text.Contains(LegacyWarpAddress, StringComparison.OrdinalIgnoreCase))
                 return false;
         }
         catch { return false; }

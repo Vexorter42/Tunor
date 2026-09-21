@@ -41,7 +41,10 @@ public partial class HomePage : UserControl
     private void UpdateSetupWarning()
     {
         string? text = null;
-        if (!ConfigGenerator.WarpConfigured)
+        // Why the engine died outranks any setup hint: it is the thing actually broken.
+        if (!ProcessService.IsRunning && ProcessService.LastFailure != null)
+            text = ProcessService.LastFailure;
+        else if (!ConfigGenerator.WarpConfigured)
             text = "Конфиг WARP ещё не заполнен — весь трафик идёт напрямую, мимо туннеля. " +
                    "Сгенерируй конфиг и перетащи .conf на окно (или вставь в «Конфиги» → warp.conf).";
         else if (!ConfigGenerator.GeoConfigured)

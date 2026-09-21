@@ -29,6 +29,15 @@ public static class ProcessService
 
     public static bool IsRunning => GetSingBoxProcesses().Length > 0;
 
+    /// <summary>
+    /// Plain-language reason the engine last died on its own, or null. Cleared on start.
+    /// Without it the only symptom was the status quietly flipping back to "stopped".
+    /// </summary>
+    public static string? LastFailure { get; private set; }
+
+    /// <summary>Set while we stop the engine ourselves, so that is not reported as a failure.</summary>
+    private static volatile bool _stopping;
+
     public static void StartStatusPolling()
     {
         _lastRunning = IsRunning;
@@ -67,6 +76,7 @@ public static class ProcessService
     public static async Task StartAsync()
     {
         if (IsRunning) return;
+        LastFailure = null;
 
         if (!await LaunchAsync())
         {
@@ -108,6 +118,8 @@ public static class ProcessService
                 _liveProcess = Process.Start(psi);
                 if (_liveProcess != null)
                 {
+                    _liveProcess.EnableRaisingEvents = true;
+                    _liveProcess.Exited += (_, _) => OnEngineExited();
                     _liveProcess.OutputDataReceived += (_, e) => { if (e.Data != null) Log(e.Data); };
                     _liveProcess.ErrorDataReceived += (_, e) =>
                     {
@@ -140,18 +152,72 @@ public static class ProcessService
         return IsRunning;
     }
 
+    /// <summary>
+    /// Only the leftover-adapter signature. "configure tun interface" alone is too broad:
+    /// it also covers Windows failing to create the adapter at all, where removing a
+    /// sing-tun adapter that does not exist fixes nothing.
+    /// </summary>
     private static bool LastStartHitStaleAdapter()
     {
         lock (_errLock)
         {
             foreach (var line in _recentErrors)
             {
-                if (line.Contains("configure tun interface", StringComparison.OrdinalIgnoreCase) ||
-                    line.Contains("create adapter", StringComparison.OrdinalIgnoreCase))
+                if (line.Contains("create adapter", StringComparison.OrdinalIgnoreCase) ||
+                    line.Contains("already exists", StringComparison.OrdinalIgnoreCase))
                     return true;
             }
         }
         return false;
+    }
+
+    private static void OnEngineExited()
+    {
+        if (_stopping) return;   // we stopped it ourselves
+
+        // Stderr lines can still be in flight when Exited fires; give them a moment.
+        Thread.Sleep(300);
+
+        string joined;
+        lock (_errLock) joined = string.Join("\n", _recentErrors);
+
+        LastFailure = Explain(joined)
+            ?? "Движок завершился с ошибкой — подробности в разделе «Логи».";
+        Log("[ui] " + LastFailure, true);
+        StatusChanged?.Invoke(null, EventArgs.Empty);
+    }
+
+    /// <summary>Known fatal engine errors, in terms a user can act on.</summary>
+    private static string? Explain(string errors)
+    {
+        bool Has(string s) => errors.Contains(s, StringComparison.OrdinalIgnoreCase);
+
+        if (Has("configure tun interface") &&
+            (Has("cannot find the file specified") || Has("не удается найти указанный файл")))
+            return "Windows не смогла создать сетевой адаптер TUN (драйвер Wintun). Чаще всего " +
+                   "мешает другой VPN с TUN-режимом — Hiddify, v2rayN, Clash, AmneziaVPN, " +
+                   "WireGuard: закрой их полностью, включая значок в трее. Если не помогло — " +
+                   "перезагрузи компьютер и проверь, не блокирует ли антивирус. Проверить сам " +
+                   "туннель можно без TUN: выключи его в «Настройках» и подключись через прокси " +
+                   "127.0.0.1:1080.";
+
+        if (Has("create adapter") || Has("already exists"))
+            return "От прошлого запуска остался сетевой адаптер. Nyx убирает его сам — если " +
+                   "ошибка повторяется, поможет перезагрузка.";
+
+        if (Has("configure tun interface") || Has("inbound/tun"))
+            return "Не удалось поднять TUN-интерфейс. Закрой другие VPN-программы и перезапусти; " +
+                   "как временную меру можно выключить TUN в «Настройках» и работать через прокси.";
+
+        if (Has("address already in use") || Has("only one usage of each socket address"))
+            return "Порт прокси (1080–1083) занят другой программой. Закрой её или выключи " +
+                   "режим прокси в «Настройках».";
+
+        if (Has("decode config") || Has("unknown field") || Has("parse config"))
+            return "Движок не смог прочитать config.json. Нажми «Сохранить и применить» в " +
+                   "«Правилах» — конфиг соберётся заново.";
+
+        return null;
     }
 
     /// <summary>Removes a leftover sing-tun adapter (only safe while the engine is down).</summary>
@@ -195,6 +261,19 @@ public static class ProcessService
     // ----------------------------------------------------------------- stop
 
     public static async Task StopAsync()
+    {
+        _stopping = true;
+        LastFailure = null;
+        try { await StopCoreAsync(); }
+        finally
+        {
+            // Exited fires asynchronously after the kill; keep the flag up until it has.
+            await Task.Delay(500);
+            _stopping = false;
+        }
+    }
+
+    private static async Task StopCoreAsync()
     {
         await Task.Run(() =>
         {
@@ -323,6 +402,7 @@ public static class ProcessService
     /// </summary>
     public static void Shutdown()
     {
+        _stopping = true;
         _statusTimer?.Dispose();
         try
         {
