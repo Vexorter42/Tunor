@@ -41,13 +41,24 @@ public partial class HomePage : UserControl
     private void UpdateSetupWarning()
     {
         string? text = null;
+        var warp = ConfigGenerator.WarpState;
+        var geo = ConfigGenerator.GeoState;
+
         // Why the engine died outranks any setup hint: it is the thing actually broken.
         if (!ProcessService.IsRunning && ProcessService.LastFailure != null)
             text = ProcessService.LastFailure;
-        else if (!ConfigGenerator.WarpConfigured)
+        // A tunnel that is filled in but broken is left out of the config; say why, or it
+        // looks exactly like "not configured" and nobody finds the cause.
+        else if (warp.Problem != null)
+            text = $"warp.conf не подходит: {warp.Problem}. Туннель WARP выключен, пока его не исправить — " +
+                   "открой «Конфиги» → warp.conf или перетащи .conf на окно.";
+        else if (warp.Placeholder)
             text = "Конфиг WARP ещё не заполнен — весь трафик идёт напрямую, мимо туннеля. " +
                    "Сгенерируй конфиг и перетащи .conf на окно (или вставь в «Конфиги» → warp.conf).";
-        else if (!ConfigGenerator.GeoConfigured)
+        else if (geo.Problem != null)
+            text = $"geo.conf не подходит: {geo.Problem}. geo выключен, его правила пока идут через WARP — " +
+                   "всё остальное работает. Исправь в «Конфиги» → geo.conf.";
+        else if (geo.Placeholder)
             text = "Конфиг geo не заполнен — правила geo-* пока идут через WARP. " +
                    "Это нормально: geo нужен, только если важна страна выхода.";
 

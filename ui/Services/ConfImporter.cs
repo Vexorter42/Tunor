@@ -129,24 +129,9 @@ public static class ConfImporter
             || host.StartsWith("162.159.20", StringComparison.Ordinal);
     }
 
+    // The generator's parser: it strips the invisible characters and quotes that configs
+    // pick up when copied from a messenger. With a separate, plainer parser here, a WARP
+    // config whose peer key had picked up quotes would not be recognised as WARP.
     private static (Dictionary<string, string> iface, Dictionary<string, string> peer) Parse(string path)
-    {
-        var iface = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var peer = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var section = "";
-        foreach (var raw in File.ReadAllLines(path))
-        {
-            var line = raw.Trim();
-            if (line.Length == 0 || line.StartsWith("#")) continue;
-            if (line.StartsWith("["))
-            {
-                section = line.Trim('[', ']').ToLowerInvariant();
-                continue;
-            }
-            var eq = line.IndexOf('=');
-            if (eq < 0) continue;
-            (section == "interface" ? iface : peer)[line[..eq].Trim()] = line[(eq + 1)..].Trim();
-        }
-        return (iface, peer);
-    }
+        => ConfigGenerator.ParseConf(path);
 }

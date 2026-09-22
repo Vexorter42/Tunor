@@ -285,6 +285,23 @@ public static class ProcessService
             return ("Движок не смог прочитать config.json. Нажми «Сохранить и применить» в " +
                     "«Правилах» — конфиг соберётся заново.", false);
 
+        // A tunnel file the engine refuses: bad key, bad address. Nyx now checks keys
+        // before building the config, so this is the backstop for whatever slips past.
+        if (Has("initialize endpoint") || Has("private key") || Has("public key") || Has("pre-shared key"))
+        {
+            var file = Has("geo-out") ? "geo.conf" : Has("warp-out") ? "warp.conf" : "конфиге туннеля";
+            var what = Has("illegal base64") ? "ключ испорчен — часто к нему прилипают кавычки или невидимые символы при копировании из мессенджера"
+                     : Has("missing private key") ? "нет ключа PrivateKey"
+                     : "движок не принял параметры туннеля";
+            return ($"Проблема в {file}: {what}. Открой «Конфиги» → {file} и вставь конфиг заново " +
+                    "(или перетащи .conf-файл на окно).", false);
+        }
+
+        // Anything else that fails while the engine is being built is a config problem
+        // too: it will fail identically on every restart.
+        if (Has("create service:"))
+            return ("Движок не принял конфигурацию — подробности в разделе «Логи».", false);
+
         return (null, true);   // unknown: worth another try
     }
 

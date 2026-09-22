@@ -188,9 +188,28 @@ public static class ConfigGenerator
     private const string LegacyWarpComment = "generate via @warp_generator_bot";
     private const string LegacyWarpAddress = "2606:4700:110:0000:0000:0000:0000:0001";
 
-    private static bool IsUsableConf(string path)
+    private static bool IsUsableConf(string path) => Inspect(path).Usable;
+
+    /// <summary>What state a tunnel file is in.</summary>
+    /// <param name="Placeholder">Not filled in yet — the normal state before setup.</param>
+    /// <param name="Problem">Filled in, but broken, in plain words; null otherwise.</param>
+    public sealed record ConfState(bool Usable, bool Placeholder, string? Problem);
+
+    public static ConfState WarpState => Inspect(Paths.WarpConf);
+    public static ConfState GeoState => Inspect(Paths.GeoConf);
+
+    /// <summary>
+    /// Decides whether a tunnel file may become an endpoint. Everything the engine would
+    /// reject is caught here instead: one bad endpoint fails the whole config, so a
+    /// broken geo.conf used to take WARP down with it. A broken tunnel is left out and
+    /// the reason is shown; the rest keeps working.
+    /// </summary>
+    public static ConfState Inspect(string path)
     {
-        if (!File.Exists(path)) return false;
+        var placeholder = new ConfState(false, true, null);
+        ConfState Broken(string why) => new(false, false, why);
+
+        if (!File.Exists(path)) return placeholder;
 
         // The shipped warp.conf points at the real Cloudflare endpoint and carries a real
         // peer key — only the private key is random — so it is indistinguishable from a
@@ -198,28 +217,34 @@ public static class ConfigGenerator
         try
         {
             var text = File.ReadAllText(path);
-            if (text.Contains(PlaceholderMarker, StringComparison.OrdinalIgnoreCase))
-                return false;
+            if (text.Contains(PlaceholderMarker, StringComparison.OrdinalIgnoreCase)) return placeholder;
             if (text.Contains(LegacyWarpComment, StringComparison.OrdinalIgnoreCase) &&
-                text.Contains(LegacyWarpAddress, StringComparison.OrdinalIgnoreCase))
-                return false;
+                text.Contains(LegacyWarpAddress, StringComparison.OrdinalIgnoreCase)) return placeholder;
+            if (text.Trim().Length == 0) return placeholder;
         }
-        catch { return false; }
+        catch (Exception ex) { return Broken("файл не читается: " + ex.Message); }
 
         var (iface, peer) = ParseConf(path);
-        if (string.IsNullOrWhiteSpace(iface.GetValueOrDefault("PrivateKey"))) return false;
-        if (string.IsNullOrWhiteSpace(peer.GetValueOrDefault("PublicKey"))) return false;
+        if (iface.Count == 0 && peer.Count == 0) return Broken("это не похоже на конфиг WireGuard");
+
+        var problem = KeyProblem(iface.GetValueOrDefault("PrivateKey"), "PrivateKey")
+                   ?? KeyProblem(peer.GetValueOrDefault("PublicKey"), "PublicKey (в [Peer])")
+                   ?? (peer.TryGetValue("PresharedKey", out var psk) ? KeyProblem(psk, "PresharedKey") : null);
+        if (problem != null) return Broken(problem);
 
         var endpoint = peer.GetValueOrDefault("Endpoint", "");
         var idx = endpoint.LastIndexOf(':');
-        if (idx <= 0) return false;
+        if (idx <= 0) return Broken("нет адреса сервера (Endpoint в [Peer])");
 
         var host = endpoint[..idx].Trim('[', ']');
-        if (!int.TryParse(endpoint[(idx + 1)..], out var port) || port <= 0) return false;
+        if (!int.TryParse(endpoint[(idx + 1)..], out var port) || port <= 0 || port > 65535)
+            return Broken($"в Endpoint неправильный порт: «{endpoint[(idx + 1)..]}»");
 
-        return host.Length > 0
-            && host != "127.0.0.1" && host != "::1"
-            && host != "0.0.0.0" && host != "localhost";
+        // A loopback endpoint is what the old geo template carried.
+        if (host.Length == 0 || host is "127.0.0.1" or "::1" or "0.0.0.0" or "localhost")
+            return placeholder;
+
+        return new ConfState(true, false, null);
     }
 
     private static JsonObject BuildDns() => new()
@@ -500,7 +525,18 @@ public static class ConfigGenerator
         return ep;
     }
 
-    private static (Dictionary<string, string> iface, Dictionary<string, string> peer) ParseConf(string path)
+    /// <summary>
+    /// Reads a WireGuard .conf into its [Interface] and [Peer] values. The one parser
+    /// for the whole app — the importer uses it too.
+    ///
+    /// Configs are usually copied out of Telegram or a web page, and arrive with
+    /// invisible characters (zero-width spaces, a BOM, soft hyphens) or with the key in
+    /// quotes. The engine rejects all of those with "illegal base64 data at input byte 0"
+    /// and, since one bad endpoint fails the whole config, takes WARP down with it. So
+    /// invisible characters are dropped, non-breaking spaces become spaces, and a value
+    /// wrapped in quotes is unwrapped.
+    /// </summary>
+    public static (Dictionary<string, string> iface, Dictionary<string, string> peer) ParseConf(string path)
     {
         var iface = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var peer = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -509,7 +545,7 @@ public static class ConfigGenerator
         var section = "";
         foreach (var raw in File.ReadAllLines(path))
         {
-            var line = raw.Trim();
+            var line = CleanLine(raw);
             if (line.Length == 0 || line.StartsWith("#")) continue;
             if (line.StartsWith("["))
             {
@@ -519,10 +555,67 @@ public static class ConfigGenerator
             var eq = line.IndexOf('=');
             if (eq < 0) continue;
             var key = line[..eq].Trim();
-            var val = line[(eq + 1)..].Trim();
+            var val = Unquote(line[(eq + 1)..].Trim());
             (section == "interface" ? iface : peer)[key] = val;
         }
         return (iface, peer);
+    }
+
+    private static string CleanLine(string raw)
+    {
+        var sb = new System.Text.StringBuilder(raw.Length);
+        foreach (var c in raw)
+        {
+            switch (c)
+            {
+                case '﻿': case '​': case '‌': case '‍': case '⁠': case '­':
+                    continue;   // invisible: BOM, zero-width space/joiners, word joiner, soft hyphen
+                case ' ': case ' ': case ' ':
+                    sb.Append(' '); break;   // non-breaking spaces
+                default:
+                    sb.Append(c); break;
+            }
+        }
+        return sb.ToString().Trim();
+    }
+
+    private static string Unquote(string v)
+    {
+        foreach (var (open, close) in new[] { ('"', '"'), ('\'', '\''), ('«', '»'), ('“', '”'), ('„', '“'), ('`', '`') })
+            if (v.Length >= 2 && v[0] == open && v[^1] == close)
+                return v[1..^1].Trim();
+        return v;
+    }
+
+    /// <summary>
+    /// Why a WireGuard key is unusable, in words a user can act on — or null if it is a
+    /// proper 32-byte key. Standard and URL-safe base64 are both accepted, as by the engine.
+    /// </summary>
+    public static string? KeyProblem(string? value, string name)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return $"нет ключа {name}";
+        var v = value.Trim();
+
+        var b64 = v.Replace('-', '+').Replace('_', '/');
+        if (b64.Length % 4 != 0) b64 = b64.PadRight(b64.Length + (4 - b64.Length % 4), '=');
+        var buf = new byte[b64.Length];
+        if (Convert.TryFromBase64String(b64, buf, out var n))
+            return n == 32 ? null : $"ключ {name} неправильной длины ({n} байт вместо 32)";
+
+        var first = v[0];
+        if (!char.IsAsciiLetterOrDigit(first) && first is not ('+' or '/' or '-' or '_'))
+        {
+            if (first == '<' || first == '[' || first == '(')
+                return $"вместо ключа {name} стоит заглушка вида «{Short(v)}» — вставь настоящий конфиг";
+            return char.IsControl(first) || char.GetUnicodeCategory(first) == System.Globalization.UnicodeCategory.Format
+                ? $"ключ {name} начинается с невидимого символа U+{(int)first:X4} — скопируй конфиг заново"
+                : $"ключ {name} начинается с лишнего символа «{first}»";
+        }
+        return v.Length < 44
+            ? $"ключ {name} обрезан: {v.Length} символов вместо 44"
+            : $"ключ {name} повреждён — в нём есть символы, которых не бывает в ключах";
+
+        static string Short(string s) => s.Length > 16 ? s[..16] + "…" : s;
     }
 
     private static IEnumerable<string> Split(string s)
