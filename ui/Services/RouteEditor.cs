@@ -57,13 +57,14 @@ public static class RouteEditor
     /// <summary>Adds a domain to the WARP or geo custom list (once).</summary>
     public static void AddDomain(string domain, string route)
     {
-        var d = domain.Trim().TrimEnd('.').ToLowerInvariant();
+        var d = ConfigGenerator.DomainEntry(domain);
         if (d.Length == 0) return;
 
         var groups = RulesService.Load();
-        // Leave the other side's custom list, or the WARP one would always win.
+        // Leave the other side's custom list, or the WARP one would always win. Compared
+        // in normalised form, so "*.site.com" and "site.com" count as the same entry.
         foreach (var g in groups.Where(g => g.IsInline && g.ItemKind == RuleItemKind.Domain))
-            foreach (var item in g.Items.Where(i => string.Equals(i.Trim(), d, StringComparison.OrdinalIgnoreCase)).ToList())
+            foreach (var item in g.Items.Where(i => ConfigGenerator.DomainEntry(i) == d).ToList())
                 g.Items.Remove(item);
 
         Target(groups, route, RuleItemKind.Domain, "domains").Items.Add(d);

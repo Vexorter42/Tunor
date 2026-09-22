@@ -147,8 +147,8 @@ public partial class FirstRunWizard : Window
                 CornerRadius = new CornerRadius(4),
                 Margin = new Thickness(0, 0, 6, 0),
                 Background = done
-                    ? (Brush)FindResource("AccentBrush")
-                    : (Brush)FindResource("BorderBrush"),
+                    ? Ui.Brush("AccentBrush")
+                    : Ui.Brush("BorderBrush"),
             });
         }
     }
@@ -189,7 +189,7 @@ public partial class FirstRunWizard : Window
 
         var badge = new Border
         {
-            Background = (Brush)FindResource("AccentBrush"),
+            Background = Ui.Brush("AccentBrush"),
             CornerRadius = new CornerRadius(11),
             Width = 22,
             Height = 22,
@@ -208,7 +208,7 @@ public partial class FirstRunWizard : Window
         var t = new TextBlock
         {
             Text = text,
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = Ui.Brush("TextBrush"),
             FontSize = 12.5,
             LineHeight = 19,
             TextWrapping = TextWrapping.Wrap,

@@ -17,7 +17,7 @@ public partial class AutostartPage : UserControl
     private void Refresh()
     {
         var installed = TaskService.IsInstalled();
-        StateDot.Fill = (SolidColorBrush)FindResource(installed ? "SuccessBrush" : "DangerBrush");
+        StateDot.Fill = Ui.Solid(installed ? "SuccessBrush" : "DangerBrush");
         StateText.Text = installed ? "Установлено" : "Не установлено";
         BtnInstall.IsEnabled = !installed;
         BtnDelete.IsEnabled = installed;

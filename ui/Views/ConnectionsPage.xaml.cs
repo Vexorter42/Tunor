@@ -172,9 +172,9 @@ public partial class ConnectionsPage : UserControl
         row.Route = ConnectionsService.RouteLabel(c.Outbound);
         row.RouteBrush = c.Outbound switch
         {
-            "warp-out" => (Brush)FindResource("AccentBrush"),
+            "warp-out" => Ui.Brush("AccentBrush"),
             "geo-out" => GeoBrush,
-            _ => (Brush)FindResource("TextDimBrush"),
+            _ => Ui.Brush("TextDimBrush"),
         };
         row.Process = c.Process;
         row.Down = Size(c.Download);

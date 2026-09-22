@@ -94,7 +94,10 @@ public partial class RulesPage : UserControl
     private void UpdateItemPlaceholder()
     {
         var isProc = _current?.ItemKind == RuleItemKind.ProcessName;
-        NewItemBox.Tag = isProc ? "process_name (например, Discord.exe)" : "domain (например, example.com)";
+        NewItemBox.Tag = isProc ? "Программа, например Discord.exe" : "Домен, например example.com";
+        NewItemBox.ToolTip = isProc
+            ? "Имя файла программы; регистр букв не важен"
+            : "Поддомены входят сами: example.com покрывает и www.example.com, и api.example.com";
         AddItemBtn.Content = isProc ? "+ Процесс" : "+ Домен";
     }
 
@@ -259,9 +262,9 @@ public partial class RulesPage : UserControl
             : o => o is RuleGroup g && (Hit(g.Tag, q) || g.Items.Any(i => Hit(i, q)));
 
         var shown = view.Cast<object>().Count();
-        SearchHint.Text = q.Length == 0 ? "Поиск по группам и их содержимому"
-                        : shown == 0 ? "Ничего не найдено"
-                        : $"Найдено групп: {shown}";
+        // The box's placeholder explains it; below it, only the outcome of a search.
+        SearchHint.Text = shown == 0 ? "Ничего не найдено" : $"Найдено групп: {shown}";
+        SearchHint.Visibility = q.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
 
         // Keep a sensible selection: the current one if it still matches, else the first.
         if (GroupsList.SelectedItem == null || !view.Contains(GroupsList.SelectedItem))
@@ -310,9 +313,6 @@ public partial class RulesPage : UserControl
             var detail = r.Why;
             if (r.Unchecked.Count > 0)
                 detail += $"\nНе проверено (скачиваются движком сами): {string.Join(", ", r.Unchecked)}";
-            if (r.Hits.Count == 0 && !r.Input.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
-                && r.Input.Count(c => c == '.') >= 2)
-                detail += "\nДомены в группах совпадают только целиком: «example.com» не покрывает «www.example.com».";
             LookupDetail.Text = detail;
             LookupDetail.Visibility = Visibility.Visible;
         }

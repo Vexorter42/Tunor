@@ -30,20 +30,39 @@
             <!-- Profiles: named copies of this tunnel, switchable in one click -->
             <Border x:Name="ProfileBar" Style="{StaticResource Card}" Padding="14,10"
                     Margin="0,10,0,0" Visibility="Collapsed">
-                <WrapPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Switch between saved profiles -->
                     <TextBlock Text="Профиль:" Foreground="{StaticResource TextBrush}"
                                VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <ComboBox x:Name="ProfileBox" Width="200" Margin="0,0,8,0"
+                    <ComboBox x:Name="ProfileBox" Grid.Column="1" Visibility="Collapsed"
                               SelectionChanged="ProfileBox_SelectionChanged"/>
-                    <Button x:Name="DeleteProfileBtn" Content="Удалить" Padding="12,6"
-                            Style="{StaticResource GhostButton}" Margin="0,0,24,0"
+                    <TextBlock x:Name="NoProfilesText" Grid.Column="1" Style="{StaticResource Dim}"
+                               VerticalAlignment="Center" TextWrapping="Wrap"
+                               Text="пока нет — впиши имя ниже и сохрани текущий конфиг"/>
+                    <Button x:Name="DeleteProfileBtn" Grid.Column="2" Content="Удалить" Padding="12,6"
+                            Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                            HorizontalAlignment="Left" Visibility="Hidden"
                             Click="DeleteProfile_Click"/>
-                    <TextBox x:Name="NewProfileBox" Width="170" Margin="0,0,8,0"
-                             VerticalContentAlignment="Center"
-                             ToolTip="Имя для нового профиля, например «WARP домашний» или «geo Германия»"/>
-                    <Button Content="Сохранить текущий как профиль" Padding="12,6"
-                            Style="{StaticResource SecondaryButton}" Click="SaveProfile_Click"/>
-                </WrapPanel>
+
+                    <!-- Save what is in the editor under a new name -->
+                    <TextBlock Grid.Row="1" Text="Новый:" Foreground="{StaticResource TextBrush}"
+                               VerticalAlignment="Center" Margin="0,8,10,0"/>
+                    <TextBox x:Name="NewProfileBox" Grid.Row="1" Grid.Column="1" Margin="0,8,0,0"
+                             Tag="Имя, например «WARP домашний» или «geo Германия»"/>
+                    <Button Grid.Row="1" Grid.Column="2" Content="Сохранить текущий" Padding="12,6"
+                            Style="{StaticResource SecondaryButton}" Margin="8,8,0,0"
+                            Click="SaveProfile_Click"/>
+                </Grid>
             </Border>
         </StackPanel>
 

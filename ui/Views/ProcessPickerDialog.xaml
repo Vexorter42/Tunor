@@ -26,7 +26,8 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="FilterBox" TextChanged="Filter_Changed" ToolTip="Поиск по имени или заголовку окна"/>
+            <TextBox x:Name="FilterBox" TextChanged="Filter_Changed" Tag="Поиск по имени или заголовку окна"
+                     ToolTip="Поиск по имени или заголовку окна"/>
             <CheckBox x:Name="ShowAll" Grid.Column="1" Content="Все процессы" Margin="14,0,0,0"
                       VerticalAlignment="Center" Checked="ShowAll_Changed" Unchecked="ShowAll_Changed"/>
         </Grid>

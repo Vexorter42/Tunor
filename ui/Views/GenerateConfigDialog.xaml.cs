@@ -93,13 +93,13 @@ public partial class GenerateConfigDialog : Window
         var k = new TextBlock
         {
             Text = key,
-            Foreground = (Brush)Application.Current.FindResource("TextDimBrush"),
+            Foreground = Ui.Brush("TextDimBrush"),
             FontSize = 13,
         };
         var v = new TextBlock
         {
             Text = value,
-            Foreground = (Brush)Application.Current.FindResource("TextBrush"),
+            Foreground = Ui.Brush("TextBrush"),
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap,
@@ -118,7 +118,7 @@ public partial class GenerateConfigDialog : Window
 
         var badge = new Border
         {
-            Background = (Brush)Application.Current.FindResource("AccentBrush"),
+            Background = Ui.Brush("AccentBrush"),
             CornerRadius = new CornerRadius(10),
             Width = 22,
             Height = 22,
@@ -137,7 +137,7 @@ public partial class GenerateConfigDialog : Window
         var t = new TextBlock
         {
             Text = text,
-            Foreground = (Brush)Application.Current.FindResource("TextBrush"),
+            Foreground = Ui.Brush("TextBrush"),
             FontSize = 13,
             TextWrapping = TextWrapping.Wrap,
             VerticalAlignment = VerticalAlignment.Center,

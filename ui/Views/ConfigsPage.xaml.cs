@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -121,16 +122,24 @@ public partial class ConfigsPage : UserControl
         ProfileBar.Visibility = IsTunnelTab ? Visibility.Visible : Visibility.Collapsed;
         if (!IsTunnelTab) return;
 
+        List<string> names;
+        try { names = ProfileService.List(_currentTab); }
+        catch { names = new(); }   // a missing profiles folder just means no profiles yet
+
+        // An empty dropdown says nothing; with no profiles, say how to make one instead.
+        var any = names.Count > 0;
+        ProfileBox.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        NoProfilesText.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
+        DeleteProfileBtn.Visibility = any ? Visibility.Visible : Visibility.Hidden;
+
         _loading = true;
         try
         {
-            var names = ProfileService.List(_currentTab);
             ProfileBox.ItemsSource = names;
             ProfileBox.SelectedItem = ProfileService.ActiveName(_currentTab);
-            ProfileBox.IsEnabled = names.Count > 0;
             DeleteProfileBtn.IsEnabled = ProfileBox.SelectedItem != null;
         }
-        catch { /* a missing profiles folder just means no profiles yet */ }
+        catch { }
         finally { _loading = false; }
     }
 
@@ -163,7 +172,7 @@ public partial class ConfigsPage : UserControl
     {
         if (string.IsNullOrWhiteSpace(NewProfileBox.Text))
         {
-            StatusText.Text = "Впиши имя профиля слева от кнопки";
+            StatusText.Text = "Впиши имя профиля в поле «Новый»";
             NewProfileBox.Focus();
             return;
         }

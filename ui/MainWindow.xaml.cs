@@ -35,6 +35,8 @@ public partial class MainWindow : Window
         ConfigGenerator.EnsureCompatible();
 
         ProcessService.StatusChanged += OnStatusChanged;
+        ProcessService.Alert += (_, reason) =>
+            Dispatcher.BeginInvoke(new Action(() => _tray?.Notify("Nyx: туннель остановлен", reason)));
         ProcessService.StartStatusPolling();
         // Records which program talks to which address, for the Apps page.
         TrafficRecorder.Start();
@@ -170,7 +172,7 @@ public partial class MainWindow : Window
     private void UpdateStatus()
     {
         var running = ProcessService.IsRunning;
-        var accent = (SolidColorBrush)FindResource(running ? "SuccessBrush" : "DangerBrush");
+        var accent = Ui.Solid(running ? "SuccessBrush" : "DangerBrush");
 
         StatusDot.Fill = accent;
         StatusText.Text = running ? "Подключено" : "Отключено";

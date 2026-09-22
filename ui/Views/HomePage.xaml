@@ -36,6 +36,35 @@
                 </StackPanel>
             </Border>
 
+            <!-- Connection check: one request through each tunnel -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <DockPanel>
+                        <Button x:Name="BtnCheck" DockPanel.Dock="Right" Content="Проверить соединение"
+                                Style="{StaticResource SecondaryButton}" Padding="14,7"
+                                VerticalAlignment="Top"
+                                Click="Check_Click"/>
+                        <StackPanel>
+                            <TextBlock Text="Проверка соединения" Style="{StaticResource H2}"/>
+                            <TextBlock Text="Отправляет запрос через каждый туннель и показывает, откуда он вышел"
+                                       Style="{StaticResource Dim}" Margin="0,4,12,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <Grid x:Name="CheckGrid" Margin="0,14,0,0" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="28"/>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="60"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                    </Grid>
+                    <TextBlock x:Name="CheckHint" Style="{StaticResource Dim}" TextWrapping="Wrap"
+                               Margin="0,10,0,0" Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource Card}" Margin="0,16,0,0">
                 <StackPanel>
                     <TextBlock Text="Генерация конфигов" Style="{StaticResource H2}"/>

@@ -216,9 +216,26 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="10">
-                        <ScrollViewer x:Name="PART_ContentHost" Padding="{TemplateBinding Padding}"/>
+                        <Grid>
+                            <!-- Placeholder: a box's Tag, shown while it is empty. The 2px
+                                 matches the text's own inset, so the hint and what is typed
+                                 start at the same place. -->
+                            <TextBlock x:Name="Hint" Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       Margin="{TemplateBinding Padding}" Padding="2,0"
+                                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                       TextTrimming="CharacterEllipsis" IsHitTestVisible="False"
+                                       Visibility="Collapsed"/>
+                            <ScrollViewer x:Name="PART_ContentHost" Padding="{TemplateBinding Padding}"/>
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="Hint" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="Text" Value="{x:Null}">
+                            <Setter TargetName="Hint" Property="Visibility" Value="Visible"/>
+                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="#FF4A515C"/>
                         </Trigger>

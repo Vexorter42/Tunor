@@ -94,6 +94,25 @@ public class TrayIcon : IDisposable
     {
         _icon.Visible = true;
         UpdateStatus(ProcessService.IsRunning);
+        // Clicking a notification opens the window, where the full reason is shown.
+        _icon.BalloonTipClicked += (_, _) => ShowWindow();
+    }
+
+    /// <summary>
+    /// A Windows notification from the tray. Used when the tunnel stops for a reason a
+    /// restart will not fix: with the window hidden, nobody would otherwise notice until
+    /// sites stopped opening. Windows caps the text, so it is cut and points to the window.
+    /// </summary>
+    public void Notify(string title, string text)
+    {
+        const int max = 200;   // the balloon allows 255; leave room for the pointer below
+        if (text.Length > max)
+        {
+            var cut = text.LastIndexOf(' ', max);
+            text = text[..(cut > 120 ? cut : max)] + "…";
+        }
+        try { _icon.ShowBalloonTip(8000, title, text + "\nПодробности — в окне Nyx.", ToolTipIcon.Warning); }
+        catch { /* notifications may be disabled; the home screen still shows it */ }
     }
 
     public void UpdateStatus(bool running)

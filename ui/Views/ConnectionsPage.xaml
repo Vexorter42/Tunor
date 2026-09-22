@@ -49,6 +49,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBox x:Name="FilterBox" TextChanged="Filter_Changed"
+                     Tag="Фильтр: адрес или программа"
                      ToolTip="Фильтр по адресу или процессу"/>
             <CheckBox x:Name="TunnelOnly" Grid.Column="1" Content="Только через туннель"
                       Margin="16,0,0,0" VerticalAlignment="Center"

@@ -64,18 +64,17 @@ public static class RouteLookup
             {
                 var wantProcess = g.ItemKind == RuleItemKind.ProcessName;
                 if (wantProcess != isProcess) continue;
-                // sing-box's "domain" is an exact match: "example.com" does not cover
-                // "www.example.com". Processes follow the generator's rule: any case, and
-                // ".exe" may be left off.
+                // Same rules as the generator: a domain entry covers its subdomains
+                // (domain_suffix); a process entry matches in any case, ".exe" optional.
                 var matched = wantProcess
                     ? g.Items.Any(i => ConfigGenerator.ProcessMatches(i, input))
-                    : g.Items.Any(i => string.Equals(i.Trim(), input, StringComparison.OrdinalIgnoreCase));
+                    : g.Items.Any(i => ConfigGenerator.DomainMatches(i, input));
                 if (matched)
                     lock (result.Hits)
                         result.Hits.Add(new LookupHit
                         {
                             Group = g.Tag,
-                            How = wantProcess ? "имя процесса" : "домен в списке, точное совпадение",
+                            How = wantProcess ? "имя программы" : "домен в списке",
                             IsGeo = geo,
                         });
             }

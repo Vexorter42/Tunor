@@ -44,6 +44,7 @@
                         <TextBlock Text="Куда пойдёт:" Foreground="{StaticResource TextBrush}"
                                    VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <TextBox x:Name="LookupBox" Grid.Column="1" KeyDown="LookupBox_KeyDown"
+                                 Tag="Сайт, ссылка, IP или программа вроде Discord.exe"
                                  ToolTip="Домен, адрес сайта целиком, IP или имя процесса вроде Discord.exe"/>
                         <Button x:Name="LookupBtn" Grid.Column="2" Content="Проверить" Padding="14,6"
                                 Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
@@ -68,11 +69,11 @@
                     <TextBlock DockPanel.Dock="Top" Text="Группы" Style="{StaticResource H2}"
                                Margin="16,12,16,8"/>
                     <TextBox x:Name="SearchBox" DockPanel.Dock="Top" Margin="12,0,12,8"
-                             TextChanged="SearchBox_TextChanged"
+                             TextChanged="SearchBox_TextChanged" Tag="Поиск"
                              ToolTip="Ищет по названиям групп и по доменам и процессам внутри них"/>
                     <TextBlock x:Name="SearchHint" DockPanel.Dock="Top" Margin="16,0,16,6"
                                Style="{StaticResource Dim}" FontSize="11" TextWrapping="Wrap"
-                               Text="Поиск по группам и их содержимому"/>
+                               Visibility="Collapsed"/>
                     <ListBox x:Name="GroupsList" Background="Transparent" BorderThickness="0"
                              Foreground="{StaticResource TextBrush}"
                              SelectionChanged="GroupsList_SelectionChanged"

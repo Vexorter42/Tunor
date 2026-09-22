@@ -24,7 +24,7 @@ public partial class HomePage : UserControl
     private void UpdateState()
     {
         var running = ProcessService.IsRunning;
-        StateDot.Fill = (SolidColorBrush)FindResource(running ? "SuccessBrush" : "DangerBrush");
+        StateDot.Fill = Ui.Solid(running ? "SuccessBrush" : "DangerBrush");
         StateText.Text = running ? "Запущен" : "Остановлен";
         // One button: "Запустить" when stopped, "Перезапустить" when running.
         BtnStart.Content = running ? "↻  Перезапустить" : "▶  Запустить";
@@ -33,10 +33,107 @@ public partial class HomePage : UserControl
         UpdateSetupWarning();
     }
 
+    // ------------------------------------------------------------ check
+
+    private async void Check_Click(object sender, RoutedEventArgs e)
+    {
+        CheckGrid.Children.Clear();
+        CheckGrid.RowDefinitions.Clear();
+
+        var why = ConnectionCheck.Unavailable();
+        if (why != null)
+        {
+            CheckGrid.Visibility = Visibility.Collapsed;
+            ShowCheckHint(why);
+            return;
+        }
+
+        BtnCheck.IsEnabled = false;
+        BtnCheck.Content = "Проверяю…";
+        CheckHint.Visibility = Visibility.Collapsed;
+        try
+        {
+            var results = await ConnectionCheck.RunAsync();
+            CheckGrid.Visibility = Visibility.Visible;
+            for (var i = 0; i < results.Count; i++) AddCheckRow(i, results[i]);
+            ShowCheckHint(Advice(results));
+        }
+        catch (Exception ex)
+        {
+            ShowCheckHint("Проверка не удалась: " + ex.Message);
+        }
+        finally
+        {
+            BtnCheck.IsEnabled = true;
+            BtnCheck.Content = "Проверить снова";
+        }
+    }
+
+    private void AddCheckRow(int row, PathResult r)
+    {
+        CheckGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var ok = r.Status == "ok";
+        var dim = Ui.Brush("TextDimBrush");
+
+        void Cell(int col, string text, Brush brush, bool bold = false)
+        {
+            var t = new TextBlock
+            {
+                Text = text, Foreground = brush, Margin = new Thickness(0, 4, 8, 4),
+                FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
+                TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetRow(t, row);
+            Grid.SetColumn(t, col);
+            CheckGrid.Children.Add(t);
+        }
+
+        Cell(0, r.Name, Ui.Brush("TextBrush"), bold: true);
+        Cell(1, r.Status switch { "ok" => "✓", "fail" => "✗", _ => "—" },
+             r.Status switch
+             {
+                 "ok" => Ui.Brush("AccentBrush"),
+                 "fail" => Ui.Brush("DangerBrush"),
+                 _ => dim,
+             }, bold: true);
+        Cell(2, ok ? r.Ip : "", Ui.Brush("TextBrush"));
+        Cell(3, ok ? r.Country : "", Ui.Brush("TextBrush"));
+        Cell(4, ok
+                ? $"{r.Ms} мс" + (r.ViaWarp ? " · Cloudflare видит WARP" : "")
+                : r.Note,
+             ok ? dim : r.Status == "fail" ? Ui.Brush("DangerBrush") : dim);
+    }
+
+    /// <summary>One line of advice for the most important thing the results show.</summary>
+    private static string Advice(System.Collections.Generic.List<PathResult> r)
+    {
+        var direct = r.Find(x => x.Name == "Напрямую");
+        var warp = r.Find(x => x.Name == "WARP");
+        var geo = r.Find(x => x.Name == "geo");
+
+        if (warp?.Status == "fail")
+            return "WARP не отвечает. Чаще всего конфиг устарел — сгенерируй новый в боте и перетащи .conf на окно. " +
+                   "Если и новый не отвечает, сеть может блокировать WireGuard: попробуй конфиг с AmneziaWG 2.0 или 3.x.";
+        if (geo?.Status == "fail")
+            return "geo не отвечает — сервер geo недоступен или конфиг устарел. WARP при этом работает.";
+        if (warp?.Status == "ok" && direct?.Status == "ok" && warp.Country == direct.Country)
+            return "Всё работает. WARP выходит в твоей же стране — так и должно быть: он обходит блокировки, " +
+                   "но страну не меняет. Для другой страны есть geo.";
+        if (direct?.Status == "fail" && warp?.Status == "ok")
+            return "Напрямую сервер проверки не открылся — похоже, провайдер его ограничивает. Туннель при этом работает.";
+        return "Всё работает.";
+    }
+
+    private void ShowCheckHint(string text)
+    {
+        CheckHint.Text = text;
+        CheckHint.Visibility = Visibility.Visible;
+    }
+
     /// <summary>
-    /// Says so plainly when a tunnel is still the shipped placeholder. Otherwise the only
-    /// clue was the engine repeating "WireGuard is not ready yet" in the log while every
-    /// connection quietly went direct.
+    /// Says so plainly when a tunnel is still the shipped placeholder, or filled in but
+    /// broken. Otherwise the only clue was the engine repeating "WireGuard is not ready
+    /// yet" in the log while every connection quietly went direct.
     /// </summary>
     private void UpdateSetupWarning()
     {

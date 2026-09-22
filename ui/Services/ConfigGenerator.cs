@@ -320,10 +320,12 @@ public static class ConfigGenerator
             {
                 var isProcess = g.ItemKind == RuleItemKind.ProcessName;
                 var items = new JsonArray();
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var it in g.Items)
                 {
                     if (string.IsNullOrWhiteSpace(it)) continue;
-                    items.Add(isProcess ? ProcessPattern(it) : it.Trim());
+                    var value = isProcess ? ProcessPattern(it) : DomainEntry(it);
+                    if (value.Length > 0 && seen.Add(value)) items.Add(value);
                 }
                 if (items.Count == 0) continue;   // an empty rule would match nothing anyway
 
@@ -331,7 +333,11 @@ public static class ConfigGenerator
                 // process_name is case-sensitive: "telegram.exe" silently never matched a
                 // "Telegram.exe" on disk (checked against the engine). A case-insensitive
                 // regex on the image path fixes that for rules already written by hand.
-                ruleObj[isProcess ? "process_path_regex" : "domain"] = items;
+                // Domains are suffixes: "domain" matched only the exact name, so
+                // "youtube.com" in a list let www., m. and every CDN host go direct.
+                // domain_suffix covers the name and all its subdomains, and is label-aware
+                // ("example.com" does not catch "notexample.com").
+                ruleObj[isProcess ? "process_path_regex" : "domain_suffix"] = items;
                 ruleSet.Add(new JsonObject
                 {
                     ["type"] = "inline", ["rules"] = new JsonArray(ruleObj), ["tag"] = g.Tag,
@@ -402,6 +408,36 @@ public static class ConfigGenerator
     }
 
     public static bool IsGeoTag(string tag) => tag.StartsWith("geo-", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A domain-list entry as the engine should see it. People write "*.youtube.com",
+    /// paste "https://site.com/page", or leave a trailing dot; none of that ever matched.
+    /// Reduced to the bare, lower-case host — which, as a suffix, covers subdomains anyway.
+    /// </summary>
+    public static string DomainEntry(string item)
+    {
+        var s = item.Trim().Trim('"', '\'');
+        if (s.Contains("://")
+            && Uri.TryCreate(s, UriKind.Absolute, out var uri) && !string.IsNullOrEmpty(uri.Host))
+            s = uri.Host;
+        else
+        {
+            var cut = s.IndexOfAny(new[] { '/', '?', '#' });
+            if (cut >= 0) s = s[..cut];
+        }
+        while (s.StartsWith("*.") || s.StartsWith(".")) s = s.TrimStart('*').TrimStart('.');
+        // host:port (but not IPv6, which has several colons)
+        if (s.Count(c => c == ':') == 1) s = s[..s.IndexOf(':')];
+        return s.Trim().TrimEnd('.').ToLowerInvariant();
+    }
+
+    /// <summary>Does a list entry cover this host? The same rule as domain_suffix.</summary>
+    public static bool DomainMatches(string item, string host)
+    {
+        var e = DomainEntry(item);
+        var h = host.Trim().TrimEnd('.').ToLowerInvariant();
+        return e.Length > 0 && (h == e || h.EndsWith("." + e, StringComparison.Ordinal));
+    }
 
     /// <summary>
     /// Rule-list entry → case-insensitive regex on the process image path.

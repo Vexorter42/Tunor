@@ -19,6 +19,9 @@ public static class ProcessService
     public static event EventHandler? StatusChanged;
     public static event EventHandler<LogEventArgs>? LogReceived;
 
+    /// <summary>The tunnel is down and the watchdog will not bring it back. Carries the reason.</summary>
+    public static event EventHandler<string>? Alert;
+
     private static Process? _liveProcess;
     private static Timer? _statusTimer;
     private static bool _lastRunning;
@@ -52,10 +55,38 @@ public static class ProcessService
         }, null, 0, 1500);
     }
 
+    /// <summary>
+    /// Nyx's own engine — not every process called sing-box. Matching by name alone meant
+    /// that another sing-box on the machine (Hiddify, v2rayN, a second test copy) counted
+    /// as "running", and Stop / Restart / exit killed it along with ours. Ours is the one
+    /// whose image is Paths.SingBoxExe. A process whose path cannot be read (another
+    /// user's, or more privileged) is by definition not one Nyx started.
+    /// </summary>
     private static Process[] GetSingBoxProcesses()
     {
-        try { return Process.GetProcessesByName("sing-box"); }
-        catch { return Array.Empty<Process>(); }
+        var ours = new List<Process>();
+        try
+        {
+            var target = System.IO.Path.GetFullPath(Paths.SingBoxExe);
+            foreach (var p in Process.GetProcessesByName("sing-box"))
+            {
+                if (IsOurEngine(p, target)) ours.Add(p);
+                else p.Dispose();
+            }
+        }
+        catch { /* treat as none */ }
+        return ours.ToArray();
+    }
+
+    private static bool IsOurEngine(Process p, string target)
+    {
+        try
+        {
+            var path = p.MainModule?.FileName;
+            return path != null && string.Equals(System.IO.Path.GetFullPath(path), target,
+                                                  StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
     }
 
     private static void Log(string line, bool isError = false)
@@ -220,8 +251,17 @@ public static class ProcessService
     /// </summary>
     private static async Task WatchdogAsync(bool retryable)
     {
-        if (!retryable || !_wantRunning) return;
-        try { if (!SettingsService.Load().Watchdog) return; } catch { return; }
+        if (!_wantRunning) return;   // stopped on purpose: nothing to report
+
+        var enabled = true;
+        try { enabled = SettingsService.Load().Watchdog; } catch { }
+        if (!retryable || !enabled)
+        {
+            // Down for good: say so, or with the window in the tray nobody notices until
+            // sites stop opening.
+            Alert?.Invoke(null, LastFailure ?? "Туннель остановился.");
+            return;
+        }
 
         int attempt;
         lock (_restarts)
@@ -230,6 +270,8 @@ public static class ProcessService
             if (_restarts.Count >= BackoffSeconds.Length)
             {
                 Log("[ui] движок падает снова и снова — больше не перезапускаю сам", true);
+                Alert?.Invoke(null, "Туннель падает снова и снова, Nyx перестал его перезапускать. " +
+                                    (LastFailure ?? ""));
                 return;
             }
             _restarts.Add(DateTime.UtcNow);
@@ -311,9 +353,12 @@ public static class ProcessService
         if (IsRunning) return false;
         try
         {
+            // Only adapters that are not up: a live sing-tun adapter belongs to a running
+            // engine — possibly another app's (Hiddify, v2rayN) — and must not be removed.
+            // A leftover from a killed engine is never up.
             var script =
                 "$a = Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue | " +
-                "Where-Object { $_.InterfaceDescription -like '*sing-tun*' }; " +
+                "Where-Object { $_.InterfaceDescription -like '*sing-tun*' -and $_.Status -ne 'Up' }; " +
                 "if ($a) { $a | Remove-NetAdapter -Confirm:$false -ErrorAction SilentlyContinue; " +
                 "'removed' } else { 'none' }";
 

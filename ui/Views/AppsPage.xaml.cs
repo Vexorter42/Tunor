@@ -139,9 +139,9 @@ public partial class AppsPage : UserControl
         {
             var route = RouteEditor.ProcessRoute(row.Exe, groups);
             row.Badge = route == RouteEditor.Warp ? "WARP" : route == RouteEditor.Geo ? "geo" : "правила";
-            row.BadgeBrush = route == RouteEditor.Warp ? (Brush)FindResource("AccentBrush")
+            row.BadgeBrush = route == RouteEditor.Warp ? Ui.Brush("AccentBrush")
                            : route == RouteEditor.Geo ? GeoBrush
-                           : (Brush)FindResource("TextDimBrush");
+                           : Ui.Brush("TextDimBrush");
             var stat = stats.FirstOrDefault(s => string.Equals(s.Exe, row.Exe, StringComparison.OrdinalIgnoreCase));
             row.Summary = stat == null
                 ? (route != null ? "правило есть, трафика пока нет" : "трафика пока нет")
@@ -206,9 +206,9 @@ public partial class AppsPage : UserControl
             row.Via = ConnectionsService.RouteLabel(h.Outbound);
             row.ViaBrush = h.Outbound switch
             {
-                "warp-out" => (Brush)FindResource("AccentBrush"),
+                "warp-out" => Ui.Brush("AccentBrush"),
                 "geo-out" => GeoBrush,
-                _ => (Brush)FindResource("TextDimBrush"),
+                _ => Ui.Brush("TextDimBrush"),
             };
             row.Conns = h.Connections.ToString();
             row.Down = Size(h.Down);
@@ -226,7 +226,7 @@ public partial class AppsPage : UserControl
     }
 
     private void StyleButton(Button b, bool active)
-        => b.Style = (Style)FindResource(active ? "PrimaryButton" : "SecondaryButton");
+        => b.Style = Ui.Style(active ? "PrimaryButton" : "SecondaryButton") ?? b.Style;
 
     // ------------------------------------------------------------ actions
 
