@@ -232,6 +232,13 @@ public partial class MainWindow : Window
     private static extern bool ChangeWindowMessageFilterEx(
         IntPtr hwnd, uint message, uint action, IntPtr changeInfo);
 
+    /// <summary>What was dragged in, as far as an import is concerned.</summary>
+    private enum DropKind { Nothing, Configs, OtherFiles, Virtual, Text }
+
+    /// <summary>Formats a chat or mail window offers when it hands over a file it holds itself.</summary>
+    private static readonly string[] VirtualFileFormats =
+        { "FileGroupDescriptorW", "FileGroupDescriptor", "FileContents" };
+
     private void Window_DragEnter(object sender, DragEventArgs e) => UpdateDropState(e);
     private void Window_DragOver(object sender, DragEventArgs e) => UpdateDropState(e);
 
@@ -240,30 +247,146 @@ public partial class MainWindow : Window
 
     private void UpdateDropState(DragEventArgs e)
     {
-        var ok = GetDroppedConfigs(e).Count > 0;
-        DropOverlay.Visibility = ok ? Visibility.Visible : Visibility.Collapsed;
+        var kind = Classify(e.Data, out var configs, out _);
+        var ok = kind is DropKind.Configs or DropKind.Text;
+
+        // A refusal used to be silent: the cursor said "no" and the window said nothing,
+        // which looks exactly like a broken feature. Say what is wrong instead.
+        if (kind == DropKind.Nothing) DropOverlay.Visibility = Visibility.Collapsed;
+        else ShowDropOverlay(kind, configs.Count);
+
         e.Effects = ok ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
-    private static List<string> GetDroppedConfigs(DragEventArgs e)
+    private void ShowDropOverlay(DropKind kind, int count)
     {
-        var result = new List<string>();
-        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return result;
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] files) return result;
-        foreach (var f in files)
-            if (ConfImporter.LooksLikeConf(f)) result.Add(f);
-        return result;
+        var (title, hint) = kind switch
+        {
+            DropKind.Configs => (count > 1 ? $"Отпустите файлы ({count})" : "Отпустите файл",
+                                 "Конфиг .conf будет определён автоматически — WARP или geo"),
+            DropKind.Text => ("Отпустите текст",
+                              "Похоже на конфиг WireGuard — вставлю его как файл"),
+            DropKind.OtherFiles => ("Это не конфиг",
+                                    "Нужен файл .conf с секцией [Interface] и строкой PrivateKey"),
+            // ⁠ keeps "Ctrl+V" from being split across lines at the plus.
+            _ => ("Так файл не передаётся",
+                  "Перетаскивание прямо из окна мессенджера не даёт Windows путь к файлу. " +
+                  "Сохрани .conf в папку и перетащи оттуда — или скопируй конфиг текстом " +
+                  "и нажми Ctrl⁠+⁠V прямо здесь."),
+        };
+
+        var good = kind is DropKind.Configs or DropKind.Text;
+        DropTitle.Text = title;
+        DropTitle.Foreground = Ui.Brush(good ? "AccentBrush" : "DangerBrush");
+        DropFrame.BorderBrush = Ui.Brush(good ? "AccentBrush" : "DangerBrush");
+        DropHint.Text = hint;
+        DropOverlay.Visibility = Visibility.Visible;
     }
+
+    private static DropKind Classify(IDataObject? data, out List<string> configs, out string formats)
+    {
+        configs = new List<string>();
+        formats = "";
+        if (data == null) return DropKind.Nothing;
+
+        try
+        {
+            formats = string.Join(", ", data.GetFormats());
+
+            if (data.GetDataPresent(DataFormats.FileDrop) && data.GetData(DataFormats.FileDrop) is string[] files)
+            {
+                foreach (var f in files)
+                    if (ConfImporter.LooksLikeConf(f)) configs.Add(f);
+                return configs.Count > 0 ? DropKind.Configs : DropKind.OtherFiles;
+            }
+
+            if (LooksLikeConfText(TextOf(data))) return DropKind.Text;
+
+            foreach (var f in VirtualFileFormats)
+                if (data.GetDataPresent(f)) return DropKind.Virtual;
+        }
+        catch { /* a source can refuse to hand anything over; treat it as nothing */ }
+
+        return DropKind.Nothing;
+    }
+
+    private static string? TextOf(IDataObject data)
+    {
+        foreach (var f in new[] { DataFormats.UnicodeText, DataFormats.Text })
+            if (data.GetDataPresent(f) && data.GetData(f) is string s && s.Length > 0)
+                return s;
+        return null;
+    }
+
+    private static bool LooksLikeConfText(string? text)
+        => text != null
+           && text.Contains("[Interface]", StringComparison.OrdinalIgnoreCase)
+           && text.Contains("PrivateKey", StringComparison.OrdinalIgnoreCase);
 
     private async void Window_Drop(object sender, DragEventArgs e)
     {
         DropOverlay.Visibility = Visibility.Collapsed;
         e.Handled = true;
+        await AcceptAsync(e.Data, "перетаскивание");
+    }
 
-        var files = GetDroppedConfigs(e);
-        if (files.Count == 0) return;
+    /// <summary>
+    /// Ctrl+V does what dragging does. It is the way in that always works: a window
+    /// running as administrator cannot always be dropped on, but the clipboard is
+    /// unaffected by that, and a config pasted as text needs no file at all.
+    /// </summary>
+    private async void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Handled || e.Key != System.Windows.Input.Key.V) return;
+        if (System.Windows.Input.Keyboard.Modifiers != System.Windows.Input.ModifierKeys.Control) return;
+        // Pasting into a text field is the field's own business.
+        if (System.Windows.Input.Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase) return;
 
+        IDataObject? data = null;
+        try { data = System.Windows.Clipboard.GetDataObject(); } catch { }
+        if (Classify(data, out _, out _) is DropKind.Nothing or DropKind.Virtual or DropKind.OtherFiles) return;
+
+        e.Handled = true;
+        await AcceptAsync(data, "вставка");
+    }
+
+    private async Task AcceptAsync(IDataObject? data, string how)
+    {
+        var kind = Classify(data, out var configs, out var formats);
+        var temp = (string?)null;
+
+        try
+        {
+            if (kind == DropKind.Text)
+            {
+                // Detection reads a file; keep the text in one next to the config files,
+                // and delete it afterwards — it holds a private key.
+                temp = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+                                              $"nyx-{DateTime.Now:yyyyMMdd-HHmmss}.conf");
+                System.IO.File.WriteAllText(temp, TextOf(data!) ?? "");
+                configs.Add(temp);
+            }
+            else if (kind != DropKind.Configs)
+            {
+                ProcessService.Note($"{how}: конфиг не получен ({kind}), форматы — {formats}", true);
+                return;
+            }
+
+            await ImportConfigsAsync(configs);
+        }
+        finally
+        {
+            if (temp != null) { try { System.IO.File.Delete(temp); } catch { } }
+        }
+    }
+
+    /// <summary>
+    /// Asks about each config and installs it. Shared by every way a config gets in:
+    /// dragging, Ctrl+V and the "Добавить файл" button on the home page.
+    /// </summary>
+    public async Task ImportConfigsAsync(IEnumerable<string> files)
+    {
         var restart = false;
         foreach (var file in files.Take(4))
         {

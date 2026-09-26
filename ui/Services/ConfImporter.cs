@@ -28,17 +28,47 @@ public static class ConfImporter
     /// <summary>Cloudflare WARP's well-known peer public key.</summary>
     private const string WarpPublicKey = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=";
 
+    /// <summary>Answers for files already looked at, so a drag can ask on every mouse move.</summary>
+    private static readonly Dictionary<string, bool> LooksCache = new();
+
+    /// <summary>
+    /// A config is recognised by what is inside it, not by its name. Requiring a ".conf"
+    /// extension turned away files that are configs: one dragged straight out of a chat
+    /// window comes from a cache folder, often with no extension at all, and a config
+    /// saved from a browser easily ends up as .conf.txt.
+    /// </summary>
     public static bool LooksLikeConf(string path)
     {
-        if (!File.Exists(path)) return false;
-        if (!path.EndsWith(".conf", StringComparison.OrdinalIgnoreCase)) return false;
         try
         {
-            var text = File.ReadAllText(path);
-            return text.Contains("[Interface]", StringComparison.OrdinalIgnoreCase)
-                && text.Contains("PrivateKey", StringComparison.OrdinalIgnoreCase);
+            var fi = new FileInfo(path);
+            // A WireGuard config is a few hundred bytes; anything large is something else.
+            if (!fi.Exists || fi.Length == 0 || fi.Length > 512 * 1024) return false;
+
+            var key = $"{fi.FullName}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}";
+            lock (LooksCache)
+                if (LooksCache.TryGetValue(key, out var cached)) return cached;
+
+            var text = ReadHead(path, 64 * 1024);
+            var ok = text.Contains("[Interface]", StringComparison.OrdinalIgnoreCase)
+                  && text.Contains("PrivateKey", StringComparison.OrdinalIgnoreCase);
+
+            lock (LooksCache)
+            {
+                if (LooksCache.Count > 64) LooksCache.Clear();
+                LooksCache[key] = ok;
+            }
+            return ok;
         }
         catch { return false; }
+    }
+
+    private static string ReadHead(string path, int bytes)
+    {
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        var buf = new byte[(int)Math.Min(bytes, fs.Length)];
+        var read = fs.Read(buf, 0, buf.Length);
+        return System.Text.Encoding.UTF8.GetString(buf, 0, read);
     }
 
     public static ConfDetection Detect(string path)

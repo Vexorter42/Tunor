@@ -11,7 +11,8 @@
         Icon="Assets/app.ico"
         AllowDrop="True"
         DragEnter="Window_DragEnter" DragOver="Window_DragOver"
-        DragLeave="Window_DragLeave" Drop="Window_Drop">
+        DragLeave="Window_DragLeave" Drop="Window_Drop"
+        KeyDown="Window_KeyDown">
 
     <Grid>
         <Grid.ColumnDefinitions>
@@ -75,16 +76,17 @@
         <!-- Drop target overlay -->
         <Border x:Name="DropOverlay" Grid.ColumnSpan="2" Visibility="Collapsed"
                 Background="#E61A1E25" IsHitTestVisible="False">
-            <Border Margin="40" CornerRadius="20" BorderThickness="2"
+            <Border x:Name="DropFrame" Margin="40" CornerRadius="20" BorderThickness="2"
                     BorderBrush="{StaticResource AccentBrush}"
                     Background="{StaticResource BgPanelBrush}">
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <TextBlock Text="Отпустите файл" Style="{StaticResource H1}"
-                               HorizontalAlignment="Center"
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="520">
+                    <TextBlock x:Name="DropTitle" Text="Отпустите файл" Style="{StaticResource H1}"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
                                Foreground="{StaticResource AccentBrush}"/>
-                    <TextBlock Text="Конфиг .conf будет определён автоматически — WARP или geo"
+                    <TextBlock x:Name="DropHint"
+                               Text="Конфиг .conf будет определён автоматически — WARP или geo"
                                Style="{StaticResource Dim}" Margin="0,10,0,0"
-                               HorizontalAlignment="Center"/>
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
         </Border>

@@ -67,9 +67,9 @@
 
             <Border Style="{StaticResource Card}" Margin="0,16,0,0">
                 <StackPanel>
-                    <TextBlock Text="Генерация конфигов" Style="{StaticResource H2}"/>
+                    <TextBlock Text="Конфиги туннелей" Style="{StaticResource H2}"/>
                     <TextBlock TextWrapping="Wrap" Style="{StaticResource Dim}" Margin="0,4,0,0"
-                               Text="Если сайты перестали открываться — конфиг туннеля протух. Сгенерируй свежий по инструкции и вставь его в Конфиги."/>
+                               Text="Если сайты перестали открываться — конфиг туннеля протух. Сгенерируй свежий по инструкции, а готовый файл добавь кнопкой ниже, перетаскиванием на окно или через Ctrl+V."/>
                     <WrapPanel Margin="0,14,0,0">
                         <Button Content="⚡  Сгенерировать WARP"
                                 Style="{StaticResource PrimaryButton}"
@@ -77,6 +77,9 @@
                         <Button Content="🌍  Сгенерировать geo"
                                 Style="{StaticResource SecondaryButton}"
                                 Click="BtnGenGeo_Click" MinWidth="200" Margin="0,0,8,8"/>
+                        <Button x:Name="BtnOpenConf" Content="📂  Добавить файл .conf"
+                                Style="{StaticResource SecondaryButton}"
+                                Click="BtnOpenConf_Click" MinWidth="200" Margin="0,0,8,8"/>
                     </WrapPanel>
                 </StackPanel>
             </Border>

@@ -196,6 +196,47 @@ public partial class HomePage : UserControl
         dlg.ShowDialog();
     }
 
+    /// <summary>
+    /// The way in that always works. Dragging depends on what the source app hands over
+    /// and on Windows letting it reach a window that runs as administrator; a file picker
+    /// depends on neither.
+    /// </summary>
+    private async void BtnOpenConf_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Выбери файл конфига",
+            Filter = "Конфиги WireGuard (*.conf;*.txt)|*.conf;*.txt|Все файлы|*.*",
+            Multiselect = true,
+            InitialDirectory = FirstExisting(
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "Telegram Desktop"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")),
+        };
+        if (dlg.ShowDialog(Window.GetWindow(this)) != true) return;
+
+        var good = new System.Collections.Generic.List<string>();
+        foreach (var f in dlg.FileNames)
+            if (ConfImporter.LooksLikeConf(f)) good.Add(f);
+
+        if (good.Count == 0)
+        {
+            MessageBox.Show(
+                "Это не похоже на конфиг WireGuard.\n\nВнутри файла должна быть секция [Interface] " +
+                "и строка PrivateKey. Расширение при этом любое.",
+                "Конфиг не распознан", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (Window.GetWindow(this) is MainWindow main) await main.ImportConfigsAsync(good);
+    }
+
+    private static string FirstExisting(params string[] paths)
+    {
+        foreach (var p in paths)
+            if (Directory.Exists(p)) return p;
+        return "";
+    }
+
     private void BtnGenGeo_Click(object sender, RoutedEventArgs e)
     {
         var dlg = GenerateConfigDialog.ForGeo();
