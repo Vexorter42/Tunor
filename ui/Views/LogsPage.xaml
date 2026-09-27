@@ -15,14 +15,17 @@
                        Style="{StaticResource Dim}" Margin="0,4,0,16" TextWrapping="Wrap"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+        <WrapPanel Grid.Row="1" Margin="0,0,0,12">
+            <Button x:Name="BtnReport" Content="📋  Собрать отчёт" Style="{StaticResource PrimaryButton}"
+                    Click="Report_Click" Margin="0,0,8,8"
+                    ToolTip="Один файл для отправки: версии, состояние туннеля, настройки и лог. Ключи и личные списки в него не попадают."/>
             <Button Content="Очистить" Style="{StaticResource SecondaryButton}"
-                    Click="Clear_Click" Margin="0,0,8,0"/>
+                    Click="Clear_Click" Margin="0,0,8,8"/>
             <Button Content="Сохранить в файл" Style="{StaticResource SecondaryButton}"
-                    Click="Save_Click" Margin="0,0,16,0"/>
+                    Click="Save_Click" Margin="0,0,16,8"/>
             <CheckBox x:Name="AutoScroll" Content="Автопрокрутка" IsChecked="True"
-                      VerticalAlignment="Center"/>
-        </StackPanel>
+                      VerticalAlignment="Center" Margin="0,0,0,8"/>
+        </WrapPanel>
 
         <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0">
             <TextBox x:Name="Log" IsReadOnly="True"

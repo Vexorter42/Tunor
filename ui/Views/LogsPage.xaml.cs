@@ -134,6 +134,63 @@ public partial class LogsPage : UserControl
         }
     }
 
+    /// <summary>
+    /// Collects everything needed to diagnose this install into one file that can be
+    /// forwarded as is. Before this, helping someone else meant asking them for the
+    /// version, the log, the config and the state of things one message at a time.
+    /// </summary>
+    private async void Report_Click(object sender, RoutedEventArgs e)
+    {
+        Flush();
+
+        var check = MessageBox.Show(
+            "Прогнать заодно проверку соединения?\n\n" +
+            "Она отправляет по одному запросу напрямую, через WARP и через geo — это точнее " +
+            "показывает, что сломано, но занимает до полуминуты.",
+            "Отчёт", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = DiagnosticsReport.SuggestedFileName,
+            DefaultExt = ".txt",
+            Filter = "Текст (*.txt)|*.txt",
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+        };
+        if (dlg.ShowDialog(Window.GetWindow(this)) != true) return;
+
+        var log = _trimmed
+            ? $"{_head}{Environment.NewLine}... середина лога пропущена ...{Environment.NewLine}{Environment.NewLine}{Log.Text}"
+            : Log.Text;
+
+        BtnReport.IsEnabled = false;
+        BtnReport.Content = "Собираю…";
+        try
+        {
+            var text = await DiagnosticsReport.BuildAsync(log, check);
+            System.IO.File.WriteAllText(dlg.FileName, text, Encoding.UTF8);
+
+            if (MessageBox.Show(
+                    $"Отчёт сохранён:\n{dlg.FileName}\n\nОткрыть папку с ним?",
+                    "Отчёт готов", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                        "explorer.exe", $"/select,\"{dlg.FileName}\"") { UseShellExecute = true });
+                }
+                catch { }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Не удалось собрать отчёт: " + ex.Message, "Nyx",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            BtnReport.IsEnabled = true;
+            BtnReport.Content = "📋  Собрать отчёт";
+        }
+    }
+
     private void Clear_Click(object sender, RoutedEventArgs e)
     {
         while (_pending.TryDequeue(out _)) { }
