@@ -1,4 +1,4 @@
-"""Packs the published osx-arm64 build into Nyx.app and a .tar.gz.
+"""Packs the published osx-arm64 build into Tunor.app and a .tar.gz.
 
 Why tar.gz and not zip: a zip written on Windows carries no POSIX permissions, so the
 extracted binaries would arrive without the executable bit and macOS would refuse to
@@ -17,7 +17,7 @@ import tarfile
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PROJ = os.path.join(HERE, "Nyx.Mac")
+PROJ = os.path.join(HERE, "Tunor.Mac")
 PUB = os.path.join(PROJ, "bin", "Release", "net8.0", "osx-arm64", "publish")
 ENGINE = os.path.join(HERE, "engine", "sing-box-1.14.1-lx.8-darwin-arm64", "sing-box")
 ICON_PNG = os.path.join(HERE, "..", "ui", "Assets", "app.png")
@@ -49,12 +49,12 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Nyx</string>
-  <key>CFBundleDisplayName</key><string>Nyx</string>
-  <key>CFBundleIdentifier</key><string>com.vexorter.nyx</string>
+  <key>CFBundleName</key><string>Tunor</string>
+  <key>CFBundleDisplayName</key><string>Tunor</string>
+  <key>CFBundleIdentifier</key><string>com.vexorter.tunor</string>
   <key>CFBundleVersion</key><string>%(v)s</string>
   <key>CFBundleShortVersionString</key><string>%(v)s</string>
-  <key>CFBundleExecutable</key><string>Nyx</string>
+  <key>CFBundleExecutable</key><string>Tunor</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
@@ -72,7 +72,7 @@ def main():
     if not os.path.isfile(ENGINE):
         raise SystemExit("engine missing: " + ENGINE)
 
-    app = os.path.join(OUT, "Nyx.app")
+    app = os.path.join(OUT, "Tunor.app")
     if os.path.exists(OUT):
         shutil.rmtree(OUT)
     macos = os.path.join(app, "Contents", "MacOS")
@@ -91,11 +91,11 @@ def main():
         f.write(INFO_PLIST % {"v": VERSION})
 
     # --- tar.gz with real POSIX modes
-    archive = os.path.join(OUT, "Nyx-%s-macos-arm64.tar.gz" % VERSION)
-    executables = {"Contents/MacOS/Nyx", "Contents/Resources/sing-box"}
+    archive = os.path.join(OUT, "Tunor-%s-macos-arm64.tar.gz" % VERSION)
+    executables = {"Contents/MacOS/Tunor", "Contents/Resources/sing-box"}
 
     def fix(ti):
-        rel = ti.name[len("Nyx.app/"):] if ti.name.startswith("Nyx.app/") else ti.name
+        rel = ti.name[len("Tunor.app/"):] if ti.name.startswith("Tunor.app/") else ti.name
         if ti.isdir():
             ti.mode = 0o755
         elif rel in executables or rel.endswith((".dylib", ".so")):
@@ -107,16 +107,16 @@ def main():
         return ti
 
     with tarfile.open(archive, "w:gz") as tar:
-        tar.add(app, arcname="Nyx.app", filter=fix)
+        tar.add(app, arcname="Tunor.app", filter=fix)
 
     mb = os.path.getsize(archive) / 1024 / 1024
-    print("Nyx.app   :", app)
+    print("Tunor.app   :", app)
     print("AppIcon   :", size, "bytes")
     print("archive   : %s  (%.1f MB)" % (os.path.basename(archive), mb))
 
     with tarfile.open(archive) as tar:
         for m in tar.getmembers():
-            if m.name.endswith(("MacOS/Nyx", "Resources/sing-box")):
+            if m.name.endswith(("MacOS/Tunor", "Resources/sing-box")):
                 print("  %s  mode=%s" % (m.name, oct(m.mode)))
 
 

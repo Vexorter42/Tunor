@@ -1,16 +1,37 @@
 using System.Diagnostics;
 using System.Threading.Tasks;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 public static class TaskService
 {
-    public const string TaskName = "Nyx";
+    public const string TaskName = "Tunor";
     // Task names used by previous versions — cleaned up on (re)install.
-    public static readonly string[] LegacyTaskNames = { "SSnet-UI", "SSnet" };
+    public static readonly string[] LegacyTaskNames = { "Nyx", "SSnet-UI", "SSnet" };
     public const string AutostartArg = "--autostart";
 
     public static bool IsInstalled() => QueryExists(TaskName);
+
+    /// <summary>
+    /// Carries autostart across a rename. A task made under the old name still points at
+    /// the old executable, which this version's installer removes — so autostart would
+    /// quietly stop working, and the switch in the app would show it as off. Re-creates
+    /// it under the current name, pointing at this build.
+    /// </summary>
+    public static async Task MigrateLegacyAsync()
+    {
+        try
+        {
+            if (IsInstalled()) return;
+            if (!System.Array.Exists(LegacyTaskNames, QueryExists)) return;
+
+            var (ok, output) = await InstallAsync();
+            ProcessService.Note(ok
+                ? "автозапуск перенесён на новое имя программы"
+                : "не удалось перенести автозапуск: " + output, !ok);
+        }
+        catch { /* autostart is a convenience; never let it break startup */ }
+    }
 
     private static bool QueryExists(string name)
     {
@@ -27,7 +48,7 @@ public static class TaskService
 
             var exe = Paths.UiExe;
             if (string.IsNullOrEmpty(exe))
-                return (false, "Не удалось определить путь к Nyx.exe");
+                return (false, "Не удалось определить путь к Tunor.exe");
 
             var trValue = $"\"{exe}\" {AutostartArg}";
             return RunSchtasks("/create", "/tn", TaskName, "/tr", trValue,

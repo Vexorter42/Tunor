@@ -8,9 +8,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Nyx.Services;
+using Tunor.Services;
 
-namespace Nyx.Views;
+namespace Tunor.Views;
 
 public abstract class Notifier : INotifyPropertyChanged
 {
@@ -220,8 +220,8 @@ public partial class AppsPage : UserControl
             ? "Куда ходит за этот сеанс"
             : $"Куда ходит за этот сеанс — {Count(hosts.Count, "адрес", "адреса", "адресов")}";
         HostsEmpty.Text = !ProcessService.IsRunning
-            ? "Туннель не запущен — Nyx видит только тот трафик, который идёт через него."
-            : "Пока ничего. Поработай в программе — адреса появятся здесь. Видно только то, что идёт через Nyx: весь трафик в режиме TUN, а без него — только то, что настроено на прокси.";
+            ? "Туннель не запущен — Tunor видит только тот трафик, который идёт через него."
+            : "Пока ничего. Поработай в программе — адреса появятся здесь. Видно только то, что идёт через Tunor: весь трафик в режиме TUN, а без него — только то, что настроено на прокси.";
         HostsEmpty.Visibility = _hosts.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 

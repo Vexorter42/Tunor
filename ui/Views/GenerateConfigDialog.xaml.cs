@@ -4,7 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace Nyx.Views;
+namespace Tunor.Views;
 
 public partial class GenerateConfigDialog : Window
 {

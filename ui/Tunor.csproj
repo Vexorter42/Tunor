@@ -14,12 +14,12 @@
          runs WinForms' ApplicationConfiguration.Initialize(), so the manifest is the
          only thing that makes the process DPI-aware. -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
-    <AssemblyName>Nyx</AssemblyName>
-    <RootNamespace>Nyx</RootNamespace>
+    <AssemblyName>Tunor</AssemblyName>
+    <RootNamespace>Tunor</RootNamespace>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>1.9.2</Version>
-    <FileVersion>1.9.2</FileVersion>
-    <AssemblyVersion>1.9.2</AssemblyVersion>
+    <Version>1.10.0</Version>
+    <FileVersion>1.10.0</FileVersion>
+    <AssemblyVersion>1.10.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>

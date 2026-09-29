@@ -8,9 +8,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Nyx.Services;
+using Tunor.Services;
 
-namespace Nyx.Views;
+namespace Tunor.Views;
 
 public sealed class ConnRow : INotifyPropertyChanged
 {

@@ -6,7 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 public sealed class LookupHit
 {

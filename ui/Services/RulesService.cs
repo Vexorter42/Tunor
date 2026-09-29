@@ -8,7 +8,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
 using System.Threading.Tasks;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 public enum RuleItemKind { Domain, ProcessName }
 

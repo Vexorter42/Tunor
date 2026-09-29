@@ -1,4 +1,4 @@
-# Nyx
+# Tunor
 
 Графический интерфейс для [sing-box](https://github.com/SagerNet/sing-box) на Windows с поддержкой **AmneziaWG 1.0 / 2.0 / 3.x**: управление туннелем, редактор правил маршрутизации, помощники генерации конфигов и обновление «по воздуху».
 
@@ -11,7 +11,7 @@
 - **Управление сервисом** — одна кнопка Запустить/Перезапустить + Остановить, индикатор состояния в окне и в трее.
 - **AmneziaWG 1.0 / 2.0 / 3.x** — движок на базе [sing-box-lx](https://github.com/Leadaxe/sing-box-lx). Поддерживаются `Jc/Jmin/Jmax`, `S1–S4`, `H1–H4`, `I1–I5`, а также 3.x: `ContentPaddingAddition`, `RekeyAfterTime`, `RejectAfterTime`, `KeepaliveTimeout`, `MaxHandshakeAttempts`, `RandomTrailers`, `DisableCookies`, `HeaderProtectionKey`.
 - **Собственный генератор конфига** — `config.json` собирается самим приложением из `warp.conf`, `geo.conf`, `rules.json` и `settings.json`. Внешние CLI-утилиты не нужны.
-- **Drag & drop конфигов** — перетащи `.conf` на окно: Nyx сам определит, WARP это или geo, покажет версии AWG и предложит перезапустить туннель.
+- **Drag & drop конфигов** — перетащи `.conf` на окно: Tunor сам определит, WARP это или geo, покажет версии AWG и предложит перезапустить туннель.
 - **Редактор правил** — группы `inline` (домены и имена процессов), `remote` (внешние `.srs`) и `local` (локальные списки).
 - **Локальные списки** — `.srs` скачиваются при первом запуске через настраиваемое зеркало (обход блокировки GitHub), после чего движок не зависит от сети при старте.
 - **Приветственное окно** — условия использования и короткий туториал при первой установке; открыть повторно можно в **Настройках**.
@@ -26,10 +26,10 @@
 
 ## Установка
 
-1. Скачай последний **`Nyx-Setup.exe`** со страницы [Releases](../../releases/latest).
+1. Скачай последний **`Tunor-Setup.exe`** со страницы [Releases](../../releases/latest).
 2. Запусти установщик (нужны права администратора).
 3. При первом запуске прими условия использования и пройди короткий туториал — там же кнопка **«Скачать списки»** (правила маршрутизации).
-4. Сгенерируй конфиг WARP в [@warp_generator_bot](https://t.me/warp_generator_bot) и перетащи присланный `.conf` прямо на окно Nyx (или вставь текст в **Конфиги → warp.conf** и нажми «Сохранить и применить»).
+4. Сгенерируй конфиг WARP в [@warp_generator_bot](https://t.me/warp_generator_bot) и перетащи присланный `.conf` прямо на окно Tunor (или вставь текст в **Конфиги → warp.conf** и нажми «Сохранить и применить»).
 5. *(опционально)* Для geo-туннеля — любой WireGuard-конфиг: так же drag & drop либо **Конфиги → geo.conf**.
 6. Нажми **Запустить**.
 
@@ -52,7 +52,7 @@
 
 ```json
 {
-  "repo": "Vexorter42/Nyx",
+  "repo": "Vexorter42/Tunor",
   "mirror": "https://ghproxy.net/"
 }
 ```
@@ -86,7 +86,7 @@ dotnet publish -c Release -r win-x64 --self-contained true
     warp.conf              # AmneziaWG-конфиг WARP
     geo.conf               # WireGuard-конфиг geo
     rulesets/*.srs         # локальные списки (скачиваются приложением)
-  ui/Nyx.exe               # это приложение
+  ui/Tunor.exe               # это приложение
 ```
 
 ## Поддержать
@@ -101,7 +101,7 @@ dotnet publish -c Release -r win-x64 --self-contained true
 
 ## Лицензия
 
-Исходный код Nyx (каталог `ui/`) — [MIT](LICENSE).
+Исходный код Tunor (каталог `ui/`) — [MIT](LICENSE).
 
 ### Сторонние компоненты
 
@@ -112,7 +112,7 @@ dotnet publish -c Release -r win-x64 --self-contained true
 > In addition, no derivative work may use the name or imply association
 > with this application without prior consent.
 
-В установщик Nyx вкладывается **неизменённый** исполняемый файл
+В установщик Tunor вкладывается **неизменённый** исполняемый файл
 `sing-box 1.14.1-lx.8` (windows-amd64, собран с тегом `with_awg`). Соответствующий
 исходный код:
 
@@ -124,17 +124,17 @@ dotnet publish -c Release -r win-x64 --self-contained true
 Полные тексты лицензий лежат в папке установки (`licenses/`) и описаны в
 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 
-Nyx — **отдельная программа**: она запускает `sing-box.exe` как самостоятельный
+Tunor — **отдельная программа**: она запускает `sing-box.exe` как самостоятельный
 процесс и передаёт ему конфигурационный файл, а не линкуется с ним.
 
 **Файлы правил (`.srs`)** из проекта
 [itdoginfo/allow-domains](https://github.com/itdoginfo/allow-domains)
-**не входят** в установщик — Nyx скачивает их из первоисточника по запросу
+**не входят** в установщик — Tunor скачивает их из первоисточника по запросу
 пользователя. На момент сборки лицензия в этом репозитории не указана.
 
 ### Отказ от аффилиации
 
-Nyx не аффилирован с проектами sing-box, sing-box-lx, AmneziaWG, Cloudflare и
+Tunor не аффилирован с проектами sing-box, sing-box-lx, AmneziaWG, Cloudflare и
 ProtonVPN, не одобрен ими и не поддерживается ими. Их названия используются
 исключительно для описания совместимости.
 

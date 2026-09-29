@@ -5,8 +5,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <AssemblyName>Nyx</AssemblyName>
-    <RootNamespace>Nyx</RootNamespace>
+    <AssemblyName>Tunor</AssemblyName>
+    <RootNamespace>Tunor</RootNamespace>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
   </PropertyGroup>
 

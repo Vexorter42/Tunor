@@ -5,7 +5,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 public sealed class ConnInfo
 {

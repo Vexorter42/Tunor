@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 /// <summary>
 /// Builds build/config.json directly (replaces SSnetCli), in sing-box-lx format:
@@ -52,7 +52,7 @@ public static class ConfigGenerator
     /// <summary>
     /// Candidate ports for the stats API. Deliberately not 9090, the usual Clash port:
     /// a bind failure there would stop the whole engine from starting, and people who
-    /// need Nyx have often tried Clash first.
+    /// need Tunor have often tried Clash first.
     /// </summary>
     private static readonly int[] ControllerPorts = { 29090, 29091, 29092, 29093, 29094, 29095 };
 
@@ -174,8 +174,13 @@ public static class ConfigGenerator
     /// installer ships templates with random keys and Endpoint 127.0.0.1 so the app has
     /// something valid to parse — those must not become live endpoints.
     /// </summary>
-    /// <summary>Marks every template shipped from 1.5.2 on.</summary>
-    private const string PlaceholderMarker = "NYX-PLACEHOLDER";
+    /// <summary>
+    /// Marks every template shipped from 1.5.2 on. Both spellings are recognised for
+    /// good: every install made before the rename has NYX-PLACEHOLDER written into its
+    /// warp.conf and geo.conf, and a marker that stops being recognised turns a
+    /// deliberately fake tunnel back into one the app would try to dial.
+    /// </summary>
+    private static readonly string[] PlaceholderMarkers = { "TUNOR-PLACEHOLDER", "NYX-PLACEHOLDER" };
 
     /// <summary>
     /// Older installers wrote a warp.conf template with no marker: real Cloudflare
@@ -217,7 +222,8 @@ public static class ConfigGenerator
         try
         {
             var text = File.ReadAllText(path);
-            if (text.Contains(PlaceholderMarker, StringComparison.OrdinalIgnoreCase)) return placeholder;
+            foreach (var marker in PlaceholderMarkers)
+                if (text.Contains(marker, StringComparison.OrdinalIgnoreCase)) return placeholder;
             if (text.Contains(LegacyWarpComment, StringComparison.OrdinalIgnoreCase) &&
                 text.Contains(LegacyWarpAddress, StringComparison.OrdinalIgnoreCase)) return placeholder;
             if (text.Trim().Length == 0) return placeholder;

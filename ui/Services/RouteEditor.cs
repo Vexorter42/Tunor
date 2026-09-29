@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 /// <summary>
 /// Edits rules.json on the user's behalf: "send this program to WARP", "send this

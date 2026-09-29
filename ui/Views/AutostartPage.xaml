@@ -1,4 +1,4 @@
-<UserControl x:Class="Nyx.Views.AutostartPage"
+<UserControl x:Class="Tunor.Views.AutostartPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="{StaticResource BgBrush}">
@@ -21,7 +21,7 @@
                     </StackPanel>
 
                     <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextDimBrush}"
-                               Text="Установка создаст задачу Nyx в планировщике (schtasks). При входе пользователя Nyx стартует свёрнутым в трей, ждёт 5 секунд и автоматически перезапускает sing-box."/>
+                               Text="Установка создаст задачу Tunor в планировщике (schtasks). При входе пользователя Tunor стартует свёрнутым в трей, ждёт 5 секунд и автоматически перезапускает sing-box."/>
 
                     <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
                         <Button x:Name="BtnInstall" Content="✓ Включить автозапуск"

@@ -1,4 +1,4 @@
-"""Generates Assets/app.ico and Assets/app.png — the Nyx mark.
+"""Generates Assets/app.ico and Assets/app.png — the Tunor mark.
 
 The mark: traffic leaving a closed ring. The ring is broken where the arrow exits,
 which is what keeps it from reading as a "forbidden" sign.

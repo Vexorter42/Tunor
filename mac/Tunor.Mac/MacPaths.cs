@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 /// <summary>
 /// macOS layout. Replaces the Windows Paths.cs for this build — that file is NOT linked
@@ -10,7 +10,7 @@ namespace Nyx.Services;
 /// A .app bundle is read-only in practice (it lands in /Applications, it gets replaced
 /// wholesale on update, and writing inside it breaks the code signature), so nothing the
 /// user owns may live there. Configs, rules and the generated config.json go to
-/// ~/Library/Application Support/Nyx; only the engine ships inside the bundle.
+/// ~/Library/Application Support/Tunor; only the engine ships inside the bundle.
 ///
 /// The directory *shape* under Application Support matches the Windows install, because
 /// rule-set paths inside rules.json are relative to the engine's working directory
@@ -18,10 +18,10 @@ namespace Nyx.Services;
 /// </summary>
 public static class Paths
 {
-    /// <summary>~/Library/Application Support/Nyx — everything the user owns.</summary>
+    /// <summary>~/Library/Application Support/Tunor — everything the user owns.</summary>
     public static string AppRoot { get; }
 
-    /// <summary>Inside the .app bundle: Nyx.app/Contents/Resources.</summary>
+    /// <summary>Inside the .app bundle: Tunor.app/Contents/Resources.</summary>
     public static string BundleResources { get; }
 
     public static string BuildDir => Path.Combine(AppRoot, "build");
@@ -43,7 +43,7 @@ public static class Paths
     static Paths()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        AppRoot = Path.Combine(home, "Library", "Application Support", "Nyx");
+        AppRoot = Path.Combine(home, "Library", "Application Support", "Tunor");
 
         // Running from the bundle the executable sits in Contents/MacOS; during
         // development it is just a build directory, and Resources sits next to it.

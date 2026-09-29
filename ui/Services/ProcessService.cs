@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 public class LogEventArgs : EventArgs
 {
@@ -56,11 +56,11 @@ public static class ProcessService
     }
 
     /// <summary>
-    /// Nyx's own engine — not every process called sing-box. Matching by name alone meant
+    /// Tunor's own engine — not every process called sing-box. Matching by name alone meant
     /// that another sing-box on the machine (Hiddify, v2rayN, a second test copy) counted
     /// as "running", and Stop / Restart / exit killed it along with ours. Ours is the one
     /// whose image is Paths.SingBoxExe. A process whose path cannot be read (another
-    /// user's, or more privileged) is by definition not one Nyx started.
+    /// user's, or more privileged) is by definition not one Tunor started.
     /// </summary>
     private static Process[] GetSingBoxProcesses()
     {
@@ -270,7 +270,7 @@ public static class ProcessService
             if (_restarts.Count >= BackoffSeconds.Length)
             {
                 Log("[ui] движок падает снова и снова — больше не перезапускаю сам", true);
-                Alert?.Invoke(null, "Туннель падает снова и снова, Nyx перестал его перезапускать. " +
+                Alert?.Invoke(null, "Туннель падает снова и снова, Tunor перестал его перезапускать. " +
                                     (LastFailure ?? ""));
                 return;
             }
@@ -297,7 +297,7 @@ public static class ProcessService
 
         // Must come before the generic port check: this one heals itself (see OnEngineExited).
         if (Has("external controller"))
-            return ("Порт статистики соединений оказался занят другой программой. Nyx выбрал " +
+            return ("Порт статистики соединений оказался занят другой программой. Tunor выбрал " +
                     "другой и перезапускает туннель.", true);
 
         if (Has("configure tun interface") &&
@@ -311,7 +311,7 @@ public static class ProcessService
 
         if (Has("create adapter") || Has("already exists"))
             // StartAsync removes the leftover adapter, so a retry genuinely can succeed.
-            return ("От прошлого запуска остался сетевой адаптер. Nyx убирает его сам — если " +
+            return ("От прошлого запуска остался сетевой адаптер. Tunor убирает его сам — если " +
                     "ошибка повторяется, поможет перезагрузка.", true);
 
         if (Has("configure tun interface") || Has("inbound/tun"))
@@ -327,7 +327,7 @@ public static class ProcessService
             return ("Движок не смог прочитать config.json. Нажми «Сохранить и применить» в " +
                     "«Правилах» — конфиг соберётся заново.", false);
 
-        // A tunnel file the engine refuses: bad key, bad address. Nyx now checks keys
+        // A tunnel file the engine refuses: bad key, bad address. Tunor now checks keys
         // before building the config, so this is the backstop for whatever slips past.
         if (Has("initialize endpoint") || Has("private key") || Has("public key") || Has("pre-shared key"))
         {

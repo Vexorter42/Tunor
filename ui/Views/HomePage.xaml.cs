@@ -4,9 +4,9 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using Nyx.Services;
+using Tunor.Services;
 
-namespace Nyx.Views;
+namespace Tunor.Views;
 
 public partial class HomePage : UserControl
 {

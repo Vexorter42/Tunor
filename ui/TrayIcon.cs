@@ -4,10 +4,10 @@ using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Forms;
-using Nyx.Services;
+using Tunor.Services;
 using Application = System.Windows.Application;
 
-namespace Nyx;
+namespace Tunor;
 
 public class TrayIcon : IDisposable
 {
@@ -36,7 +36,7 @@ public class TrayIcon : IDisposable
         _icon = new NotifyIcon
         {
             Icon = BuildIcon(false),
-            Text = "Nyx — отключено",
+            Text = "Tunor — отключено",
             Visible = false,
         };
 
@@ -111,7 +111,7 @@ public class TrayIcon : IDisposable
             var cut = text.LastIndexOf(' ', max);
             text = text[..(cut > 120 ? cut : max)] + "…";
         }
-        try { _icon.ShowBalloonTip(8000, title, text + "\nПодробности — в окне Nyx.", ToolTipIcon.Warning); }
+        try { _icon.ShowBalloonTip(8000, title, text + "\nПодробности — в окне Tunor.", ToolTipIcon.Warning); }
         catch { /* notifications may be disabled; the home screen still shows it */ }
     }
 
@@ -121,7 +121,7 @@ public class TrayIcon : IDisposable
         _icon.Icon = BuildIcon(running);
         old?.Dispose();
 
-        _icon.Text = running ? "Nyx — подключено" : "Nyx — отключено";
+        _icon.Text = running ? "Tunor — подключено" : "Tunor — отключено";
         _miStatus.Text = running ? "Подключено" : "Отключено";
         _miStatus.ForeColor = running ? Accent : DimC;
         _miStart.Enabled = !running;
@@ -147,7 +147,7 @@ public class TrayIcon : IDisposable
     }
 
     /// <summary>
-    /// Tray mark: the Nyx sign — traffic leaving a broken ring — tinted by connection
+    /// Tray mark: the Tunor sign — traffic leaving a broken ring — tinted by connection
     /// state. Geometry mirrors Assets/make_icon.py; change both together. Drawn large
     /// and downsampled, since GDI+ anti-aliasing alone is coarse at 32px. No background
     /// plate here: the tray sits straight on the taskbar.

@@ -8,12 +8,15 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 public class UpdateConfig
 {
-    public string Repo { get; set; } = "Vexorter42/Nyx";   // owner/repo on GitHub
+    public string Repo { get; set; } = "Vexorter42/Tunor";   // owner/repo on GitHub
     public string Mirror { get; set; } = "https://ghproxy.net/"; // prefix for blocked GitHub
+
+    /// <summary>What the repository was called before the rename to Tunor.</summary>
+    private const string FormerRepo = "Vexorter42/Nyx";
 
     public static UpdateConfig Load()
     {
@@ -24,7 +27,19 @@ public class UpdateConfig
                 var json = File.ReadAllText(Paths.UpdateJson);
                 var cfg = JsonSerializer.Deserialize<UpdateConfig>(json,
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                if (cfg != null) return cfg;
+                if (cfg != null)
+                {
+                    // update.json is kept on upgrade, so installs made before the rename
+                    // still point at the old repository. GitHub redirects that name, but
+                    // a redirect is not something to depend on for years — move it over
+                    // once, quietly.
+                    if (cfg.Repo.Equals(FormerRepo, StringComparison.OrdinalIgnoreCase))
+                    {
+                        cfg.Repo = new UpdateConfig().Repo;
+                        cfg.Save();
+                    }
+                    return cfg;
+                }
             }
         }
         catch { }
@@ -140,7 +155,7 @@ public static class UpdateService
         try
         {
             var dlUrl = Mirror(cfg, info.Url);
-            var tmp = Path.Combine(Path.GetTempPath(), $"Nyx-Setup-{info.Latest}.exe");
+            var tmp = Path.Combine(Path.GetTempPath(), $"Tunor-Setup-{info.Latest}.exe");
 
             using (var resp = await Http.GetAsync(dlUrl, HttpCompletionOption.ResponseHeadersRead))
             {

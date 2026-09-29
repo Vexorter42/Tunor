@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 public enum ConfKind { Warp, Geo }
 

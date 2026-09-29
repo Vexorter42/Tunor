@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 public class AppSettings : INotifyPropertyChanged
 {
@@ -94,11 +94,11 @@ public static class SettingsService
 
     public static AppSettings Load()
     {
-        if (!File.Exists(Nyx.Services.Paths.SettingsJson))
+        if (!File.Exists(Tunor.Services.Paths.SettingsJson))
             return new AppSettings();
         try
         {
-            var json = File.ReadAllText(Nyx.Services.Paths.SettingsJson);
+            var json = File.ReadAllText(Tunor.Services.Paths.SettingsJson);
             return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
         }
         catch
@@ -110,6 +110,6 @@ public static class SettingsService
     public static void Save(AppSettings settings)
     {
         var json = JsonSerializer.Serialize(settings, Options);
-        File.WriteAllText(Nyx.Services.Paths.SettingsJson, json);
+        File.WriteAllText(Tunor.Services.Paths.SettingsJson, json);
     }
 }

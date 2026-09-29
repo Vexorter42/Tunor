@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 
-namespace Nyx.Mac;
+namespace Tunor.Mac;
 
 /// <summary>
 /// The "Storm" palette, carried over from the Windows build's Styles/Skin.xaml so both

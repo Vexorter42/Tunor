@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 
-namespace Nyx;
+namespace Tunor;
 
 public partial class App : Application
 {
@@ -18,8 +18,8 @@ public partial class App : Application
 
     // Single-instance: the mutex also lets the Inno Setup installer (AppMutex) detect
     // and close a running instance during a silent OTA update.
-    private const string MutexName = "Nyx_AppMutex";
-    private const string ShowEventName = "Nyx_ShowEvent";
+    private const string MutexName = "Tunor_AppMutex";
+    private const string ShowEventName = "Tunor_ShowEvent";
     private static Mutex? _mutex;
     private static EventWaitHandle? _showEvent;
 
@@ -105,7 +105,7 @@ public partial class App : Application
     private static IEnumerable<string> CrashLogCandidates()
     {
         yield return Path.Combine(Services.Paths.AppRoot, "crash.log");
-        yield return Path.Combine(Path.GetTempPath(), "Nyx-crash.log");
+        yield return Path.Combine(Path.GetTempPath(), "Tunor-crash.log");
     }
 
     private static void ShowCrashNoticeOnce(Exception ex)
@@ -115,9 +115,9 @@ public partial class App : Application
         try
         {
             MessageBox.Show(
-                "Что-то пошло не так, но Nyx продолжает работать.\n\n" +
+                "Что-то пошло не так, но Tunor продолжает работать.\n\n" +
                 ex.Message + "\n\nПодробности записаны в crash.log в папке программы.",
-                "Nyx", MessageBoxButton.OK, MessageBoxImage.Warning);
+                "Tunor", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch { }
     }

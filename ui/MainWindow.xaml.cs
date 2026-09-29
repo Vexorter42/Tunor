@@ -7,10 +7,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Nyx.Services;
-using Nyx.Views;
+using Tunor.Services;
+using Tunor.Views;
 
-namespace Nyx;
+namespace Tunor;
 
 public partial class MainWindow : Window
 {
@@ -36,8 +36,10 @@ public partial class MainWindow : Window
 
         ProcessService.StatusChanged += OnStatusChanged;
         ProcessService.Alert += (_, reason) =>
-            Dispatcher.BeginInvoke(new Action(() => _tray?.Notify("Nyx: туннель остановлен", reason)));
+            Dispatcher.BeginInvoke(new Action(() => _tray?.Notify("Tunor: туннель остановлен", reason)));
         ProcessService.StartStatusPolling();
+        // Autostart was registered under the previous name; move it over if so.
+        _ = TaskService.MigrateLegacyAsync();
         // Records which program talks to which address, for the Apps page.
         TrafficRecorder.Start();
         UpdateStatus();
@@ -204,7 +206,7 @@ public partial class MainWindow : Window
     // ------------------------------------------------------ drag & drop import
 
     /// <summary>
-    /// Nyx runs elevated, Explorer does not. UIPI silently drops window messages sent
+    /// Tunor runs elevated, Explorer does not. UIPI silently drops window messages sent
     /// from a lower integrity level to a higher one, so dragging a .conf from Explorer
     /// onto this window never arrived — nothing highlighted, nothing happened. These
     /// three messages are what OLE drag-and-drop needs; allowing them is the standard
@@ -363,7 +365,7 @@ public partial class MainWindow : Window
                 // Detection reads a file; keep the text in one next to the config files,
                 // and delete it afterwards — it holds a private key.
                 temp = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
-                                              $"nyx-{DateTime.Now:yyyyMMdd-HHmmss}.conf");
+                                              $"tunor-{DateTime.Now:yyyyMMdd-HHmmss}.conf");
                 System.IO.File.WriteAllText(temp, TextOf(data!) ?? "");
                 configs.Add(temp);
             }

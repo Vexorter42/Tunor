@@ -5,9 +5,9 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using Nyx.Services;
+using Tunor.Services;
 
-namespace Nyx.Views;
+namespace Tunor.Views;
 
 public partial class LogsPage : UserControl
 {
@@ -105,7 +105,7 @@ public partial class LogsPage : UserControl
 
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
-            FileName = $"nyx-log-{DateTime.Now:yyyy-MM-dd_HH-mm}.txt",
+            FileName = $"tunor-log-{DateTime.Now:yyyy-MM-dd_HH-mm}.txt",
             DefaultExt = ".txt",
             Filter = "Текст (*.txt)|*.txt",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
@@ -115,7 +115,7 @@ public partial class LogsPage : UserControl
         try
         {
             var header =
-                $"Nyx {UpdateService.CurrentVersionString} · {DateTime.Now:yyyy-MM-dd HH:mm:ss} · " +
+                $"Tunor {UpdateService.CurrentVersionString} · {DateTime.Now:yyyy-MM-dd HH:mm:ss} · " +
                 $"{Environment.OSVersion.VersionString}\r\n" +
                 (ProcessService.LastFailure is { } f ? $"Последняя ошибка: {f}\r\n" : "") +
                 new string('-', 60) + "\r\n";
@@ -124,12 +124,12 @@ public partial class LogsPage : UserControl
                 ? $"{_head}{nl}... середина лога пропущена ...{nl}{nl}{Log.Text}"
                 : Log.Text;
             System.IO.File.WriteAllText(dlg.FileName, header + body, Encoding.UTF8);
-            MessageBox.Show("Лог сохранён:\n" + dlg.FileName, "Nyx",
+            MessageBox.Show("Лог сохранён:\n" + dlg.FileName, "Tunor",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Не удалось сохранить: " + ex.Message, "Nyx",
+            MessageBox.Show("Не удалось сохранить: " + ex.Message, "Tunor",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -181,7 +181,7 @@ public partial class LogsPage : UserControl
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Не удалось собрать отчёт: " + ex.Message, "Nyx",
+            MessageBox.Show("Не удалось собрать отчёт: " + ex.Message, "Tunor",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally

@@ -2,9 +2,9 @@ using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
-using Nyx.Services;
+using Tunor.Services;
 
-namespace Nyx.Views;
+namespace Tunor.Views;
 
 public partial class ImportConfDialog : Window
 {

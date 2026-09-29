@@ -1,9 +1,9 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using Nyx.Services;
+using Tunor.Services;
 
-namespace Nyx.Views;
+namespace Tunor.Views;
 
 public partial class SettingsPage : UserControl
 {
@@ -67,7 +67,7 @@ public partial class SettingsPage : UserControl
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Nyx", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(ex.Message, "Tunor", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 /// <summary>
 /// Named copies of warp.conf / geo.conf, for switching between several tunnels (two

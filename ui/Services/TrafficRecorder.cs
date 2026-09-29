@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 public sealed class HostStat
 {

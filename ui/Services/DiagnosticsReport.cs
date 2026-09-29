@@ -11,7 +11,7 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 /// <summary>
 /// Everything needed to understand someone else's broken install, in one file they can
@@ -28,7 +28,7 @@ public static class DiagnosticsReport
     /// <summary>The clash API secret: 32 hex characters, on its own.</summary>
     private static readonly Regex SecretLike = new(@"(?<![0-9a-fA-F])[0-9a-fA-F]{32}(?![0-9a-fA-F])", RegexOptions.Compiled);
 
-    public static string SuggestedFileName => $"nyx-отчёт-{DateTime.Now:yyyy-MM-dd_HH-mm}.txt";
+    public static string SuggestedFileName => $"tunor-отчёт-{DateTime.Now:yyyy-MM-dd_HH-mm}.txt";
 
     /// <param name="logTail">The log as the Logs page holds it; may be empty.</param>
     /// <param name="runCheck">Probe the three paths too. Takes up to half a minute.</param>
@@ -36,7 +36,7 @@ public static class DiagnosticsReport
     {
         var sb = new StringBuilder();
 
-        Head(sb, "ОТЧЁТ NYX");
+        Head(sb, "ОТЧЁТ TUNOR");
         sb.AppendLine("Этот файл можно отправлять как есть: ключи туннелей, секрет API статистики");
         sb.AppendLine("и содержимое списков правил в него не попадают — только их количество.");
         sb.AppendLine();
@@ -60,7 +60,7 @@ public static class DiagnosticsReport
     private static void App(StringBuilder sb)
     {
         Head(sb, "ПРИЛОЖЕНИЕ");
-        Line(sb, "Nyx", UpdateService.CurrentVersionString);
+        Line(sb, "Tunor", UpdateService.CurrentVersionString);
         Line(sb, "Файл", Paths.UiExe);
         Line(sb, "Папка", Paths.AppRoot);
         Line(sb, "Права администратора", IsElevated() ? "да" : "нет");
@@ -92,7 +92,7 @@ public static class DiagnosticsReport
         if (ProcessService.LastFailure is { } failure)
             Line(sb, "Последняя ошибка", failure);
 
-        // Other apps ship sing-box too (Hiddify, v2rayN). Nyx only owns the one in its
+        // Other apps ship sing-box too (Hiddify, v2rayN). Tunor only owns the one in its
         // own folder, and mixing them up has caused trouble before — so list both.
         foreach (var p in Process.GetProcessesByName("sing-box"))
         {

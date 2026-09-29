@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 /// <summary>
 /// Refreshes the downloaded rule lists once they are a week old, in the background.

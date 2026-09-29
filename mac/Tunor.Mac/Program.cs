@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Threading;
 
-namespace Nyx.Mac;
+namespace Tunor.Mac;
 
 public static class Program
 {

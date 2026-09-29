@@ -22,7 +22,7 @@ SOFTWARE.
 
 ---
 
-Nyx bundles and controls third-party software distributed under its own terms:
+Tunor bundles and controls third-party software distributed under its own terms:
   - sing-box (https://github.com/SagerNet/sing-box)
   - sing-box-lx, the AmneziaWG-capable fork used as the engine
     (https://github.com/Leadaxe/sing-box-lx)

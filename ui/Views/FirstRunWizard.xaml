@@ -1,7 +1,7 @@
-<Window x:Class="Nyx.Views.FirstRunWizard"
+<Window x:Class="Tunor.Views.FirstRunWizard"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Добро пожаловать в Nyx"
+        Title="Добро пожаловать в Tunor"
         Width="660" Height="600"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
@@ -68,7 +68,7 @@
                     </StackPanel>
                     <TextBlock TextWrapping="Wrap" LineHeight="20" FontSize="12.5"
                                Foreground="{StaticResource TextBrush}"
-                               Text="Правила маршрутизации — это списки доменов, которые решают, какой трафик идти через туннель, а какой напрямую. Они не входят в установщик: Nyx скачивает их прямо из первоисточника (проект itdoginfo/allow-domains) через зеркало, чтобы обойти блокировку GitHub.&#10;&#10;Загрузка начнётся сама — если что-то не скачается, нажми кнопку ещё раз.&#10;&#10;Без списков Nyx тоже работает: через туннель пойдёт только то, что ты добавишь вручную в разделе «Правила». Списки можно дотянуть позже там же."/>
+                               Text="Правила маршрутизации — это списки доменов, которые решают, какой трафик идти через туннель, а какой напрямую. Они не входят в установщик: Tunor скачивает их прямо из первоисточника (проект itdoginfo/allow-domains) через зеркало, чтобы обойти блокировку GitHub.&#10;&#10;Загрузка начнётся сама — если что-то не скачается, нажми кнопку ещё раз.&#10;&#10;Без списков Tunor тоже работает: через туннель пойдёт только то, что ты добавишь вручную в разделе «Правила». Списки можно дотянуть позже там же."/>
                 </DockPanel>
             </Border>
 

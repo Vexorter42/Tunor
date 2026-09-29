@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Reflection;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 public static class Paths
 {

@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 
-namespace Nyx;
+namespace Tunor;
 
 /// <summary>
 /// Theme resources for code-behind. Every lookup goes straight to the application's

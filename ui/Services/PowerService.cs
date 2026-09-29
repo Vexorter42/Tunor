@@ -1,7 +1,7 @@
 using System;
 using Microsoft.Win32;
 
-namespace Nyx.Services;
+namespace Tunor.Services;
 
 /// <summary>
 /// Listens for OS sleep/hibernation wake events and notifies subscribers

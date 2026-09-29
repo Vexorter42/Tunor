@@ -6,9 +6,9 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
-using Nyx.Services;
+using Tunor.Services;
 
-namespace Nyx.Mac;
+namespace Tunor.Mac;
 
 public class App : Application
 {
@@ -58,7 +58,7 @@ public class MainWindow : Window
 
     public MainWindow()
     {
-        Title = "Nyx";
+        Title = "Tunor";
         Width = 900;
         Height = 700;
         Background = Skin.Bg;
@@ -133,7 +133,7 @@ public class MainWindow : Window
         {
             Width = 30, Height = 30, CornerRadius = new CornerRadius(8), Background = Skin.Accent,
         });
-        header.Children.Add(Skin.H1("Nyx"));
+        header.Children.Add(Skin.H1("Tunor"));
         panel.Children.Add(header);
 
         panel.Children.Add(new Border

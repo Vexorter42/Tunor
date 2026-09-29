@@ -4,7 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
 
-namespace Nyx;
+namespace Tunor;
 
 /// <summary>
 /// Animated mouse-wheel scrolling. WPF scrolls in discrete jumps by default;

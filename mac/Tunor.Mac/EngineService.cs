@@ -5,9 +5,9 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Nyx.Services;
+using Tunor.Services;
 
-namespace Nyx.Mac;
+namespace Tunor.Mac;
 
 public sealed class LogLine
 {
