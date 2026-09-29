@@ -78,10 +78,12 @@ public static class DiagnosticsReport
         if (File.Exists(exe))
         {
             var fi = new FileInfo(exe);
+            var hash = await Task.Run(() => Sha256(exe));
+            Stamp(sb, hash);
             Line(sb, "Файл", exe);
             Line(sb, "Размер", $"{fi.Length:N0} байт");
             Line(sb, "Изменён", fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss"));
-            Line(sb, "sha256", await Task.Run(() => Sha256(exe)));
+            Line(sb, "sha256", hash);
         }
         else
         {
@@ -110,6 +112,41 @@ public static class DiagnosticsReport
             p.Dispose();
         }
         sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Which engine build this is. The binary cannot be asked without running it, so the
+    /// installer writes the answer next to it; the hash recorded there is compared with
+    /// the file actually present, which catches an engine swapped by hand.
+    /// </summary>
+    private static void Stamp(StringBuilder sb, string actualHash)
+    {
+        var stamp = Path.Combine(Paths.BuildDir, "sing-box.version");
+        if (!File.Exists(stamp))
+        {
+            Line(sb, "Версия", "неизвестна — файл sing-box.version не установлен " +
+                               "(сборка до 1.10.2 или движок заменён вручную)");
+            return;
+        }
+
+        try
+        {
+            var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var line in File.ReadAllLines(stamp))
+            {
+                var eq = line.IndexOf('=');
+                if (eq > 0) fields[line[..eq].Trim()] = line[(eq + 1)..].Trim();
+            }
+
+            Line(sb, "Версия", fields.GetValueOrDefault("version", "не указана"));
+            if (fields.TryGetValue("source", out var source)) Line(sb, "Исходники", source);
+            if (fields.TryGetValue("sha256", out var expected))
+                Line(sb, "Совпадает с версией",
+                     expected.Equals(actualHash, StringComparison.OrdinalIgnoreCase)
+                         ? "да"
+                         : $"НЕТ — файл не тот, что вкладывался (ожидался {expected[..16]}…)");
+        }
+        catch (Exception ex) { Line(sb, "Версия", "не прочитана: " + ex.Message); }
     }
 
     private static void Tunnels(StringBuilder sb)
