@@ -43,3 +43,5 @@ mac/engine/
 
 # сборка релиза
 build-out/
+__pycache__/
+*.pyc
