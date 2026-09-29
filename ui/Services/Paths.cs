@@ -21,11 +21,9 @@ public static class Paths
     public static string GeoConf => Path.Combine(DataDir, "geo.conf");
 
     public static string SingBoxExe => Path.Combine(BuildDir, "sing-box.exe");
-    public static string RunBat => Path.Combine(BuildDir, "run.bat");
-    public static string StopBat => Path.Combine(BuildDir, "stop.bat");
-    public static string RestartVbs => Path.Combine(BuildDir, "restart-headless.vbs");
-    public static string InstallBat => Path.Combine(BuildDir, "install.bat");
-    public static string DeleteBat => Path.Combine(BuildDir, "delete.bat");
+    // The helper scripts in build/ (run.bat, stop.bat, restart-headless.vbs) are for a
+    // person to run by hand when the app itself will not open. Nothing in the app calls
+    // them — it starts and stops the engine directly — so they are not named here.
     public static string UiExe { get; } = Environment.ProcessPath ?? Assembly.GetEntryAssembly()?.Location ?? "";
 
     static Paths()

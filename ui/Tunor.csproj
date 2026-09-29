@@ -17,9 +17,14 @@
     <AssemblyName>Tunor</AssemblyName>
     <RootNamespace>Tunor</RootNamespace>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>1.10.0</Version>
-    <FileVersion>1.10.0</FileVersion>
-    <AssemblyVersion>1.10.0</AssemblyVersion>
+    <!-- Shown on the file's Details tab in Explorer. -->
+    <Product>Tunor</Product>
+    <Company>Vexorter42</Company>
+    <Description>Графический интерфейс для sing-box с поддержкой AmneziaWG</Description>
+    <Copyright>© 2026 Vexorter42 · MIT</Copyright>
+    <Version>1.10.1</Version>
+    <FileVersion>1.10.1</FileVersion>
+    <AssemblyVersion>1.10.1</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
