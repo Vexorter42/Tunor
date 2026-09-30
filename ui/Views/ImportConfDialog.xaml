@@ -2,9 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Импорт конфига"
-        Width="520" Height="470"
+        Width="520" MinHeight="470"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
+        SizeToContent="Height"
         Background="{StaticResource BgBrush}"
         Icon="../Assets/app.ico">
     <Grid Margin="26">
@@ -73,6 +74,9 @@
             </StackPanel>
         </Border>
 
+        <!-- The window grows to fit instead of standing at a fixed height: the card above
+             is as tall as the config makes it (a wrapped reason line, a longer address),
+             and at a fixed 470 the buttons below ended up cut off the screen. -->
         <CheckBox x:Name="ChkRestart" Grid.Row="3" VerticalAlignment="Top" Margin="2,16,0,0"
                   IsChecked="True" Content="Перезапустить туннель после применения"/>
 

@@ -6,7 +6,7 @@
 ; Renamed from Nyx in 1.10.0. AppId stays as it was: it is what makes an existing
 ; install upgrade in place instead of appearing twice in "Programs and Features".
 #define MyAppName "Tunor"
-#define MyAppVersion "1.10.2"
+#define MyAppVersion "1.10.3"
 #define MyAppPublisher "Tunor"
 #define MyAppExeName "Tunor.exe"
 #define FormerExeName "Nyx.exe"
