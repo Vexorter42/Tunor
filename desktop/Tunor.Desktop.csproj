@@ -1,0 +1,42 @@
+<!--
+  Tunor for macOS (and anywhere else), on Avalonia.
+
+  The Windows app in ui/ is WPF and stays as it is. This one shares its brain through
+  Tunor.Core — the config generator, tunnels, link and subscription parsing, rules and
+  routing are the same code, compiled once — and brings its own face and its own few
+  platform pieces (starting the engine, autostart).
+
+  It targets plain net8.0, so it builds and runs on Windows too. That is deliberate: the
+  macOS front end can be developed and watched here, and only the handful of things that
+  are genuinely macOS get tested there.
+
+      dotnet run project desktop/Tunor.Desktop.csproj
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Tunor.Desktop</RootNamespace>
+    <AssemblyName>TunorDesktop</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <Version>1.11.1</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.3" />
+    
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\core\Tunor.Core.csproj" />
+  </ItemGroup>
+
+</Project>

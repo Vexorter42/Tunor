@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Tunor.Desktop.Views"
+             x:Class="Tunor.Desktop.Views.TunnelsView">
+    <StackPanel Spacing="16">
+
+        <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Туннели" Classes="h1"/>
+                <TextBlock Text="Куда можно отправлять трафик" Classes="dim" Margin="0,4,0,0"/>
+            </StackPanel>
+            <Button Grid.Column="1" Classes="primary" Content="＋  Свой VPN"
+                    VerticalAlignment="Center" Click="Add_Click"/>
+        </Grid>
+
+        <ItemsControl x:Name="List">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="v:TunnelsView+Row">
+                    <Border Classes="card" Margin="0,0,0,10" Padding="18,14">
+                        <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                            <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+                                    <Border Classes="badge">
+                                        <TextBlock Text="{Binding Badge}" FontSize="11"
+                                                   Foreground="{StaticResource AccentBrush}"/>
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Detail}" Classes="dim"/>
+                            </StackPanel>
+
+                            <TextBlock Grid.Column="1" Text="{Binding Status}" Classes="dim"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Button Grid.Column="2" Classes="ghost" Content="Изменить"
+                                    IsVisible="{Binding CanEdit}" Tag="{Binding Id}"
+                                    Click="Edit_Click" Margin="0,0,6,0"/>
+                            <Button Grid.Column="3" Classes="ghost" Content="Удалить"
+                                    IsVisible="{Binding CanEdit}" Tag="{Binding Id}"
+                                    Click="Delete_Click"/>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock x:Name="StatusText" Classes="dim" TextWrapping="Wrap"/>
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,54 @@
+<!--
+  The part of Tunor that is not Windows.
+
+  Everything here is ordinary C#: it reads and writes the config, parses share links and
+  subscriptions, keeps the rules and decides the routing. None of it touches WPF, and this
+  project does not target Windows, so the compiler is what proves that — a file that reaches
+  for a Windows API stops building here rather than at the end of a port.
+
+  The sources are shared with ui/Tunor.csproj rather than moved: the Windows app keeps
+  building from its own tree exactly as before, and a macOS front end compiles the same
+  files against this project.
+
+  Three files are deliberately absent, because they are Windows and nothing else:
+    ProcessService  starting and stopping the engine (console control API)
+    TaskService     autostart through schtasks
+    PowerService    power settings through the registry
+  A port supplies its own: launchd for autostart, plain signals to stop the engine.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Tunor</RootNamespace>
+    <AssemblyName>Tunor.Core</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- Treat a Windows-only API as an error, not a warning: that is the whole point. -->
+    <WarningsAsErrors>CA1416</WarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\ui\Services\ConfImporter.cs" Link="Services\ConfImporter.cs" />
+    <Compile Include="..\ui\Services\ConfigGenerator.cs" Link="Services\ConfigGenerator.cs" />
+    <Compile Include="..\ui\Services\ConnectionsService.cs" Link="Services\ConnectionsService.cs" />
+    <Compile Include="..\ui\Services\Paths.cs" Link="Services\Paths.cs" />
+    <Compile Include="..\ui\Services\ProfileService.cs" Link="Services\ProfileService.cs" />
+    <Compile Include="..\ui\Services\ProxyLink.cs" Link="Services\ProxyLink.cs" />
+    <Compile Include="..\ui\Services\RouteEditor.cs" Link="Services\RouteEditor.cs" />
+    <Compile Include="..\ui\Services\RouteLookup.cs" Link="Services\RouteLookup.cs" />
+    <Compile Include="..\ui\Services\RulesService.cs" Link="Services\RulesService.cs" />
+    <Compile Include="..\ui\Services\RulesetDownloader.cs" Link="Services\RulesetDownloader.cs" />
+    <Compile Include="..\ui\Services\SettingsService.cs" Link="Services\SettingsService.cs" />
+    <Compile Include="..\ui\Services\Subscription.cs" Link="Services\Subscription.cs" />
+    <Compile Include="..\ui\Services\TrafficRecorder.cs" Link="Services\TrafficRecorder.cs" />
+    <Compile Include="..\ui\Services\TunnelService.cs" Link="Services\TunnelService.cs" />
+    <Compile Include="..\ui\Services\UpdateService.cs" Link="Services\UpdateService.cs" />
+  </ItemGroup>
+
+</Project>

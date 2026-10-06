@@ -1,0 +1,15 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Tunor.Desktop.Views.ConfirmWindow"
+        Title="Подтверждение" Width="440" SizeToContent="Height"
+        Background="{StaticResource BgBrush}"
+        WindowStartupLocation="CenterOwner" CanResize="False">
+    <StackPanel Margin="24" Spacing="14">
+        <TextBlock x:Name="HeadText" Classes="h2" TextWrapping="Wrap"/>
+        <TextBlock x:Name="BodyText" Classes="dim" TextWrapping="Wrap"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+            <Button Content="Отмена" MinWidth="110" Click="No_Click"/>
+            <Button Classes="danger" Content="Удалить" MinWidth="110" Click="Yes_Click"/>
+        </StackPanel>
+    </StackPanel>
+</Window>
