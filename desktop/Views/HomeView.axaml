@@ -41,6 +41,8 @@
                             Click="Service_Click"/>
                     <Button x:Name="BtnInstall" Classes="primary" Content="Установить службу"
                             IsVisible="False" Click="Install_Click"/>
+                    <Button x:Name="BtnUninstall" Classes="ghost" Content="Удалить службу"
+                            IsVisible="False" Click="Uninstall_Click"/>
                 </StackPanel>
             </StackPanel>
         </Border>

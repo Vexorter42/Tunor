@@ -115,6 +115,25 @@ public partial class HomeView : UserControl
             EngineService.ServiceState.NotInstalled or
             EngineService.ServiceState.NeedsReinstall or
             EngineService.ServiceState.CopyOnly;
+        // Removing it is the engine's only documented off switch, so it is offered
+        // wherever the service exists at all.
+        BtnUninstall.IsVisible = OperatingSystem.IsMacOS() && state is
+            EngineService.ServiceState.Running or
+            EngineService.ServiceState.Stopped or
+            EngineService.ServiceState.NeedsReinstall;
+    }
+
+    private async void Uninstall_Click(object? sender, RoutedEventArgs e)
+    {
+        BtnUninstall.IsEnabled = false;
+        ServiceText.Text = "запрашиваю права…";
+        try
+        {
+            var (ok, msg) = await EngineService.UninstallService();
+            ServiceText.Text = ok ? msg : "не удалось: " + msg;
+            await CheckService();
+        }
+        finally { BtnUninstall.IsEnabled = true; Refresh(); }
     }
 
     // ------------------------------------------------------------ connection check
