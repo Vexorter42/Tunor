@@ -21,6 +21,9 @@
                             MinWidth="160" Click="Start_Click"/>
                     <Button x:Name="BtnStop" Classes="danger" Content="■  Остановить"
                             MinWidth="140" Click="Stop_Click"/>
+                    <Button x:Name="BtnStopElevated" Classes="danger" IsVisible="False"
+                            Content="■  Остановить с правами" MinWidth="200"
+                            Click="StopElevated_Click"/>
                 </StackPanel>
                 <TextBlock x:Name="StatusText" Classes="dim" TextWrapping="Wrap"/>
             </StackPanel>

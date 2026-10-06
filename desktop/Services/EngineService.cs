@@ -31,36 +31,42 @@ public static class EngineService
     public static bool IsInstalled => File.Exists(ExePath);
 
     /// <summary>
-    /// Any engine running out of this install, ours or one left behind. Matched by the
-    /// path it was started from, so another copy on the machine is left alone.
+    /// One running engine. <paramref name="Ours"/> is false when this app cannot read
+    /// the process — which is what happens with the privileged one: root's under the
+    /// macOS service, elevated on Windows. That one is visible but not ours to signal.
     /// </summary>
-    public static Process[] Running()
+    public sealed record EngineProcess(int Pid, bool Ours);
+
+    /// <summary>Every engine running out of this install, with whether we can touch it.</summary>
+    public static List<EngineProcess> Running()
     {
         var name = Path.GetFileNameWithoutExtension(ExePath);
-        var ours = new List<Process>();
+        var found = new List<EngineProcess>();
         foreach (var p in Process.GetProcessesByName(name))
         {
-            try
+            using (p)
             {
-                var path = p.MainModule?.FileName;
-                if (path != null && PathEquals(path, ExePath)) { ours.Add(p); continue; }
+                try
+                {
+                    var path = p.MainModule?.FileName;
+                    // A readable path that is not ours belongs to another install.
+                    if (path != null && !PathEquals(path, ExePath)) continue;
+                    found.Add(new EngineProcess(p.Id, true));
+                }
+                catch
+                {
+                    // Unreadable means privileged, and the name already matched.
+                    found.Add(new EngineProcess(p.Id, false));
+                }
             }
-            catch
-            {
-                // The engine that matters most is the one running with privileges — under
-                // the macOS service it is root's, and on Windows it is elevated — and that
-                // is exactly the process whose path this app may not read. Treating the
-                // unreadable as "not ours" showed "Остановлен" while traffic was flowing.
-                // The name already matched, so it is counted.
-                ours.Add(p);
-                continue;
-            }
-            p.Dispose();
         }
-        return ours.ToArray();
+        return found;
     }
 
-    public static bool IsRunning => Running().Length > 0;
+    public static bool IsRunning => Running().Count > 0;
+
+    /// <summary>True when an engine is up that this app has no right to stop.</summary>
+    public static bool PrivilegedRunning => Running().Any(p => !p.Ours);
 
     private static bool PathEquals(string a, string b) =>
         string.Equals(Path.GetFullPath(a), Path.GetFullPath(b),
@@ -76,6 +82,10 @@ public static class EngineService
     {
         if (!IsInstalled) return (false, $"движок не найден: {ExePath}");
         if (!File.Exists(Paths.ConfigJson)) return (false, $"нет конфига: {Paths.ConfigJson}");
+        // Starting a second engine over a privileged one gives two of them fighting for
+        // the same ports and the same interface, and the new one usually loses noisily.
+        if (PrivilegedRunning)
+            return (false, "движок уже работает с правами администратора — сначала останови его");
         if (IsRunning) return (true, "уже запущен");
 
         EngineLog.BeginRun();
@@ -135,34 +145,93 @@ public static class EngineService
     public static async Task<(bool Ok, string Message)> StopAsync()
     {
         var procs = Running();
-        if (procs.Length == 0) return (true, "уже остановлен");
+        if (procs.Count == 0) return (true, "уже остановлен");
 
-        foreach (var p in procs)
+        foreach (var p in procs.Where(p => p.Ours)) Signal(p.Pid, SIGTERM);
+        for (var i = 0; i < 50 && Running().Any(p => p.Ours); i++) await Task.Delay(100);
+        foreach (var p in Running().Where(p => p.Ours)) Signal(p.Pid, SIGKILL);
+        await Task.Delay(300);
+
+        var left = Running();
+        if (left.Count == 0)
         {
-            try
-            {
-                if (OperatingSystem.IsWindows()) p.Kill();     // WPF app's job; see the note above
-                else Kill(p.Id, SIGTERM);
-            }
-            catch { /* already gone */ }
+            EngineLog.Add("--- остановлен");
+            EngineLog.EndRun();
+            StateChanged?.Invoke(null, EventArgs.Empty);
+            return (true, "остановлен");
         }
 
-        for (var i = 0; i < 50 && IsRunning; i++) await Task.Delay(100);
-
-        foreach (var p in Running())
-        {
-            try { p.Kill(); } catch { }
-            p.Dispose();
-        }
-        foreach (var p in procs) p.Dispose();
-
-        EngineLog.Add("--- остановлен");
-        EngineLog.EndRun();
+        // Saying "остановлен" while the tunnel carries on is the one answer that must
+        // never be given: the user turns it off, believes it, and keeps browsing through
+        // it. A privileged engine cannot be signalled from here — say so, and say what
+        // will stop it.
         StateChanged?.Invoke(null, EventArgs.Empty);
-        return (true, "остановлен");
+        var privileged = left.Count(p => !p.Ours);
+        EngineLog.Add($"--- остановить не удалось: процессов осталось {left.Count}");
+        return (false, privileged > 0
+            ? "движок работает с правами администратора — отсюда его не остановить"
+            : $"не остановился, процессов осталось {left.Count}");
+    }
+
+    /// <summary>
+    /// Stops a privileged engine, asking macOS for the rights to do it. The password goes
+    /// into the system's own box; this process never sees it.
+    /// </summary>
+    public static async Task<(bool Ok, string Message)> StopElevatedAsync()
+    {
+        var pids = Running().Where(p => !p.Ours).Select(p => p.Pid).ToList();
+        if (pids.Count == 0) return (true, "нечего останавливать");
+        if (!OperatingSystem.IsMacOS())
+            return (false, "остановить с правами отсюда можно только на macOS");
+
+        var cmd = "/bin/kill " + string.Join(" ", pids);
+        var script = $"do shell script \"{cmd}\" with administrator privileges";
+        try
+        {
+            var p = Process.Start(new ProcessStartInfo
+            {
+                FileName = "osascript",
+                ArgumentList = { "-e", script },
+                UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true, RedirectStandardError = true,
+            });
+            if (p == null) return (false, "не удалось запросить права");
+            var err = await p.StandardError.ReadToEndAsync();
+            await p.WaitForExitAsync();
+
+            for (var i = 0; i < 30 && IsRunning; i++) await Task.Delay(100);
+            StateChanged?.Invoke(null, EventArgs.Empty);
+
+            if (!IsRunning)
+            {
+                EngineLog.Add("--- остановлен с правами администратора");
+                EngineLog.EndRun();
+                return (true, "остановлен");
+            }
+            if (err.Contains("-128") || err.Contains("User canceled")) return (false, "отменено");
+            var why = Readable(err);
+            return (false, why.Length > 0 ? why : "движок всё ещё работает");
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    /// <summary>Sends a signal, or kills on Windows where signals do not exist.</summary>
+    private static void Signal(int pid, int sig)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                using var p = Process.GetProcessById(pid);
+                p.Kill();
+            }
+            else Kill(pid, sig);
+        }
+        catch { /* already gone, or not ours after all */ }
     }
 
     private const int SIGTERM = 15;
+    private const int SIGKILL = 9;
 
     [DllImport("libc", EntryPoint = "kill", SetLastError = true)]
     private static extern int Kill(int pid, int sig);
