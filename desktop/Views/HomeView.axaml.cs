@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -51,11 +52,17 @@ public partial class HomeView : UserControl
 
     private async void Start_Click(object? sender, RoutedEventArgs e)
     {
-        StatusText.Text = "…";
-        if (EngineService.IsRunning) await EngineService.StopAsync();
-        var (ok, msg) = EngineService.Start();
-        StatusText.Text = ok ? "Движок " + msg : "Не удалось запустить: " + msg;
-        Refresh();
+        BtnStart.IsEnabled = false;
+        StatusText.Text = "запускаю…";
+        try
+        {
+            if (EngineService.IsRunning) await EngineService.StopAsync();
+            var (ok, msg) = await EngineService.StartAsync();
+            StatusText.Text = ok ? "Движок " + msg : "Не удалось запустить: " + msg;
+            // A failure is the engine's own words, and the rest of them are one page away.
+            StatusText.Foreground = (IBrush?)this.FindResource(ok ? "TextDimBrush" : "DangerBrush");
+        }
+        finally { BtnStart.IsEnabled = true; Refresh(); }
     }
 
     private async void Stop_Click(object? sender, RoutedEventArgs e)
@@ -82,6 +89,50 @@ public partial class HomeView : UserControl
             EngineService.ServiceState.NotInstalled or
             EngineService.ServiceState.NeedsReinstall or
             EngineService.ServiceState.CopyOnly;
+    }
+
+    // ------------------------------------------------------------ connection check
+
+    /// <summary>One line of the check: what came back through one path.</summary>
+    public sealed record CheckRow(string Name, string Mark, IBrush? MarkBrush,
+                                  string Ip, string Country, string Note);
+
+    private async void Check_Click(object? sender, RoutedEventArgs e)
+    {
+        var why = ConnectionCheck.Unavailable();
+        if (why != null)
+        {
+            CheckList.ItemsSource = null;
+            CheckNote.Text = why;
+            return;
+        }
+
+        BtnCheck.IsEnabled = false;
+        CheckNote.Text = "проверяю…";
+        CheckList.ItemsSource = null;
+        try
+        {
+            var results = await ConnectionCheck.RunAsync();
+            CheckList.ItemsSource = results.Select(r => new CheckRow(
+                r.Name,
+                r.Status switch { "ok" => "✓", "fail" => "✕", _ => "—" },
+                (IBrush?)this.FindResource(r.Status switch
+                {
+                    "ok" => "AccentBrush", "fail" => "DangerBrush", _ => "TextDimBrush",
+                }),
+                r.Status == "ok" ? r.Ip : "",
+                r.Country,
+                r.Status == "ok"
+                    ? $"{r.Ms} мс" + (r.ViaWarp ? " · Cloudflare видит WARP" : "")
+                    : r.Note)).ToList();
+
+            var good = results.Count(r => r.Status == "ok");
+            CheckNote.Text = good == 0
+                ? "Ни один путь не ответил. Посмотри «Логи» — там причина."
+                : $"Ответило путей: {good} из {results.Count}.";
+        }
+        catch (Exception ex) { CheckNote.Text = "Проверка не удалась: " + ex.Message; }
+        finally { BtnCheck.IsEnabled = true; }
     }
 
     private async void Install_Click(object? sender, RoutedEventArgs e)

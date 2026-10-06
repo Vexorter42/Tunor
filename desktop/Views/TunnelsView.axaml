@@ -4,12 +4,14 @@
              x:Class="Tunor.Desktop.Views.TunnelsView">
     <StackPanel Spacing="16">
 
-        <Grid ColumnDefinitions="*,Auto">
+        <Grid ColumnDefinitions="*,Auto,Auto">
             <StackPanel Grid.Column="0">
                 <TextBlock Text="Туннели" Classes="h1"/>
                 <TextBlock Text="Куда можно отправлять трафик" Classes="dim" Margin="0,4,0,0"/>
             </StackPanel>
-            <Button Grid.Column="1" Classes="primary" Content="＋  Свой VPN"
+            <Button Grid.Column="1" Content="📂  Добавить .conf" VerticalAlignment="Center"
+                    Margin="0,0,8,0" Click="Import_Click"/>
+            <Button Grid.Column="2" Classes="primary" Content="＋  Свой VPN"
                     VerticalAlignment="Center" Click="Add_Click"/>
         </Grid>
 
@@ -26,7 +28,10 @@
                                                    Foreground="{StaticResource AccentBrush}"/>
                                     </Border>
                                 </StackPanel>
-                                <TextBlock Text="{Binding Detail}" Classes="dim"/>
+                                <TextBlock Text="{Binding Detail}" Classes="dim" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding Where}" Classes="dim" FontSize="11.5"
+                                           IsVisible="{Binding ShowWhere}"
+                                           FontFamily="Consolas,Menlo,monospace" TextWrapping="Wrap"/>
                             </StackPanel>
 
                             <TextBlock Grid.Column="1" Text="{Binding Status}" Classes="dim"
@@ -42,6 +47,18 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+
+        <Border Classes="card">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Где лежат файлы туннелей" Classes="h2"/>
+                <TextBlock Classes="dim" TextWrapping="Wrap"
+                           Text="WARP и geo читаются из файлов .conf в этой папке. Можно положить их туда самому — имена должны быть ровно warp.conf и geo.conf — или нажать «Добавить .conf», и приложение само разберётся, какой из них какой."/>
+                <SelectableTextBlock x:Name="DataPathText" Classes="dim" FontSize="11.5"
+                                     FontFamily="Consolas,Menlo,monospace" TextWrapping="Wrap"/>
+                <Button Classes="ghost" Content="Открыть папку" HorizontalAlignment="Left"
+                        Click="OpenFolder_Click"/>
+            </StackPanel>
+        </Border>
 
         <TextBlock x:Name="StatusText" Classes="dim" TextWrapping="Wrap"/>
     </StackPanel>

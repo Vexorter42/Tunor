@@ -26,8 +26,32 @@ public static class Paths
     // them — it starts and stops the engine directly — so they are not named here.
     public static string UiExe { get; } = Environment.ProcessPath ?? Assembly.GetEntryAssembly()?.Location ?? "";
 
+    /// <summary>
+    /// Where a macOS build keeps its files. A program there lives in /Applications as a
+    /// bundle that the user may not write to, and everything it owns belongs under
+    /// Application Support instead — unlike Windows, where the install directory holds
+    /// both. The folder is created on first look, so a fresh install has somewhere to
+    /// write before anything has been set up.
+    /// </summary>
+    private static string MacRoot()
+    {
+        var root = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Library", "Application Support", "Tunor");
+        try
+        {
+            Directory.CreateDirectory(root);
+            Directory.CreateDirectory(Path.Combine(root, "build"));
+            Directory.CreateDirectory(Path.Combine(root, "data"));
+        }
+        catch { /* an unwritable home is a problem the first save will report properly */ }
+        return root;
+    }
+
     static Paths()
     {
+        if (OperatingSystem.IsMacOS()) { AppRoot = MacRoot(); return; }
+
         var exeDir = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location
             ?? Environment.ProcessPath
             ?? AppContext.BaseDirectory)!;

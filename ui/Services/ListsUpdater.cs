@@ -29,7 +29,7 @@ public static class ListsUpdater
             if (ok == 0)
             {
                 // Offline, or the mirror is down. Leave the date alone: retry next launch.
-                ProcessService.Note("фоновое обновление списков не удалось — попробую при следующем запуске", true);
+                EngineState.Note("фоновое обновление списков не удалось — попробую при следующем запуске", true);
                 return;
             }
 
@@ -39,13 +39,13 @@ public static class ListsUpdater
 
             // The engine reloads local rule-set files when they change on disk, so a
             // running tunnel picks the new lists up without a restart.
-            ProcessService.Note(ok == results.Count
+            EngineState.Note(ok == results.Count
                 ? $"списки правил обновлены ({ok})"
                 : $"списки правил обновлены: {ok} из {results.Count}");
         }
         catch (Exception ex)
         {
-            ProcessService.Note("обновление списков: " + ex.Message, true);
+            EngineState.Note("обновление списков: " + ex.Message, true);
         }
     }
 
