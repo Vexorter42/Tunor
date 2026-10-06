@@ -41,7 +41,9 @@ public partial class MainWindow : Window
         PageHost.Content = page switch
         {
             "tunnels" => new TunnelsView(),
+            "conns" => new ConnectionsView(),
             "settings" => new SettingsView(),
+            "logs" => new LogsView(),
             _ => new HomeView(),
         };
     }

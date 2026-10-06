@@ -39,7 +39,11 @@
                     <RadioButton Classes="nav" GroupName="nav"
                                  Content="Туннели" Tag="tunnels" IsCheckedChanged="Nav_Checked"/>
                     <RadioButton Classes="nav" GroupName="nav"
+                                 Content="Соединения" Tag="conns" IsCheckedChanged="Nav_Checked"/>
+                    <RadioButton Classes="nav" GroupName="nav"
                                  Content="Настройки" Tag="settings" IsCheckedChanged="Nav_Checked"/>
+                    <RadioButton Classes="nav" GroupName="nav"
+                                 Content="Логи" Tag="logs" IsCheckedChanged="Nav_Checked"/>
                 </StackPanel>
             </DockPanel>
         </Border>

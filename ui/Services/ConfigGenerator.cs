@@ -159,9 +159,11 @@ public static class ConfigGenerator
             ["route"] = BuildRoute(settings, tunnels, live),
         };
 
-        // Stats API for the Connections page. Windows only for now: the macOS engine
-        // build has not been checked for it, and a missing feature would stop it starting.
-        if (OperatingSystem.IsWindows() && EnsureController(settings))
+        // Stats API, which the Connections page reads. The macOS engine is the same
+        // build as the Windows one and carries the same clash_api support, so it is no
+        // longer held back there; a build without it would refuse the config, and the
+        // engine's complaint now reaches the user instead of being swallowed.
+        if (EnsureController(settings))
         {
             root["experimental"] = new JsonObject
             {

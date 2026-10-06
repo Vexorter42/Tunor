@@ -36,7 +36,7 @@ public static class ConnectionCheck
     /// <summary>Why the check cannot run right now, or null if it can.</summary>
     public static string? Unavailable()
     {
-        if (!ProcessService.IsRunning) return "Туннель не запущен — запусти его и проверь снова.";
+        if (!EngineState.IsRunning) return "Туннель не запущен — запусти его и проверь снова.";
         try
         {
             if (!SettingsService.Load().Proxy)
@@ -61,7 +61,7 @@ public static class ConnectionCheck
 
         // Into the log as well, so a saved log shows the state of every tunnel.
         foreach (var r in results)
-            ProcessService.Note($"проверка {r.Name}: " + (r.Status switch
+            EngineState.Note($"проверка {r.Name}: " + (r.Status switch
             {
                 "ok" => $"{r.Ip} {r.Country}{(r.ViaWarp ? " warp=on" : "")} · {r.Ms} мс",
                 "skip" => r.Note,

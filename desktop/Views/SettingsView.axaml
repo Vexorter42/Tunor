@@ -11,8 +11,10 @@
                 <TextBlock Text="Режимы работы" Classes="h2"/>
                 <CheckBox x:Name="ChkTun" Content="TUN — перехват всего трафика"
                           IsCheckedChanged="Toggle_Changed"/>
+                <TextBlock x:Name="TunHint" Classes="dim" Margin="24,-6,0,0" TextWrapping="Wrap"/>
                 <CheckBox x:Name="ChkProxy" Content="Proxy — локальный HTTP/SOCKS"
                           IsCheckedChanged="Toggle_Changed"/>
+                <TextBlock x:Name="ProxyHint" Classes="dim" Margin="24,-6,0,0" TextWrapping="Wrap"/>
                 <CheckBox x:Name="ChkLogging" Content="Запись логов"
                           IsCheckedChanged="Toggle_Changed"/>
             </StackPanel>

@@ -45,7 +45,16 @@ public static class EngineService
                 var path = p.MainModule?.FileName;
                 if (path != null && PathEquals(path, ExePath)) { ours.Add(p); continue; }
             }
-            catch { /* a process we may not inspect is not one of ours */ }
+            catch
+            {
+                // The engine that matters most is the one running with privileges — under
+                // the macOS service it is root's, and on Windows it is elevated — and that
+                // is exactly the process whose path this app may not read. Treating the
+                // unreadable as "not ours" showed "Остановлен" while traffic was flowing.
+                // The name already matched, so it is counted.
+                ours.Add(p);
+                continue;
+            }
             p.Dispose();
         }
         return ours.ToArray();
@@ -57,27 +66,66 @@ public static class EngineService
         string.Equals(Path.GetFullPath(a), Path.GetFullPath(b),
             OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
-    public static (bool Ok, string Message) Start()
+    /// <summary>
+    /// Starts the engine and waits a moment to see whether it stays up. A config the
+    /// engine refuses makes it print why and quit within milliseconds, so reporting
+    /// "запущен" the instant the process exists would be a lie the user then has to
+    /// investigate on their own.
+    /// </summary>
+    public static async Task<(bool Ok, string Message)> StartAsync()
     {
         if (!IsInstalled) return (false, $"движок не найден: {ExePath}");
+        if (!File.Exists(Paths.ConfigJson)) return (false, $"нет конфига: {Paths.ConfigJson}");
         if (IsRunning) return (true, "уже запущен");
 
+        EngineLog.BeginRun();
+        EngineLog.Add($"--- запуск: {ExePath} run -c {Paths.ConfigJson}");
         try
         {
-            _own = Process.Start(new ProcessStartInfo
+            var p = new Process
             {
-                FileName = ExePath,
-                Arguments = $"run -c \"{Paths.ConfigJson}\"",
-                WorkingDirectory = Paths.BuildDir,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-            });
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = ExePath,
+                    Arguments = $"run -c \"{Paths.ConfigJson}\"",
+                    WorkingDirectory = Paths.BuildDir,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true,
+                },
+                EnableRaisingEvents = true,
+            };
+            // The engine writes its log to stderr and little to stdout; both are read, or
+            // a full pipe would stall it.
+            p.OutputDataReceived += (_, e) => { if (e.Data != null) EngineLog.Add(e.Data); };
+            p.ErrorDataReceived += (_, e) => { if (e.Data != null) EngineLog.Add(e.Data); };
+            p.Exited += (_, _) =>
+            {
+                EngineLog.Add($"--- движок завершился, код {p.ExitCode}");
+                StateChanged?.Invoke(null, EventArgs.Empty);
+            };
+
+            if (!p.Start()) return (false, "процесс не стартовал");
+            p.BeginOutputReadLine();
+            p.BeginErrorReadLine();
+            _own = p;
             StateChanged?.Invoke(null, EventArgs.Empty);
-            return _own != null ? (true, "запущен") : (false, "процесс не стартовал");
+
+            // Long enough for a refused config to fail, short enough not to feel stuck.
+            await Task.Delay(1200);
+            if (!p.HasExited) return (true, "запущен");
+
+            var why = EngineLog.Reason();
+            return (false, string.IsNullOrWhiteSpace(why)
+                ? $"движок сразу завершился, код {p.ExitCode}"
+                : why);
         }
-        catch (Exception ex) { return (false, ex.Message); }
+        catch (Exception ex)
+        {
+            EngineLog.Add("--- не удалось запустить: " + ex.Message);
+            return (false, ex.Message);
+        }
     }
 
     /// <summary>
@@ -108,6 +156,8 @@ public static class EngineService
         }
         foreach (var p in procs) p.Dispose();
 
+        EngineLog.Add("--- остановлен");
+        EngineLog.EndRun();
         StateChanged?.Invoke(null, EventArgs.Empty);
         return (true, "остановлен");
     }
@@ -170,7 +220,15 @@ public static class EngineService
 
         // osascript's own prompt is what asks for the password; the quoting below is what
         // it needs to run one command with administrator rights.
-        var cmd = $"\\\"{ExePath}\\\" lxd --service install";
+        //
+        // /Library/PrivilegedHelperTools is where the root-owned copy goes. It ships with
+        // macOS, but on a machine where nothing has ever installed a privileged helper it
+        // can be missing, and the engine then refuses with exactly that complaint. Making
+        // it here costs nothing when it is already there and saves a dead end when it is
+        // not — and it rides in the same elevated command, so still only one password.
+        var cmd = "/bin/mkdir -m 0755 -p /Library/PrivilegedHelperTools && "
+                + $"/usr/sbin/chown root:wheel /Library/PrivilegedHelperTools && "
+                + $"\\\"{ExePath}\\\" lxd --service install";
         var script = $"do shell script \"{cmd}\" with administrator privileges";
         try
         {
@@ -191,11 +249,27 @@ public static class EngineService
             if (p.ExitCode == 0) return (true, "служба установлена");
 
             // -128 is what osascript returns when the user dismisses the password box.
-            return err.Contains("-128") || err.Contains("User canceled")
-                ? (false, "отменено")
-                : (false, err.Trim().Length > 0 ? err.Trim() : $"код выхода {p.ExitCode}");
+            if (err.Contains("-128") || err.Contains("User canceled")) return (false, "отменено");
+            var why = Readable(err);
+            return (false, why.Length > 0 ? why : $"код выхода {p.ExitCode}");
         }
         catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    /// <summary>
+    /// The engine's complaint, fit to show. It writes for a terminal: colour codes, a
+    /// FATAL banner and a timestamp, all of which arrive as rubbish in a label. Only the
+    /// sentence is kept, and osascript's own wrapper around it is dropped.
+    /// </summary>
+    private static string Readable(string raw)
+    {
+        var text = System.Text.RegularExpressions.Regex.Replace(raw, @"\x1B\[[0-9;]*[A-Za-z]", "");
+        // "0:133: execution error: " is osascript saying the command failed, not why.
+        var at = text.IndexOf("execution error:", StringComparison.Ordinal);
+        if (at >= 0) text = text[(at + "execution error:".Length)..];
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"^\s*(FATAL|ERROR)\s*\[[^\]]*\]\s*", "",
+            System.Text.RegularExpressions.RegexOptions.Multiline);
+        return text.Replace("\r", " ").Replace("\n", " ").Trim();
     }
 
     /// <summary>What to tell the user about the service, in plain words.</summary>

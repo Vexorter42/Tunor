@@ -28,6 +28,7 @@ public partial class SettingsView : UserControl
             ChkProxy.IsChecked = _settings.Proxy;
             ChkLogging.IsChecked = _settings.Logging;
             BuildFinalChoices();
+            Hints();
         }
         finally { _loading = false; }
     }
@@ -66,6 +67,21 @@ public partial class SettingsView : UserControl
         Persist();
     }
 
+    /// <summary>Says what each mode needs, so neither is switched on into a dead end.</summary>
+    private void Hints()
+    {
+        TunHint.Text = OperatingSystem.IsMacOS()
+            ? "Нужна служба с правами — её кнопка на главной. Без неё движок не запустится."
+            : "Перехватывает весь трафик системы.";
+        var doors = new System.Collections.Generic.List<string> { "1080 — по правилам" };
+        if (_settings.Proxy)
+            foreach (var t in TunnelService.Load())
+                doors.Add($"{ConfigGenerator.DoorPort(t.Id, TunnelService.Load())} — всегда через {t.Title}");
+        ProxyHint.Text = _settings.Proxy
+            ? "SOCKS и HTTP на 127.0.0.1, порты: " + string.Join(", ", doors)
+            : "Выключено — локального прокси не будет.";
+    }
+
     private void Persist()
     {
         try
@@ -74,6 +90,7 @@ public partial class SettingsView : UserControl
             // Every option here ends up in config.json, so it is rebuilt at once — the
             // Windows app learned the same lesson: saving settings alone changed nothing.
             ConfigGenerator.Generate();
+            Hints();
             StatusText.Text = "Сохранено. Перезапусти движок, чтобы применить.";
         }
         catch (Exception ex) { StatusText.Text = "Не удалось сохранить: " + ex.Message; }

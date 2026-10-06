@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Tunor.Desktop.Views"
              x:Class="Tunor.Desktop.Views.HomeView">
     <StackPanel Spacing="16">
 
@@ -31,12 +32,43 @@
                 <TextBlock Classes="dim" TextWrapping="Wrap"
                            Text="Перехват всего трафика требует прав, которых у приложения нет. Их держит отдельная служба движка."/>
                 <StackPanel Orientation="Horizontal" Spacing="10">
-                    <TextBlock x:Name="ServiceText" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="ServiceText" VerticalAlignment="Center"
+                               TextWrapping="Wrap" MaxWidth="560"/>
                     <Button x:Name="BtnService" Classes="ghost" Content="Проверить снова"
                             Click="Service_Click"/>
                     <Button x:Name="BtnInstall" Classes="primary" Content="Установить службу"
                             IsVisible="False" Click="Install_Click"/>
                 </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="12">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Проверка соединения" Classes="h2"/>
+                        <TextBlock Classes="dim" Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Text="Отправляет запрос через каждый туннель и показывает, откуда он вышел"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" x:Name="BtnCheck" Content="Проверить"
+                            VerticalAlignment="Center" Click="Check_Click"/>
+                </Grid>
+                <ItemsControl x:Name="CheckList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="v:HomeView+CheckRow">
+                            <Grid ColumnDefinitions="110,24,*,60,Auto" Margin="0,3">
+                                <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Mark}"
+                                           Foreground="{Binding MarkBrush}"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Ip}"
+                                           FontFamily="Consolas,Menlo,monospace"/>
+                                <TextBlock Grid.Column="3" Text="{Binding Country}" Classes="dim"/>
+                                <TextBlock Grid.Column="4" Text="{Binding Note}" Classes="dim"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock x:Name="CheckNote" Classes="dim" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
 
