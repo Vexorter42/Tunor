@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:Tunor.Desktop.Views"
+        x:Class="Tunor.Desktop.MainWindow"
+        Title="Tunor" Width="980" Height="660" MinWidth="860" MinHeight="560"
+        Background="{StaticResource BgBrush}"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid ColumnDefinitions="220,*">
+
+        <!-- sidebar -->
+        <Border Grid.Column="0" Background="{StaticResource BgPanelBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+            <DockPanel Margin="14,18">
+                <StackPanel DockPanel.Dock="Top" Margin="8,0,8,18">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Border Width="26" Height="26" CornerRadius="7"
+                                Background="{StaticResource AccentSoftBrush}">
+                            <TextBlock Text="◉" FontSize="15" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource AccentBrush}"/>
+                        </Border>
+                        <TextBlock Text="Tunor" FontSize="21" FontWeight="Bold"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Border Classes="badge" HorizontalAlignment="Left" Margin="0,10,0,0">
+                        <TextBlock x:Name="StateBadge" Text="—" FontSize="11.5"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentBrush}"/>
+                    </Border>
+                </StackPanel>
+
+                <TextBlock DockPanel.Dock="Bottom" x:Name="VersionText" Classes="dim"
+                           Margin="8,12,0,0"/>
+
+                <StackPanel Spacing="2">
+                    <RadioButton Classes="nav" GroupName="nav" IsChecked="True"
+                                 Content="Главная" Tag="home" IsCheckedChanged="Nav_Checked"/>
+                    <RadioButton Classes="nav" GroupName="nav"
+                                 Content="Туннели" Tag="tunnels" IsCheckedChanged="Nav_Checked"/>
+                    <RadioButton Classes="nav" GroupName="nav"
+                                 Content="Настройки" Tag="settings" IsCheckedChanged="Nav_Checked"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- page -->
+        <ScrollViewer Grid.Column="1" Padding="28,24">
+            <ContentControl x:Name="PageHost"/>
+        </ScrollViewer>
+    </Grid>
+</Window>

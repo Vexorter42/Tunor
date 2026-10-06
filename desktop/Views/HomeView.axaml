@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Tunor.Desktop.Views.HomeView">
+    <StackPanel Spacing="16">
+
+        <StackPanel>
+            <TextBlock Text="Главная" Classes="h1"/>
+            <TextBlock Text="Управление движком" Classes="dim" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <TextBlock Text="Состояние" Classes="h2"/>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Ellipse x:Name="StateDot" Width="10" Height="10" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="StateText" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button x:Name="BtnStart" Classes="primary" Content="▶  Запустить"
+                            MinWidth="160" Click="Start_Click"/>
+                    <Button x:Name="BtnStop" Classes="danger" Content="■  Остановить"
+                            MinWidth="140" Click="Stop_Click"/>
+                </StackPanel>
+                <TextBlock x:Name="StatusText" Classes="dim" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Права для режима TUN" Classes="h2"/>
+                <TextBlock Classes="dim" TextWrapping="Wrap"
+                           Text="Перехват всего трафика требует прав, которых у приложения нет. Их держит отдельная служба движка."/>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock x:Name="ServiceText" VerticalAlignment="Center"/>
+                    <Button x:Name="BtnService" Classes="ghost" Content="Проверить снова"
+                            Click="Service_Click"/>
+                    <Button x:Name="BtnInstall" Classes="primary" Content="Установить службу"
+                            IsVisible="False" Click="Install_Click"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card" x:Name="AutostartCard">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Автозапуск" Classes="h2"/>
+                <CheckBox x:Name="ChkAutostart" Content="Запускать Tunor при входе в систему"
+                          IsCheckedChanged="Autostart_Changed"/>
+                <TextBlock x:Name="AutostartText" Classes="dim" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Движок" Classes="h2"/>
+                <TextBlock x:Name="EngineText" Classes="dim" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+    </StackPanel>
+</UserControl>

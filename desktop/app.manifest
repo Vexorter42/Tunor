@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <!-- Only read on Windows; macOS ignores it. The engine needs elevation for TUN, but
+       the app itself does not: it asks the privileged service to do that work. -->
+  <assemblyIdentity version="1.11.1.0" name="Tunor.Desktop"/>
+</assembly>

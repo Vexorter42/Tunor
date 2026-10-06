@@ -45,3 +45,5 @@ mac/engine/
 build-out/
 __pycache__/
 *.pyc
+bin/
+obj/

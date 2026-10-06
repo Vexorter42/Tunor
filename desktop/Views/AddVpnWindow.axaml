@@ -1,0 +1,83 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:Tunor.Desktop.Views"
+        x:Class="Tunor.Desktop.Views.AddVpnWindow"
+        Title="Свой VPN" Width="580" SizeToContent="Height"
+        MinHeight="420" MaxHeight="900"
+        Background="{StaticResource BgBrush}"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <ScrollViewer>
+        <StackPanel Margin="24" Spacing="14">
+
+            <StackPanel Spacing="6">
+                <TextBlock x:Name="TitleText" Text="Свой VPN" Classes="h1"/>
+                <TextBlock Classes="dim" TextWrapping="Wrap"
+                           Text="Вставь ссылку vless:// или адрес подписки — приложение само поймёт, что это."/>
+            </StackPanel>
+
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Ссылка или адрес подписки" FontWeight="SemiBold"/>
+                    <TextBox x:Name="LinkBox" MinHeight="70" MaxHeight="120"
+                             TextWrapping="Wrap" AcceptsReturn="True"
+                             FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                             TextChanged="Link_Changed"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="ghost" Content="Вставить из буфера" Click="Paste_Click"/>
+                        <Button x:Name="BtnFetch" Content="⭳  Загрузить список"
+                                IsVisible="False" Click="Fetch_Click"/>
+                        <TextBlock x:Name="FetchStatus" Classes="dim" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="ResultCard" Classes="card" IsVisible="False">
+                <StackPanel Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Border Classes="badge">
+                            <TextBlock x:Name="KindText" FontSize="11.5" FontWeight="SemiBold"
+                                       Foreground="{StaticResource AccentBrush}"/>
+                        </Border>
+                        <TextBlock x:Name="SummaryText" Classes="dim" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0" Text="Название" VerticalAlignment="Center"
+                                   Margin="0,0,12,0"/>
+                        <TextBox Grid.Column="1" x:Name="NameBox" TextChanged="Name_Changed"/>
+                    </Grid>
+
+                    <StackPanel x:Name="NodePanel" Spacing="6" IsVisible="False">
+                        <RadioButton x:Name="RbAuto" GroupName="Node" IsChecked="True"
+                                     Content="Выбирать быстрейший автоматически"
+                                     IsCheckedChanged="NodeMode_Changed"/>
+                        <TextBlock Classes="dim" Margin="24,0,0,0" TextWrapping="Wrap"
+                                   Text="Движок сам замеряет задержку и переключается, если сервер перестал отвечать."/>
+                        <RadioButton x:Name="RbPick" GroupName="Node" Content="Выбрать сервер"
+                                     IsCheckedChanged="NodeMode_Changed"/>
+                        <ComboBox x:Name="NodeBox" Margin="24,0,0,0" IsEnabled="False"
+                                  HorizontalAlignment="Stretch" MaxDropDownHeight="260"/>
+                    </StackPanel>
+
+                    <CheckBox x:Name="ViaWarp" Content="Подключаться через WARP"/>
+                    <TextBlock Classes="dim" Margin="24,0,0,0" TextWrapping="Wrap"
+                               Text="Трафик до VPN-сервера пойдёт внутри WARP. Помогает, когда сервер блокируют по адресу."/>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="ErrorCard" Classes="card" IsVisible="False">
+                <TextBlock x:Name="ErrorText" TextWrapping="Wrap"
+                           Foreground="{StaticResource DangerBrush}"/>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                <Button Content="Отмена" MinWidth="110" Click="Cancel_Click"/>
+                <Button x:Name="BtnSave" Classes="primary" Content="Добавить"
+                        MinWidth="140" IsEnabled="False" Click="Save_Click"/>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</Window>

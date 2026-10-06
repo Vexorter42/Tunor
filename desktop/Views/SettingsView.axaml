@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Tunor.Desktop.Views.SettingsView">
+    <StackPanel Spacing="16">
+        <StackPanel>
+            <TextBlock Text="Настройки" Classes="h1"/>
+            <TextBlock x:Name="PathText" Classes="dim" Margin="0,4,0,0"/>
+        </StackPanel>
+        <Border Classes="card">
+            <StackPanel Spacing="12">
+                <TextBlock Text="Режимы работы" Classes="h2"/>
+                <CheckBox x:Name="ChkTun" Content="TUN — перехват всего трафика"
+                          IsCheckedChanged="Toggle_Changed"/>
+                <CheckBox x:Name="ChkProxy" Content="Proxy — локальный HTTP/SOCKS"
+                          IsCheckedChanged="Toggle_Changed"/>
+                <CheckBox x:Name="ChkLogging" Content="Запись логов"
+                          IsCheckedChanged="Toggle_Changed"/>
+            </StackPanel>
+        </Border>
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Маршрут по умолчанию" Classes="h2"/>
+                <TextBlock Classes="dim" TextWrapping="Wrap"
+                           Text="Куда направлять трафик, не подходящий ни под одно правило"/>
+                <StackPanel x:Name="FinalChoices" Spacing="8" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+        <TextBlock x:Name="StatusText" Classes="dim" TextWrapping="Wrap"/>
+    </StackPanel>
+</UserControl>
