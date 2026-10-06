@@ -34,6 +34,30 @@ public static class Ui
 
     public static Style? Style(string key) => Resource(key) as Style;
 
+    /// <summary>
+    /// The colour that stands for a tunnel everywhere it is named: the badge in the app
+    /// list, the route column on the Connections page. WARP keeps the accent green and
+    /// geo the blue it has always had; tunnels the user adds take the rest in turn, so
+    /// two of them never look alike until there are more than this list is long.
+    /// </summary>
+    public static Brush TunnelBrush(string id, int index) => id switch
+    {
+        "warp" => Brush("AccentBrush"),
+        "geo" => Palette[0],
+        _ => Palette[(index + 1) % Palette.Length],
+    };
+
+    private static readonly Brush[] Palette =
+    {
+        new SolidColorBrush(Rgb(0x6E, 0xA8, 0xFE)),   // blue — geo's colour since the start
+        new SolidColorBrush(Rgb(0xC9, 0x8B, 0xFF)),   // violet
+        new SolidColorBrush(Rgb(0xFF, 0xB4, 0x5C)),   // amber
+        new SolidColorBrush(Rgb(0x5C, 0xD6, 0xD6)),   // teal
+        new SolidColorBrush(Rgb(0xFF, 0x8F, 0xA3)),   // rose
+    };
+
+    private static Color Rgb(byte r, byte g, byte b) => Color.FromRgb(r, g, b);
+
     /// <summary>The Storm palette from Styles/Theme.xaml, used only if a lookup fails.</summary>
     private static Color Fallback(string key) => key switch
     {

@@ -1,0 +1,86 @@
+<Window x:Class="Tunor.Views.AddVpnDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Свой VPN"
+        Width="560" MinHeight="440"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        SizeToContent="Height"
+        Background="{StaticResource BgBrush}"
+        Icon="../Assets/app.ico">
+    <Grid Margin="26">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock x:Name="TitleText" Text="Свой VPN" Style="{StaticResource H1}"/>
+            <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0" TextWrapping="Wrap"
+                       Text="Вставь ссылку, которую выдал твой VPN-сервис. Поддерживается VLESS: TLS, Reality, Vision, транспорты ws, grpc, http, httpupgrade, quic, xhttp."/>
+        </StackPanel>
+
+        <!-- The link -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,16,0,0" Padding="20,16">
+            <StackPanel>
+                <TextBlock Text="Ссылка" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <TextBox x:Name="LinkBox" MinHeight="72" MaxHeight="120"
+                         TextWrapping="Wrap" AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto"
+                         FontFamily="Consolas" FontSize="12"
+                         TextChanged="Link_Changed"/>
+                <Button x:Name="BtnPaste" Content="Вставить из буфера" Margin="0,10,0,0"
+                        HorizontalAlignment="Left"
+                        Style="{StaticResource GhostButton}" Click="Paste_Click"/>
+            </StackPanel>
+        </Border>
+
+        <!-- What was recognised -->
+        <Border x:Name="ResultCard" Grid.Row="2" Style="{StaticResource Card}"
+                Margin="0,14,0,0" Padding="20,16" Visibility="Collapsed">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Border x:Name="KindBadge" Style="{StaticResource Badge}">
+                        <TextBlock x:Name="KindText" FontSize="11.5" FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentBrush}"/>
+                    </Border>
+                    <TextBlock x:Name="SummaryText" Style="{StaticResource Dim}"
+                               VerticalAlignment="Center" Margin="10,0,0,0"
+                               TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Название" VerticalAlignment="Center"
+                               Margin="0,0,12,0"/>
+                    <TextBox Grid.Column="1" x:Name="NameBox" TextChanged="Name_Changed"/>
+                </Grid>
+
+                <CheckBox x:Name="ViaWarp" Margin="0,14,0,0" Content="Подключаться через WARP"/>
+                <TextBlock Style="{StaticResource Dim}" Margin="24,4,0,0" TextWrapping="Wrap"
+                           Text="Трафик до VPN-сервера пойдёт внутри WARP. Помогает, когда сервер блокируют по адресу, но добавляет задержку."/>
+            </StackPanel>
+        </Border>
+
+        <!-- Why it was refused -->
+        <Border x:Name="ErrorCard" Grid.Row="3" Style="{StaticResource Card}"
+                Margin="0,14,0,0" Padding="20,16" Visibility="Collapsed">
+            <TextBlock x:Name="ErrorText" TextWrapping="Wrap"
+                       Foreground="{StaticResource DangerBrush}"/>
+        </Border>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right"
+                    Margin="0,20,0,0">
+            <Button Content="Отмена" Style="{StaticResource SecondaryButton}"
+                    MinWidth="110" Click="Cancel_Click"/>
+            <Button x:Name="BtnSave" Content="Добавить" Style="{StaticResource PrimaryButton}"
+                    MinWidth="140" Margin="10,0,0,0" IsEnabled="False" Click="Save_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

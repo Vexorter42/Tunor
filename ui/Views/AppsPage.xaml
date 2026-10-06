@@ -104,14 +104,9 @@
 
                             <TextBlock Text="Весь трафик программы" Foreground="{StaticResource TextBrush}"
                                        FontWeight="SemiBold" Margin="0,0,0,8"/>
-                            <WrapPanel>
-                                <Button x:Name="BtnWarp" Content="через WARP" Padding="14,7" MinWidth="130"
-                                        Margin="0,0,8,6" Click="RouteWarp_Click"/>
-                                <Button x:Name="BtnGeo" Content="через geo" Padding="14,7" MinWidth="130"
-                                        Margin="0,0,8,6" Click="RouteGeo_Click"/>
-                                <Button x:Name="BtnNone" Content="по общим правилам" Padding="14,7" MinWidth="170"
-                                        Margin="0,0,8,6" Click="RouteNone_Click"/>
-                            </WrapPanel>
+                            <!-- One button per tunnel plus "по общим правилам", built in
+                                 code from the tunnel list. -->
+                            <WrapPanel x:Name="RouteButtons"/>
                             <TextBlock x:Name="RouteHint" Style="{StaticResource Dim}" TextWrapping="Wrap" Margin="0,2,0,0"/>
 
                             <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,16,0,14"/>
@@ -180,12 +175,12 @@
                                                        TextAlignment="Right" VerticalAlignment="Center"/>
                                             <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Right"
                                                         Visibility="{Binding ActionsVisibility}">
-                                                <Button Content="→ WARP" Style="{StaticResource GhostButton}" Padding="8,3"
-                                                        FontSize="11.5" Margin="0,0,4,0" Tag="{Binding Host}"
-                                                        Click="HostWarp_Click" ToolTip="Добавить домен в список WARP"/>
-                                                <Button Content="→ geo" Style="{StaticResource GhostButton}" Padding="8,3"
-                                                        FontSize="11.5" Tag="{Binding Host}"
-                                                        Click="HostGeo_Click" ToolTip="Добавить домен в список geo"/>
+                                                <!-- One button: the tunnels are a list now,
+                                                     so they go in a menu rather than a row. -->
+                                                <Button Content="→ в туннель  ▾" Style="{StaticResource GhostButton}"
+                                                        Padding="8,3" FontSize="11.5" Tag="{Binding Host}"
+                                                        Click="HostRoute_Click"
+                                                        ToolTip="Добавить домен в список одного из туннелей"/>
                                             </StackPanel>
                                         </Grid>
                                     </DataTemplate>

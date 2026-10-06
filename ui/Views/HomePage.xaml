@@ -80,7 +80,47 @@
                         <Button x:Name="BtnOpenConf" Content="📂  Добавить файл .conf"
                                 Style="{StaticResource SecondaryButton}"
                                 Click="BtnOpenConf_Click" MinWidth="200" Margin="0,0,8,8"/>
+                        <Button x:Name="BtnAddVpn" Content="🔗  Свой VPN по ссылке"
+                                Style="{StaticResource SecondaryButton}"
+                                Click="BtnAddVpn_Click" MinWidth="200" Margin="0,0,8,8"/>
                     </WrapPanel>
+
+                    <!-- Tunnels the user added themselves; WARP and geo have their own buttons -->
+                    <ItemsControl x:Name="VpnList" Margin="0,4,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource BgInputBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                        CornerRadius="8" Padding="14,10" Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <Border Style="{StaticResource Badge}" Margin="8,0,0,0">
+                                                    <TextBlock Text="{Binding Badge}" FontSize="11"
+                                                               Foreground="{StaticResource AccentBrush}"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Summary}" Style="{StaticResource Dim}"
+                                                       Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="Изменить" Padding="12,6"
+                                                Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                                                Tag="{Binding Id}" Click="EditVpn_Click"/>
+                                        <Button Grid.Column="2" Content="Удалить" Padding="12,6"
+                                                Style="{StaticResource GhostButton}" Margin="6,0,0,0"
+                                                Tag="{Binding Id}" Click="DeleteVpn_Click"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
 

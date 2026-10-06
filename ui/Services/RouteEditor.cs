@@ -11,22 +11,32 @@ namespace Tunor.Services;
 /// </summary>
 public static class RouteEditor
 {
-    public const string Warp = "warp";
-    public const string Geo = "geo";
+    /// <summary>A route is a tunnel id. These two have their own names because they are
+    /// the ones the app talks about by name; any other id works the same way.</summary>
+    public const string Warp = TunnelService.Warp;
+    public const string Geo = TunnelService.Geo;
 
     /// <summary>Where a process rule currently sends this program: warp, geo or null.</summary>
     public static string? ProcessRoute(string exe) => ProcessRoute(exe, RulesService.Load());
 
     /// <summary>Same, against rules already loaded — for checking many programs at once.</summary>
     public static string? ProcessRoute(string exe, IEnumerable<RuleGroup> groups)
+        => ProcessRoute(exe, groups, TunnelService.Load());
+
+    /// <summary>Same, against a tunnel list already loaded — for checking many at once.</summary>
+    public static string? ProcessRoute(string exe, IEnumerable<RuleGroup> groups, List<Tunnel> tunnels)
     {
-        // Same precedence as the generated config: WARP app rules are checked first.
+        // Same precedence as the generated config, which routes tunnel by tunnel in list
+        // order: the earliest tunnel with a matching rule is the one that gets the traffic.
         string? found = null;
+        var foundAt = int.MaxValue;
         foreach (var g in groups.Where(IsProcessGroup))
         {
             if (!g.Items.Any(i => ConfigGenerator.ProcessMatches(i, exe))) continue;
-            if (!ConfigGenerator.IsGeoTag(g.Tag)) return Warp;
-            found ??= Geo;
+            var slot = TunnelService.SlotOf(g.Tag, tunnels) ?? Warp;
+            var at = tunnels.FindIndex(t => string.Equals(t.Id, slot, StringComparison.OrdinalIgnoreCase));
+            if (at < 0) at = int.MaxValue - 1;
+            if (at < foundAt) { found = slot; foundAt = at; }
         }
         return found;
     }
@@ -82,7 +92,9 @@ public static class RouteEditor
     /// </summary>
     private static RuleGroup Target(List<RuleGroup> groups, string route, RuleItemKind kind, string suffix)
     {
-        var side = route == Geo ? "geo-" : "warp-";
+        var slot = TunnelService.Slug(route);
+        if (slot.Length == 0) slot = Warp;
+        var side = slot + "-";
         bool Fits(RuleGroup g) => g.IsInline && g.ItemKind == kind
                                   && g.Tag.StartsWith(side, StringComparison.OrdinalIgnoreCase);
 

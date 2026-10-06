@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -18,7 +19,71 @@ public partial class HomePage : UserControl
         {
             UpdateState();
             VersionText.Text = "Текущая версия: " + Services.UpdateService.CurrentVersionString;
+            RefreshVpnList();
         };
+    }
+
+    // ------------------------------------------------------------ tunnels added by link
+
+    /// <summary>One row of the list under the tunnel buttons.</summary>
+    private sealed record VpnRow(string Id, string Title, string Badge, string Summary);
+
+    private void RefreshVpnList()
+    {
+        var rows = new System.Collections.Generic.List<VpnRow>();
+        foreach (var t in TunnelService.Load())
+        {
+            if (t.IsWireguard) continue;                 // WARP and geo have their own buttons
+            var p = ProxyLink.Parse(t.Url);
+            var where = t.Detour.Length > 0 ? " · через WARP" : "";
+            rows.Add(new VpnRow(t.Id, t.Title, t.Kind.ToUpperInvariant(),
+                (p.Ok ? p.Summary : "ссылка не читается: " + p.Problem) + where));
+        }
+        VpnList.ItemsSource = rows;
+        VpnList.Visibility = rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void BtnAddVpn_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new AddVpnDialog { Owner = Window.GetWindow(this) };
+        if (dlg.ShowDialog() == true || dlg.Saved) AfterVpnChange();
+    }
+
+    private void EditVpn_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string id }) return;
+        var t = TunnelService.Load().FirstOrDefault(x => x.Id == id);
+        if (t == null) return;
+        var dlg = new AddVpnDialog(t) { Owner = Window.GetWindow(this) };
+        if (dlg.ShowDialog() == true || dlg.Saved) AfterVpnChange();
+    }
+
+    private void DeleteVpn_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string id }) return;
+        var tunnels = TunnelService.Load();
+        var t = tunnels.FirstOrDefault(x => x.Id == id);
+        if (t == null) return;
+
+        if (MessageBox.Show(
+                $"Удалить «{t.Title}»?\n\nПравила, которые отправляли трафик в этот туннель, " +
+                "останутся на месте, но перестанут действовать — трафик пойдёт напрямую.",
+                "Удаление туннеля", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        tunnels.Remove(t);
+        TunnelService.Save(tunnels);
+        ConfigGenerator.Generate();
+        AfterVpnChange();
+    }
+
+    private void AfterVpnChange()
+    {
+        RefreshVpnList();
+        UpdateState();
+        if (ProcessService.IsRunning)
+            MessageBox.Show("Список туннелей изменён. Перезапусти движок, чтобы это подействовало.",
+                "Свой VPN", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void UpdateState()
