@@ -154,6 +154,28 @@ public static class DiagnosticsReport
         Head(sb, "ТУННЕЛИ");
         Tunnel(sb, "warp.conf", Paths.WarpConf, ConfigGenerator.WarpState);
         Tunnel(sb, "geo.conf", Paths.GeoConf, ConfigGenerator.GeoState);
+
+        // Tunnels the user added. The link and the subscription address are credentials —
+        // they hold the keys to someone's VPN — so only the shape of each one is reported.
+        try
+        {
+            var live = ConfigGenerator.LiveTunnels(TunnelService.Load());
+            foreach (var t in TunnelService.Load().Where(t => !t.IsWireguard))
+            {
+                var what = t.IsSubscription
+                    ? $"подписка · серверов {t.Nodes.Count} · "
+                      + (t.IsAuto ? "быстрейший автоматически" : "выбран один")
+                    : "одна ссылка";
+                var how = ProxyLink.Parse(t.ActiveUrl);
+                Line(sb, $"{t.Title} [{t.Id}]",
+                    $"{what} · {(live.Contains(t.Id) ? "в порядке" : "не готов")}");
+                Line(sb, "  тип", how.Ok ? how.Summary.Split(" · ", 2) is [_, var rest] ? rest : "—"
+                                         : "ссылка не читается: " + how.Problem);
+                if (t.Detour.Length > 0) Line(sb, "  идёт через", t.Detour);
+                if (t.Fetched is { } at) Line(sb, "  список обновлён", at.ToLocalTime().ToString("g"));
+            }
+        }
+        catch (Exception ex) { Line(sb, "tunnels.json", "не прочитан: " + ex.Message); }
         sb.AppendLine();
     }
 
@@ -217,7 +239,11 @@ public static class DiagnosticsReport
                 $"{i?["type"]}{(i?["listen_port"] != null ? ":" + i!["listen_port"] : "")}")));
 
             var outbounds = root["outbounds"]?.AsArray() ?? new JsonArray();
-            Line(sb, "Выходы", string.Join(", ", outbounds.Select(o => $"{o?["tag"]} ({o?["type"]})")));
+            // A subscription set to choose for itself puts one outbound per server here,
+            // which can be dozens; listing them all would bury everything else.
+            var shown = outbounds.Take(12).Select(o => $"{o?["tag"]} ({o?["type"]})");
+            Line(sb, "Выходы", string.Join(", ", shown)
+                               + (outbounds.Count > 12 ? $" … и ещё {outbounds.Count - 12}" : ""));
 
             var endpoints = root["endpoints"]?.AsArray() ?? new JsonArray();
             Line(sb, "Туннели в конфиге", endpoints.Count == 0

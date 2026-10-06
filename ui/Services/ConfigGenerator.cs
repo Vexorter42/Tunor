@@ -141,12 +141,8 @@ public static class ConfigGenerator
                 endpoints.Add(BuildWireguard(t.OutboundTag, ConfPath(t), detour));
                 continue;
             }
-            // A link-based tunnel is an ordinary outbound, not an endpoint. LiveTunnels
-            // has already checked that the link parses, so this cannot be null.
-            var o = ProxyLink.Parse(t.Url).Outbound!;
-            o["tag"] = t.OutboundTag;
-            if (detour != null) o["detour"] = detour;
-            outbounds.Add(o);
+            // A link-based tunnel is an ordinary outbound, not an endpoint.
+            foreach (var o in BuildProxy(t, detour)) outbounds.Add(o);
         }
 
         var root = new JsonObject
@@ -216,6 +212,55 @@ public static class ConfigGenerator
     private static string Tag(string id) => TunnelService.Slug(id);
 
     /// <summary>
+    /// The outbounds one link tunnel turns into. Usually just the one; a subscription set
+    /// to pick for itself turns into every server plus a `urltest` over them, which is how
+    /// the engine measures latency and moves off a server that stops answering.
+    /// LiveTunnels has already checked the links parse, so none of these can be null.
+    /// </summary>
+    private static List<JsonObject> BuildProxy(Tunnel t, string? detour)
+    {
+        var made = new List<JsonObject>();
+
+        JsonObject One(string url, string tag)
+        {
+            var o = ProxyLink.Parse(url).Outbound!;
+            o["tag"] = tag;
+            // The detour belongs on each server, not on the urltest above them: that one
+            // only chooses, it does not carry traffic itself.
+            if (detour != null) o["detour"] = detour;
+            return o;
+        }
+
+        if (!t.IsAuto)
+        {
+            made.Add(One(t.ActiveUrl, t.OutboundTag));
+            return made;
+        }
+
+        var tags = new JsonArray();
+        var n = 0;
+        foreach (var node in t.Nodes)
+        {
+            if (!ProxyLink.Parse(node.Url).Ok) continue;   // one bad entry, not a dead tunnel
+            var tag = $"{t.Id}-n{n++}";
+            made.Add(One(node.Url, tag));
+            tags.Add(tag);
+        }
+        made.Add(new JsonObject
+        {
+            ["type"] = "urltest",
+            ["tag"] = t.OutboundTag,
+            ["outbounds"] = tags,
+            ["url"] = "https://www.gstatic.com/generate_204",
+            ["interval"] = "3m",
+            // Only move to another server when it is meaningfully quicker, or the choice
+            // flaps between two that are the same speed.
+            ["tolerance"] = 60,
+        });
+        return made;
+    }
+
+    /// <summary>
     /// The tunnel the default route points at. Settings written before tunnels were a
     /// list say "proxy" for WARP and "direct" for no tunnel at all; every other value is
     /// a tunnel id.
@@ -247,7 +292,11 @@ public static class ConfigGenerator
         bool Up(Tunnel t, int depth)
         {
             if (depth > 8 || !t.Enabled) return false;
-            var self = t.IsWireguard ? IsUsableConf(ConfPath(t)) : ProxyLink.Parse(t.Url).Ok;
+            var self = t.IsWireguard
+                ? IsUsableConf(ConfPath(t))
+                : t.IsAuto
+                    ? t.Nodes.Any(x => ProxyLink.Parse(x.Url).Ok)
+                    : ProxyLink.Parse(t.ActiveUrl).Ok;
             if (!self) return false;
             if (t.Detour.Length == 0) return true;
             return byId.TryGetValue(t.Detour, out var via) && Up(via, depth + 1);
