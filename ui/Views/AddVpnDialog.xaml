@@ -20,21 +20,27 @@
         <StackPanel Grid.Row="0">
             <TextBlock x:Name="TitleText" Text="Свой VPN" Style="{StaticResource H1}"/>
             <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0" TextWrapping="Wrap"
-                       Text="Вставь ссылку, которую выдал твой VPN-сервис. Поддерживается VLESS: TLS, Reality, Vision, транспорты ws, grpc, http, httpupgrade, quic, xhttp."/>
+                       Text="Вставь ссылку vless:// или адрес подписки — приложение само поймёт, что это. Поддерживается VLESS: TLS, Reality, Vision, транспорты ws, grpc, http, httpupgrade, quic, xhttp."/>
         </StackPanel>
 
         <!-- The link -->
         <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,16,0,0" Padding="20,16">
             <StackPanel>
-                <TextBlock Text="Ссылка" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <TextBlock Text="Ссылка или адрес подписки" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <TextBox x:Name="LinkBox" MinHeight="72" MaxHeight="120"
                          TextWrapping="Wrap" AcceptsReturn="True"
                          VerticalScrollBarVisibility="Auto"
                          FontFamily="Consolas" FontSize="12"
                          TextChanged="Link_Changed"/>
-                <Button x:Name="BtnPaste" Content="Вставить из буфера" Margin="0,10,0,0"
-                        HorizontalAlignment="Left"
-                        Style="{StaticResource GhostButton}" Click="Paste_Click"/>
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                    <Button x:Name="BtnPaste" Content="Вставить из буфера"
+                            Style="{StaticResource GhostButton}" Click="Paste_Click"/>
+                    <Button x:Name="BtnFetch" Content="⭳  Загрузить список" Margin="8,0,0,0"
+                            Style="{StaticResource SecondaryButton}" Visibility="Collapsed"
+                            Click="Fetch_Click"/>
+                    <TextBlock x:Name="FetchStatus" Style="{StaticResource Dim}"
+                               VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
             </StackPanel>
         </Border>
 
@@ -61,6 +67,19 @@
                                Margin="0,0,12,0"/>
                     <TextBox Grid.Column="1" x:Name="NameBox" TextChanged="Name_Changed"/>
                 </Grid>
+
+                <!-- Only for a subscription: pick a server, or let the engine choose -->
+                <StackPanel x:Name="NodePanel" Margin="0,14,0,0" Visibility="Collapsed">
+                    <RadioButton x:Name="RbAuto" GroupName="Node" IsChecked="True"
+                                 Content="Выбирать быстрейший автоматически"
+                                 Checked="NodeMode_Changed"/>
+                    <TextBlock Style="{StaticResource Dim}" Margin="24,3,0,0" TextWrapping="Wrap"
+                               Text="Движок сам замеряет задержку и переключается, если сервер перестал отвечать."/>
+                    <RadioButton x:Name="RbPick" GroupName="Node" Margin="0,10,0,0"
+                                 Content="Выбрать сервер" Checked="NodeMode_Changed"/>
+                    <ComboBox x:Name="NodeBox" Margin="24,8,0,0" MaxDropDownHeight="260"
+                              IsEnabled="False" DisplayMemberPath="Label"/>
+                </StackPanel>
 
                 <CheckBox x:Name="ViaWarp" Margin="0,14,0,0" Content="Подключаться через WARP"/>
                 <TextBlock Style="{StaticResource Dim}" Margin="24,4,0,0" TextWrapping="Wrap"

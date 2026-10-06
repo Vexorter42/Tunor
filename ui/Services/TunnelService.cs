@@ -44,7 +44,41 @@ public class Tunnel
     /// <summary>Off means: keep the entry and its rules, but route as if it were absent.</summary>
     [JsonPropertyName("enabled")] public bool Enabled { get; set; } = true;
 
+    /// <summary>For a subscription: the address the server list is fetched from.</summary>
+    [JsonPropertyName("sub")] public string Sub { get; set; } = "";
+
+    /// <summary>The servers from the last fetch, so a config can be built offline.</summary>
+    [JsonPropertyName("nodes")] public List<SubNode> Nodes { get; set; } = new();
+
+    /// <summary>
+    /// Which server to use: the name of one of <see cref="Nodes"/>, or empty for "whichever
+    /// answers fastest", which the engine measures and switches between on its own.
+    /// </summary>
+    [JsonPropertyName("node")] public string Node { get; set; } = "";
+
+    /// <summary>When the list was last downloaded, for the "updated ..." line.</summary>
+    [JsonPropertyName("fetched")] public DateTime? Fetched { get; set; }
+
     [JsonIgnore] public bool IsWireguard => Kind.Equals(Kinds.Wireguard, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>True when this tunnel is a list of servers rather than a single one.</summary>
+    [JsonIgnore] public bool IsSubscription => Sub.Trim().Length > 0;
+
+    /// <summary>True when the engine picks the server by latency instead of the user.</summary>
+    [JsonIgnore] public bool IsAuto => IsSubscription && Node.Trim().Length == 0;
+
+    /// <summary>The link this tunnel actually dials, or empty when it has none to dial.</summary>
+    [JsonIgnore]
+    public string ActiveUrl
+    {
+        get
+        {
+            if (!IsSubscription) return Url;
+            if (Nodes.Count == 0) return "";
+            var pick = Nodes.FirstOrDefault(n => n.Name == Node);
+            return (pick ?? Nodes[0]).Url;
+        }
+    }
 
     /// <summary>The engine's name for this tunnel's outbound.</summary>
     [JsonIgnore] public string OutboundTag => Id + "-out";

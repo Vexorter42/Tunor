@@ -34,10 +34,18 @@ public partial class HomePage : UserControl
         foreach (var t in TunnelService.Load())
         {
             if (t.IsWireguard) continue;                 // WARP and geo have their own buttons
-            var p = ProxyLink.Parse(t.Url);
             var where = t.Detour.Length > 0 ? " · через WARP" : "";
-            rows.Add(new VpnRow(t.Id, t.Title, t.Kind.ToUpperInvariant(),
-                (p.Ok ? p.Summary : "ссылка не читается: " + p.Problem) + where));
+            string what;
+            if (t.IsSubscription)
+                what = $"{t.Nodes.Count} серверов · "
+                       + (t.IsAuto ? "быстрейший автоматически" : t.Node);
+            else
+            {
+                var p = ProxyLink.Parse(t.Url);
+                what = p.Ok ? p.Summary : "ссылка не читается: " + p.Problem;
+            }
+            rows.Add(new VpnRow(t.Id, t.Title,
+                t.IsSubscription ? "ПОДПИСКА" : t.Kind.ToUpperInvariant(), what + where));
         }
         VpnList.ItemsSource = rows;
         VpnList.Visibility = rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;

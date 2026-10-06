@@ -6,7 +6,7 @@
 ; Renamed from Nyx in 1.10.0. AppId stays as it was: it is what makes an existing
 ; install upgrade in place instead of appearing twice in "Programs and Features".
 #define MyAppName "Tunor"
-#define MyAppVersion "1.11.0"
+#define MyAppVersion "1.11.1"
 #define MyAppPublisher "Tunor"
 #define MyAppExeName "Tunor.exe"
 #define FormerExeName "Nyx.exe"
@@ -74,16 +74,15 @@ Type: files; Name: "{autodesktop}\SSnet.lnk"
 Source: "{#StageDir}\ui\*"; DestDir: "{app}\ui"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "{#StageDir}\build\*.bat"; DestDir: "{app}\build"; Flags: ignoreversion
 Source: "{#StageDir}\build\restart-headless.vbs"; DestDir: "{app}\build"; Flags: ignoreversion
-; sing-box: normally `onlyifdoesntexist`, because the engine is usually running (and so
-; locked), and skipping it means an update never drops the tunnel. Bumping the engine is
-; a deliberate action.
-; THIS RELEASE SHIPS A NEW ENGINE (1.14.1-lx.8 -> 1.14.2-lx.11): both lines below are
-; `ignoreversion` and [Code] stops the engine first. Put all three back for the next
-; release that leaves the engine alone.
-Source: "{#StageDir}\build\sing-box.exe"; DestDir: "{app}\build"; Flags: ignoreversion
+; sing-box: keep the installed engine if present. It is usually running (locked),
+; and skipping it means an update never drops the tunnel. Bumping the engine is a
+; deliberate action — switch both lines below to `ignoreversion` and add a sing-box
+; taskkill in [Code] when a new engine build has to ship.
+; (1.11.0 did exactly that, for 1.14.1-lx.8 -> 1.14.2-lx.11.)
+Source: "{#StageDir}\build\sing-box.exe"; DestDir: "{app}\build"; Flags: onlyifdoesntexist
 ; Says which engine build that file is. Same flag as the engine itself, so the two can
 ; never disagree; the app also compares the hash written here with the file it has.
-Source: "{#StageDir}\build\sing-box.version"; DestDir: "{app}\build"; Flags: ignoreversion
+Source: "{#StageDir}\build\sing-box.version"; DestDir: "{app}\build"; Flags: onlyifdoesntexist
 
 ; --- GPL compliance: licence texts for the bundled sing-box engine ---
 Source: "{#StageDir}\licenses\*"; DestDir: "{app}\licenses"; Flags: recursesubdirs createallsubdirs ignoreversion
@@ -132,13 +131,9 @@ begin
   if CurStep = ssInstall then
   begin
     // Close the app under every name it has had, so its files can be replaced.
+    // sing-box is intentionally left running — the update keeps the tunnel up.
     Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im Tunor.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
     Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im Nyx.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
     Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im SSnetUI.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
-    // This release replaces the engine, which holds its own .exe open while it runs, so
-    // it has to stop first. The tunnel is down from here until the app starts it again,
-    // a few seconds. Remove this line in releases that keep the engine: leaving it
-    // running is what makes those updates seamless.
-    Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im sing-box.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
   end;
 end;
