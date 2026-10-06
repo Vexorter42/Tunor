@@ -35,7 +35,7 @@ STAGE = OUT + "/dist"
 # Bumping it: download the release, verify it against its SHA256SUMS, point TUNOR_ENGINE
 # at the extracted sing-box.exe and change the two lines below. The installer keeps an
 # engine that is already installed, so a bump also means flipping that flag in tunor.iss.
-ENGINE_VERSION = "1.14.1-lx.8"
+ENGINE_VERSION = "1.14.2-lx.11"
 ENGINE_SOURCE = "https://github.com/Leadaxe/sing-box-lx/releases/tag/v" + ENGINE_VERSION
 SINGBOX_LX = os.environ.get("TUNOR_ENGINE", APP + "/build/sing-box.exe").replace("\\", "/")
 
