@@ -288,7 +288,7 @@ public partial class HomePage : UserControl
     {
         try
         {
-            Process.Start(new ProcessStartInfo("https://www.donationalerts.com/r/vexorter")
+            Process.Start(new ProcessStartInfo("https://www.donationalerts.com/r/nick556655")
             { UseShellExecute = true });
         }
         catch { }

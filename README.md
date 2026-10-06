@@ -109,7 +109,7 @@ dotnet publish -c Release -r win-x64 --self-contained true
 
 ## Поддержать
 
-Проект развивается в свободное время. Поддержать можно здесь: **https://www.donationalerts.com/r/vexorter** ❤
+Проект развивается в свободное время. Поддержать можно здесь: **https://www.donationalerts.com/r/nick556655** ❤
 
 ## Благодарности
 
