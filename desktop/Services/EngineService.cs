@@ -37,26 +37,46 @@ public static class EngineService
     /// </summary>
     public sealed record EngineProcess(int Pid, bool Ours);
 
-    /// <summary>Every engine running out of this install, with whether we can touch it.</summary>
+    /// <summary>
+    /// The names an engine runs under. The privileged service does not run the binary
+    /// this app knows about: it installs a root-owned copy called sing-box-lxd and runs
+    /// that, which is why looking only for "sing-box" found nothing while the tunnel was
+    /// plainly up — and why the app then offered to start a second one.
+    /// </summary>
+    private static string[] ProcessNames => new[]
+    {
+        Path.GetFileNameWithoutExtension(ExePath),      // sing-box, ours
+        "sing-box-lxd",                                 // the service's own copy
+    };
+
+    /// <summary>Every engine running, with whether this app may signal it.</summary>
     public static List<EngineProcess> Running()
     {
-        var name = Path.GetFileNameWithoutExtension(ExePath);
         var found = new List<EngineProcess>();
-        foreach (var p in Process.GetProcessesByName(name))
+        var seen = new HashSet<int>();
+        foreach (var name in ProcessNames.Distinct())
         {
-            using (p)
+            Process[] all;
+            try { all = Process.GetProcessesByName(name); } catch { continue; }
+            foreach (var p in all)
             {
-                try
+                using (p)
                 {
-                    var path = p.MainModule?.FileName;
-                    // A readable path that is not ours belongs to another install.
-                    if (path != null && !PathEquals(path, ExePath)) continue;
-                    found.Add(new EngineProcess(p.Id, true));
-                }
-                catch
-                {
-                    // Unreadable means privileged, and the name already matched.
-                    found.Add(new EngineProcess(p.Id, false));
+                    if (!seen.Add(p.Id)) continue;
+                    // The service's copy is never ours to signal, whatever its path says.
+                    if (name == "sing-box-lxd") { found.Add(new EngineProcess(p.Id, false)); continue; }
+                    try
+                    {
+                        var path = p.MainModule?.FileName;
+                        // A readable path that is not ours belongs to another install.
+                        if (path != null && !PathEquals(path, ExePath)) continue;
+                        found.Add(new EngineProcess(p.Id, true));
+                    }
+                    catch
+                    {
+                        // Unreadable means privileged, and the name already matched.
+                        found.Add(new EngineProcess(p.Id, false));
+                    }
                 }
             }
         }
@@ -87,6 +107,12 @@ public static class EngineService
         if (PrivilegedRunning)
             return (false, "движок уже работает с правами администратора — сначала останови его");
         if (IsRunning) return (true, "уже запущен");
+
+        // TUN raises a network interface, which needs rights this app does not have. The
+        // engine says so in its own way — "configure tun interface: operation not
+        // permitted" — which is true but leaves the user to work out what to do about it.
+        if (NeedsPrivileges(out var what))
+            return (false, what);
 
         EngineLog.BeginRun();
         EngineLog.Add($"--- запуск: {ExePath} run -c {Paths.ConfigJson}");
@@ -174,6 +200,53 @@ public static class EngineService
     }
 
     /// <summary>
+    /// Removes the privileged service, which is the engine's own documented off switch:
+    /// `--service` offers install, copy, uninstall and status, and nothing that merely
+    /// pauses it. Killing the daemon instead would leave launchd to start it again.
+    /// The tunnel stops with it; the app can then run its own engine, without TUN.
+    /// </summary>
+    public static async Task<(bool Ok, string Message)> UninstallService()
+    {
+        if (!IsInstalled) return (false, "движок не найден");
+        if (!OperatingSystem.IsMacOS())
+            return (false, "удаление службы отсюда поддерживается только на macOS");
+
+        var script = "do shell script \"" + $"\\\"{ExePath}\\\" lxd --service uninstall"
+                   + "\" with administrator privileges";
+        var (ok, err, code) = await Elevated(script);
+        if (ok)
+        {
+            EngineLog.Add("--- служба удалена");
+            StateChanged?.Invoke(null, EventArgs.Empty);
+            return (true, "служба удалена, туннель остановлен");
+        }
+        if (err.Contains("-128") || err.Contains("User canceled")) return (false, "отменено");
+        var why = Readable(err);
+        return (false, why.Length > 0 ? why : $"код выхода {code}");
+    }
+
+    /// <summary>Runs one osascript, which raises the system's own password box.</summary>
+    private static async Task<(bool Ok, string Err, int Code)> Elevated(string script)
+    {
+        try
+        {
+            var p = Process.Start(new ProcessStartInfo
+            {
+                FileName = "osascript",
+                ArgumentList = { "-e", script },
+                WorkingDirectory = Paths.BuildDir,
+                UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true, RedirectStandardError = true,
+            });
+            if (p == null) return (false, "не удалось запросить права", -1);
+            var err = await p.StandardError.ReadToEndAsync();
+            await p.WaitForExitAsync();
+            return (p.ExitCode == 0, err, p.ExitCode);
+        }
+        catch (Exception ex) { return (false, ex.Message, -1); }
+    }
+
+    /// <summary>
     /// Stops a privileged engine, asking macOS for the rights to do it. The password goes
     /// into the system's own box; this process never sees it.
     /// </summary>
@@ -213,6 +286,26 @@ public static class EngineService
             return (false, why.Length > 0 ? why : "движок всё ещё работает");
         }
         catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    /// <summary>
+    /// True when the config asks for something this app cannot do unaided, with what to
+    /// do about it. Checked before starting, so the answer is advice rather than the
+    /// engine's complaint after the fact.
+    /// </summary>
+    private static bool NeedsPrivileges(out string what)
+    {
+        what = "";
+        if (OperatingSystem.IsWindows()) return false;   // the WPF app runs elevated
+        try
+        {
+            if (!SettingsService.Load().Tun) return false;
+        }
+        catch { return false; }
+
+        what = "включён режим TUN — он поднимает сетевой интерфейс, а на это нужны права. "
+             + "Поставь службу кнопкой ниже или выключи TUN в «Настройках».";
+        return true;
     }
 
     /// <summary>Sends a signal, or kills on Windows where signals do not exist.</summary>
