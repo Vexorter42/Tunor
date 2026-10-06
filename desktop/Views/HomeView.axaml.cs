@@ -25,10 +25,18 @@ public partial class HomeView : UserControl
     private void Refresh()
     {
         var running = EngineService.IsRunning;
+        var privileged = EngineService.PrivilegedRunning;
         StateDot.Fill = (IBrush?)this.FindResource(running ? "SuccessBrush" : "DangerBrush");
-        StateText.Text = running ? "Запущен" : "Остановлен";
+        StateText.Text = running
+            ? (privileged ? "Запущен — с правами администратора" : "Запущен")
+            : "Остановлен";
         BtnStart.Content = running ? "↻  Перезапустить" : "▶  Запустить";
+        BtnStart.IsEnabled = !privileged;
+        // An engine this app may not signal needs the other button, and offering the one
+        // that cannot work would just be a button that lies.
+        BtnStop.IsVisible = !privileged;
         BtnStop.IsEnabled = running;
+        BtnStopElevated.IsVisible = privileged;
 
         EngineText.Text = EngineService.IsInstalled
             ? Stamp() + "\n" + EngineService.ExePath
@@ -67,10 +75,28 @@ public partial class HomeView : UserControl
 
     private async void Stop_Click(object? sender, RoutedEventArgs e)
     {
+        BtnStop.IsEnabled = false;
         StatusText.Text = "останавливаю…";
-        var (_, msg) = await EngineService.StopAsync();
-        StatusText.Text = "Движок " + msg;
-        Refresh();
+        try
+        {
+            var (ok, msg) = await EngineService.StopAsync();
+            StatusText.Text = ok ? "Движок " + msg : "Не удалось остановить: " + msg;
+            StatusText.Foreground = (IBrush?)this.FindResource(ok ? "TextDimBrush" : "DangerBrush");
+        }
+        finally { BtnStop.IsEnabled = true; Refresh(); }
+    }
+
+    private async void StopElevated_Click(object? sender, RoutedEventArgs e)
+    {
+        BtnStopElevated.IsEnabled = false;
+        StatusText.Text = "запрашиваю права…";
+        try
+        {
+            var (ok, msg) = await EngineService.StopElevatedAsync();
+            StatusText.Text = ok ? "Движок " + msg : "Не удалось остановить: " + msg;
+            StatusText.Foreground = (IBrush?)this.FindResource(ok ? "TextDimBrush" : "DangerBrush");
+        }
+        finally { BtnStopElevated.IsEnabled = true; Refresh(); }
     }
 
     private async void Service_Click(object? sender, RoutedEventArgs e) => await CheckService();
