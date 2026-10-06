@@ -128,12 +128,26 @@ public static class ConfigGenerator
         // An endpoint built from a placeholder .conf never comes up, and the engine then
         // repeats "WireGuard is not ready yet" forever. Leave such endpoints out entirely
         // and route around them instead.
-        var warpOk = WarpConfigured;
-        var geoOk = warpOk && IsUsableConf(Paths.GeoConf);
+        var tunnels = TunnelService.Load();
+        var live = LiveTunnels(tunnels);
 
         var endpoints = new JsonArray();
-        if (warpOk) endpoints.Add(BuildWireguard("warp-out", Paths.WarpConf, null));
-        if (geoOk) endpoints.Add(BuildWireguard("geo-out", Paths.GeoConf, "warp-out"));
+        var outbounds = new JsonArray(new JsonObject { ["type"] = "direct", ["tag"] = "direct-out" });
+        foreach (var t in tunnels.Where(t => live.Contains(t.Id)))
+        {
+            var detour = t.Detour.Length > 0 ? Tag(t.Detour) + "-out" : null;
+            if (t.IsWireguard)
+            {
+                endpoints.Add(BuildWireguard(t.OutboundTag, ConfPath(t), detour));
+                continue;
+            }
+            // A link-based tunnel is an ordinary outbound, not an endpoint. LiveTunnels
+            // has already checked that the link parses, so this cannot be null.
+            var o = ProxyLink.Parse(t.Url).Outbound!;
+            o["tag"] = t.OutboundTag;
+            if (detour != null) o["detour"] = detour;
+            outbounds.Add(o);
+        }
 
         var root = new JsonObject
         {
@@ -143,10 +157,10 @@ public static class ConfigGenerator
                 ["level"] = "warn",
             },
             ["dns"] = BuildDns(),
-            ["inbounds"] = BuildInbounds(settings),
-            ["outbounds"] = new JsonArray(new JsonObject { ["type"] = "direct", ["tag"] = "direct-out" }),
+            ["inbounds"] = BuildInbounds(settings, tunnels),
+            ["outbounds"] = outbounds,
             ["endpoints"] = endpoints,
-            ["route"] = BuildRoute(settings, warpOk, geoOk),
+            ["route"] = BuildRoute(settings, tunnels, live),
         };
 
         // Stats API for the Connections page. Windows only for now: the macOS engine
@@ -194,6 +208,80 @@ public static class ConfigGenerator
     private const string LegacyWarpAddress = "2606:4700:110:0000:0000:0000:0000:0001";
 
     private static bool IsUsableConf(string path) => Inspect(path).Usable;
+
+    /// <summary>A tunnel's .conf, resolved against the app root.</summary>
+    public static string ConfPath(Tunnel t) =>
+        Path.IsPathRooted(t.File) ? t.File : Path.Combine(Paths.AppRoot, t.File.Replace('/', Path.DirectorySeparatorChar));
+
+    private static string Tag(string id) => TunnelService.Slug(id);
+
+    /// <summary>
+    /// The tunnel the default route points at. Settings written before tunnels were a
+    /// list say "proxy" for WARP and "direct" for no tunnel at all; every other value is
+    /// a tunnel id.
+    /// </summary>
+    public static string FinalSlot(string final) => final switch
+    {
+        "proxy" => TunnelService.Warp,
+        "" or "direct" => "",
+        _ => final,
+    };
+
+    /// <summary>The setting value that sends the default route into this tunnel.</summary>
+    public static string FinalValue(string? tunnelId)
+        => string.IsNullOrEmpty(tunnelId) ? "direct"
+         : tunnelId == TunnelService.Warp ? "proxy"        // kept so older builds still read it
+         : tunnelId;
+
+    /// <summary>
+    /// The tunnels that may carry traffic. A tunnel needs its own configuration to be
+    /// usable and, when it goes through another, that one to be up as well: geo rides
+    /// inside warp, so geo without warp was never a route, only a dead end.
+    /// </summary>
+    public static HashSet<string> LiveTunnels(IEnumerable<Tunnel> tunnels)
+    {
+        var all = tunnels.ToList();
+        var live = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var byId = all.ToDictionary(t => t.Id, StringComparer.OrdinalIgnoreCase);
+
+        bool Up(Tunnel t, int depth)
+        {
+            if (depth > 8 || !t.Enabled) return false;
+            var self = t.IsWireguard ? IsUsableConf(ConfPath(t)) : ProxyLink.Parse(t.Url).Ok;
+            if (!self) return false;
+            if (t.Detour.Length == 0) return true;
+            return byId.TryGetValue(t.Detour, out var via) && Up(via, depth + 1);
+        }
+
+        foreach (var t in all)
+            if (Up(t, 0)) live.Add(t.Id);
+        return live;
+    }
+
+    /// <summary>
+    /// Where traffic aimed at this tunnel actually goes: into it when it is up, otherwise
+    /// into whatever it rides inside, and failing that out direct. Naming an outbound the
+    /// config never created makes the engine refuse the whole file, so this never does.
+    /// </summary>
+    private static Dictionary<string, string> Targets(List<Tunnel> tunnels, HashSet<string> live)
+    {
+        var byId = tunnels.ToDictionary(t => t.Id, StringComparer.OrdinalIgnoreCase);
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        string Resolve(Tunnel t, int depth)
+        {
+            if (depth > 8) return "direct-out";
+            if (live.Contains(t.Id)) return t.OutboundTag;
+            // Falling back to what it rides inside keeps traffic tunnelled rather than
+            // dropping it out direct, where it was blocked in the first place.
+            return t.Detour.Length > 0 && byId.TryGetValue(t.Detour, out var via)
+                ? Resolve(via, depth + 1)
+                : "direct-out";
+        }
+
+        foreach (var t in tunnels) map[t.Id] = Resolve(t, 0);
+        return map;
+    }
 
     /// <summary>What state a tunnel file is in.</summary>
     /// <param name="Placeholder">Not filled in yet — the normal state before setup.</param>
@@ -264,7 +352,13 @@ public static class ConfigGenerator
         ["final"] = "main-dns",
     };
 
-    private static JsonArray BuildInbounds(AppSettings s)
+    /// <summary>The local door that always enters a given tunnel, whatever the rules say.
+    /// WARP has answered on 1082 and geo on 1083 since before tunnels were a list, so the
+    /// order of the list decides the rest and those two keep their ports.</summary>
+    public static int DoorPort(string id, IEnumerable<Tunnel> tunnels) =>
+        1082 + tunnels.ToList().FindIndex(t => string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase));
+
+    private static JsonArray BuildInbounds(AppSettings s, List<Tunnel> tunnels)
     {
         var arr = new JsonArray();
         if (s.Tun)
@@ -277,8 +371,11 @@ public static class ConfigGenerator
         {
             arr.Add(Mixed("proxy-in", 1080));
             arr.Add(Mixed("direct-in", 1081));
-            arr.Add(Mixed("warp-in", 1082));
-            arr.Add(Mixed("geo-in", 1083));
+            foreach (var t in tunnels)
+            {
+                var port = DoorPort(t.Id, tunnels);
+                if (port <= 65535) arr.Add(Mixed(t.InboundTag, port));
+            }
         }
         return arr;
 
@@ -288,16 +385,20 @@ public static class ConfigGenerator
         };
     }
 
-    private static JsonObject BuildRoute(AppSettings s, bool warpOk, bool geoOk)
+    private static JsonObject BuildRoute(AppSettings s, List<Tunnel> tunnels, HashSet<string> live)
     {
+        var target = Targets(tunnels, live);
+        var warpTarget = target.GetValueOrDefault(TunnelService.Warp, "direct-out");
+        var geoTarget = target.GetValueOrDefault(TunnelService.Geo, warpTarget);
         var groups = RulesService.Load();
         var ruleSet = new JsonArray();
-        var warpTags = new List<string>();
-        var geoTags = new List<string>();
+        // Rule groups per tunnel, keyed by its id. A tag naming no tunnel goes to WARP,
+        // which is where everything that was not "geo-" went before tunnels were a list.
+        var domainTags = tunnels.ToDictionary(t => t.Id, _ => new List<string>(), StringComparer.OrdinalIgnoreCase);
         // Process groups get rules of their own, ahead of the domain lists: "send this
         // app to geo" must win even when one of its domains sits in a WARP list.
-        var warpProcTags = new List<string>();
-        var geoProcTags = new List<string>();
+        var procTags = tunnels.ToDictionary(t => t.Id, _ => new List<string>(), StringComparer.OrdinalIgnoreCase);
+        string Slot(string tag) => TunnelService.SlotOf(tag, tunnels) ?? TunnelService.Warp;
 
         foreach (var g in groups)
         {
@@ -351,19 +452,13 @@ public static class ConfigGenerator
 
                 if (isProcess)
                 {
-                    (IsGeoTag(g.Tag) ? geoProcTags : warpProcTags).Add(g.Tag);
+                    procTags[Slot(g.Tag)].Add(g.Tag);
                     continue;
                 }
             }
 
-            (IsGeoTag(g.Tag) ? geoTags : warpTags).Add(g.Tag);
+            domainTags[Slot(g.Tag)].Add(g.Tag);
         }
-
-        // Never name an outbound that was not created — the engine refuses such a config.
-        // Without a geo tunnel its traffic falls back to warp (tunnelled) rather than
-        // direct (where it was blocked in the first place).
-        var warpTarget = warpOk ? "warp-out" : "direct-out";
-        var geoTarget = geoOk ? "geo-out" : warpTarget;
 
         var rules = new JsonArray
         {
@@ -371,9 +466,13 @@ public static class ConfigGenerator
             new JsonObject { ["action"] = "hijack-dns", ["protocol"] = "dns" },
             new JsonObject { ["action"] = "route", ["outbound"] = "direct-out", ["ip_is_private"] = true },
             new JsonObject { ["action"] = "route", ["outbound"] = "direct-out", ["inbound"] = "direct-in" },
-            new JsonObject { ["action"] = "route", ["outbound"] = warpTarget, ["inbound"] = "warp-in" },
-            new JsonObject { ["action"] = "route", ["outbound"] = geoTarget, ["inbound"] = "geo-in" },
         };
+        // Each tunnel's own door, so "send this through that tunnel" works without a rule.
+        foreach (var t in tunnels)
+            rules.Add(new JsonObject
+            {
+                ["action"] = "route", ["outbound"] = target[t.Id], ["inbound"] = t.InboundTag,
+            });
         // Order is precedence: apps first (an explicit "this program goes there" beats a
         // domain list), then WARP lists before geo lists, as before.
         void Route(List<string> tags, string outbound)
@@ -381,23 +480,16 @@ public static class ConfigGenerator
             if (tags.Count > 0)
                 rules.Add(new JsonObject { ["action"] = "route", ["outbound"] = outbound, ["rule_set"] = ToArray(tags) });
         }
-        Route(warpProcTags, warpTarget);
-        Route(geoProcTags, geoTarget);
-        Route(warpTags, warpTarget);
-        Route(geoTags, geoTarget);
+        foreach (var t in tunnels) Route(procTags[t.Id], target[t.Id]);
+        foreach (var t in tunnels) Route(domainTags[t.Id], target[t.Id]);
 
         return new JsonObject
         {
             ["rules"] = rules,
             ["rule_set"] = ruleSet,
-            // geoTarget/warpTarget already fall back (geo → warp → direct) when a tunnel
-            // is not configured, so an unset geo never strands the default route.
-            ["final"] = s.Final switch
-            {
-                "geo" => geoTarget,
-                "proxy" => warpTarget,
-                _ => "direct-out",
-            },
+            // The targets already fall back (geo → warp → direct) when a tunnel is not
+            // configured, so an unset tunnel never strands the default route.
+            ["final"] = target.GetValueOrDefault(FinalSlot(s.Final), "direct-out"),
             ["auto_detect_interface"] = true,
             ["default_domain_resolver"] = "main-dns",
             // Tag every connection with its process, not just those a process rule looks

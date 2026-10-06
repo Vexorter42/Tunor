@@ -54,7 +54,13 @@ public partial class ConnectionsPage : UserControl
     private long _lastUp, _lastDown;
     private DateTime _lastAt;
 
-    private static readonly Brush GeoBrush = new SolidColorBrush(Color.FromRgb(0x6E, 0xA8, 0xFE));
+    /// <summary>The colour of whichever tunnel an outbound tag belongs to.</summary>
+    private static Brush TunnelBrushFor(string outbound)
+    {
+        var tunnels = TunnelService.Load();
+        var i = tunnels.FindIndex(t => string.Equals(t.OutboundTag, outbound, StringComparison.OrdinalIgnoreCase));
+        return i < 0 ? Ui.Brush("TextDimBrush") : Ui.TunnelBrush(tunnels[i].Id, i);
+    }
 
     public ConnectionsPage()
     {
@@ -134,7 +140,7 @@ public partial class ConnectionsPage : UserControl
         var tunnelOnly = TunnelOnly.IsChecked == true;
 
         var wanted = snap.Connections
-            .Where(c => !tunnelOnly || c.Outbound is "warp-out" or "geo-out")
+            .Where(c => !tunnelOnly || (c.Outbound.Length > 0 && c.Outbound != "direct-out"))
             .Where(c => q.Length == 0
                         || c.Host.Contains(q, StringComparison.OrdinalIgnoreCase)
                         || c.Process.Contains(q, StringComparison.OrdinalIgnoreCase))
@@ -170,12 +176,7 @@ public partial class ConnectionsPage : UserControl
     {
         row.Host = c.Host;
         row.Route = ConnectionsService.RouteLabel(c.Outbound);
-        row.RouteBrush = c.Outbound switch
-        {
-            "warp-out" => Ui.Brush("AccentBrush"),
-            "geo-out" => GeoBrush,
-            _ => Ui.Brush("TextDimBrush"),
-        };
+        row.RouteBrush = TunnelBrushFor(c.Outbound);
         row.Process = c.Process;
         row.Down = Size(c.Download);
         row.Up = Size(c.Upload);

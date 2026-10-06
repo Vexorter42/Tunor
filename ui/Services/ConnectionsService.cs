@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -104,14 +105,15 @@ public static class ConnectionsService
         catch { return null; }
     }
 
-    /// <summary>Human label for an outbound tag.</summary>
+    /// <summary>Human label for an outbound tag: the tunnel's own name, as the user set it.</summary>
     public static string RouteLabel(string outbound) => outbound switch
     {
-        "warp-out" => "WARP",
-        "geo-out" => "geo",
         "direct-out" => "напрямую",
         "" => "—",
-        _ => outbound,
+        _ => TunnelService.Load()
+                 .FirstOrDefault(t => string.Equals(t.OutboundTag, outbound, StringComparison.OrdinalIgnoreCase))
+                 ?.Title
+             ?? outbound,
     };
 
     private static string Str(JsonElement e, string name)

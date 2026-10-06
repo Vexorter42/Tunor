@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Tunor.Services;
@@ -103,10 +104,12 @@ public partial class AppsPage : UserControl
     {
         List<AppStat> stats;
         List<RuleGroup> groups;
+        List<Tunnel> allTunnels;
         try
         {
             stats = TrafficRecorder.Snapshot();
             groups = RulesService.Load();
+            allTunnels = TunnelService.Load();
         }
         catch { return; }
 
@@ -137,11 +140,11 @@ public partial class AppsPage : UserControl
 
         foreach (var row in _apps)
         {
-            var route = RouteEditor.ProcessRoute(row.Exe, groups);
-            row.Badge = route == RouteEditor.Warp ? "WARP" : route == RouteEditor.Geo ? "geo" : "правила";
-            row.BadgeBrush = route == RouteEditor.Warp ? Ui.Brush("AccentBrush")
-                           : route == RouteEditor.Geo ? GeoBrush
-                           : Ui.Brush("TextDimBrush");
+            var route = RouteEditor.ProcessRoute(row.Exe, groups, allTunnels);
+            var at = route == null ? -1
+                : allTunnels.FindIndex(t => string.Equals(t.Id, route, StringComparison.OrdinalIgnoreCase));
+            row.Badge = at < 0 ? "правила" : allTunnels[at].Title;
+            row.BadgeBrush = at < 0 ? Ui.Brush("TextDimBrush") : Ui.TunnelBrush(allTunnels[at].Id, at);
             var stat = stats.FirstOrDefault(s => string.Equals(s.Exe, row.Exe, StringComparison.OrdinalIgnoreCase));
             row.Summary = stat == null
                 ? (route != null ? "правило есть, трафика пока нет" : "трафика пока нет")
@@ -173,18 +176,10 @@ public partial class AppsPage : UserControl
         AppName.Text = exe;
         AppPath.Text = _paths.TryGetValue(exe, out var p) ? p : "путь неизвестен — программа ещё не выходила в сеть";
 
-        var route = RouteEditor.ProcessRoute(exe, groups);
-        StyleButton(BtnWarp, route == RouteEditor.Warp);
-        StyleButton(BtnGeo, route == RouteEditor.Geo);
-        StyleButton(BtnNone, route == null);
-        RouteHint.Text = route switch
-        {
-            RouteEditor.Warp => "Весь трафик программы идёт через WARP — какие бы адреса она ни открывала.",
-            RouteEditor.Geo => ConfigGenerator.GeoConfigured
-                ? "Весь трафик программы идёт через geo — какие бы адреса она ни открывала."
-                : "Отправлено в geo, но geo не настроен — пока трафик идёт через WARP.",
-            _ => "Отдельного правила нет: каждый адрес решают списки доменов и маршрут по умолчанию.",
-        };
+        var tunnels = TunnelService.Load();
+        var route = RouteEditor.ProcessRoute(exe, groups, tunnels);
+        BuildRouteButtons(tunnels, route);
+        RouteHint.Text = RouteHintFor(route, tunnels);
 
         var stat = stats.FirstOrDefault(s => string.Equals(s.Exe, exe, StringComparison.OrdinalIgnoreCase));
         var hosts = stat?.Hosts.OrderByDescending(h => h.Down).ThenBy(h => h.Host).ToList() ?? new List<HostStat>();
@@ -228,6 +223,57 @@ public partial class AppsPage : UserControl
     private void StyleButton(Button b, bool active)
         => b.Style = Ui.Style(active ? "PrimaryButton" : "SecondaryButton") ?? b.Style;
 
+    /// <summary>
+    /// One button per tunnel, in list order, then "по общим правилам". Rebuilt on every
+    /// selection: the user can add a tunnel while this page is open.
+    /// </summary>
+    private void BuildRouteButtons(List<Tunnel> tunnels, string? route)
+    {
+        RouteButtons.Children.Clear();
+        foreach (var t in tunnels)
+            Add("через " + t.Title, t.Id, string.Equals(route, t.Id, StringComparison.OrdinalIgnoreCase));
+        Add("по общим правилам", null, route == null);
+
+        void Add(string text, string? id, bool active)
+        {
+            var b = new Button
+            {
+                Content = text,
+                Padding = new Thickness(14, 7, 14, 7),
+                MinWidth = id == null ? 170 : 130,
+                Margin = new Thickness(0, 0, 8, 6),
+                Tag = id,
+            };
+            b.Click += (_, _) => SetRoute((string?)b.Tag);
+            StyleButton(b, active);
+            RouteButtons.Children.Add(b);
+        }
+    }
+
+    /// <summary>A tunnel's display name by its id, falling back to the id itself.</summary>
+    private static string TitleOf(string id)
+        => TunnelService.Load().FirstOrDefault(t => string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase))?.Title ?? id;
+
+    /// <summary>What sending a program down this route actually does, in plain words.</summary>
+    private static string RouteHintFor(string? route, List<Tunnel> tunnels)
+    {
+        if (route == null)
+            return "Отдельного правила нет: каждый адрес решают списки доменов и маршрут по умолчанию.";
+
+        var t = tunnels.FirstOrDefault(x => string.Equals(x.Id, route, StringComparison.OrdinalIgnoreCase));
+        if (t == null)
+            return $"Трафик отправлен в туннель «{route}», но такого туннеля больше нет — идёт напрямую.";
+
+        var all = $"Весь трафик программы идёт через {t.Title} — какие бы адреса она ни открывала.";
+        if (ConfigGenerator.LiveTunnels(tunnels).Contains(t.Id)) return all;
+
+        // Not set up: say where the traffic really goes, which is what the config does.
+        var via = tunnels.FirstOrDefault(x => string.Equals(x.Id, t.Detour, StringComparison.OrdinalIgnoreCase));
+        return via != null
+            ? $"Отправлено в {t.Title}, но он не настроен — пока трафик идёт через {via.Title}."
+            : $"Отправлено в {t.Title}, но он не настроен — пока трафик идёт напрямую.";
+    }
+
     // ------------------------------------------------------------ actions
 
     private void Pick_Click(object sender, RoutedEventArgs e)
@@ -267,10 +313,6 @@ public partial class AppsPage : UserControl
         StatusText.Text = "История очищена. Правила не тронуты.";
     }
 
-    private void RouteWarp_Click(object sender, RoutedEventArgs e) => SetRoute(RouteEditor.Warp);
-    private void RouteGeo_Click(object sender, RoutedEventArgs e) => SetRoute(RouteEditor.Geo);
-    private void RouteNone_Click(object sender, RoutedEventArgs e) => SetRoute(null);
-
     private void SetRoute(string? route)
     {
         var exe = SelectedExe;
@@ -278,12 +320,10 @@ public partial class AppsPage : UserControl
         try
         {
             RouteEditor.SetProcessRoute(exe, route);
-            StatusText.Text = route switch
-            {
-                RouteEditor.Warp => $"{exe} → весь трафик через WARP",
-                RouteEditor.Geo => $"{exe} → весь трафик через geo",
-                _ => $"{exe}: правило снято, решают списки доменов",
-            } + (ProcessService.IsRunning ? " · применится через секунду" : " · применится при запуске");
+            StatusText.Text = (route == null
+                ? $"{exe}: правило снято, решают списки доменов"
+                : $"{exe} → весь трафик через {TitleOf(route)}")
+                + (ProcessService.IsRunning ? " · применится через секунду" : " · применится при запуске");
             ScheduleRestart();
             Refresh();
         }
@@ -293,16 +333,28 @@ public partial class AppsPage : UserControl
         }
     }
 
-    private void HostWarp_Click(object sender, RoutedEventArgs e) => AddHost(sender, RouteEditor.Warp);
-    private void HostGeo_Click(object sender, RoutedEventArgs e) => AddHost(sender, RouteEditor.Geo);
-
-    private void AddHost(object sender, string route)
+    /// <summary>Offers the tunnels this address can be sent into, one menu item each.</summary>
+    private void HostRoute_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: string host }) return;
+        if (sender is not Button { Tag: string host } btn) return;
+
+        var menu = new ContextMenu { PlacementTarget = btn, Placement = PlacementMode.Bottom };
+        foreach (var t in TunnelService.Load())
+        {
+            var item = new MenuItem { Header = $"в список {t.Title}" };
+            var id = t.Id;
+            item.Click += (_, _) => AddHost(host, id);
+            menu.Items.Add(item);
+        }
+        menu.IsOpen = true;
+    }
+
+    private void AddHost(string host, string route)
+    {
         try
         {
             RouteEditor.AddDomain(host, route);
-            StatusText.Text = $"{host} добавлен в список {(route == RouteEditor.Geo ? "geo" : "WARP")}" +
+            StatusText.Text = $"{host} добавлен в список {TitleOf(route)}" +
                               (ProcessService.IsRunning ? " · применится через секунду" : "");
             ScheduleRestart();
         }

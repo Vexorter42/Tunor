@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Tunor.Services;
@@ -25,9 +26,7 @@ public partial class SettingsPage : UserControl
             ChkTun.IsChecked = _settings.Tun;
             ChkProxy.IsChecked = _settings.Proxy;
             ChkLogging.IsChecked = _settings.Logging;
-            RbDirect.IsChecked = _settings.Final == "direct";
-            RbProxy.IsChecked = _settings.Final == "proxy";
-            RbGeo.IsChecked = _settings.Final == "geo";
+            BuildFinalChoices();
             ChkWatchdog.IsChecked = _settings.Watchdog;
             ChkAutoLists.IsChecked = _settings.AutoUpdateLists;
             ListsAgeText.Text = _settings.ListsUpdatedAt is { } at
@@ -71,13 +70,51 @@ public partial class SettingsPage : UserControl
         }
     }
 
+    /// <summary>
+    /// "напрямую" and one choice per tunnel. Rebuilt whenever the page loads, because a
+    /// tunnel may have been added since it was last open.
+    /// </summary>
+    private void BuildFinalChoices()
+    {
+        FinalChoices.Children.Clear();
+        var slot = ConfigGenerator.FinalSlot(_settings.Final);
+        var tunnels = TunnelService.Load();
+
+        Add("напрямую — никуда не заворачивать", null, slot.Length == 0);
+        foreach (var t in tunnels)
+            Add($"через {t.Title}", t.Id, string.Equals(slot, t.Id, StringComparison.OrdinalIgnoreCase));
+
+        var chosen = tunnels.FirstOrDefault(t => string.Equals(t.Id, slot, StringComparison.OrdinalIgnoreCase));
+        FinalHint.Text = chosen == null
+            ? "Весь трафик, не подходящий ни под одно правило, идёт мимо туннелей."
+            : ConfigGenerator.LiveTunnels(tunnels).Contains(chosen.Id)
+                ? $"Весь трафик, не подходящий ни под одно правило, идёт через {chosen.Title}."
+                : $"{chosen.Title} не настроен — пока такой трафик идёт "
+                  + (tunnels.Any(x => x.Id == chosen.Detour) ? "через запасной туннель." : "напрямую.");
+
+        void Add(string text, string? id, bool on)
+        {
+            var rb = new RadioButton
+            {
+                Content = text,
+                GroupName = "Final",
+                Margin = new Thickness(0, FinalChoices.Children.Count == 0 ? 4 : 8, 0, 0),
+                IsChecked = on,
+                Tag = id,
+            };
+            rb.Checked += Final_Changed;
+            FinalChoices.Children.Add(rb);
+        }
+    }
+
     private void Final_Changed(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
-        _settings.Final = RbGeo.IsChecked == true ? "geo"
-                        : RbProxy.IsChecked == true ? "proxy"
-                        : "direct";
+        if (sender is not FrameworkElement fe) return;
+        _settings.Final = ConfigGenerator.FinalValue(fe.Tag as string);
         Persist();
+        _loading = true;
+        try { BuildFinalChoices(); } finally { _loading = false; }
     }
 
     private void Persist()

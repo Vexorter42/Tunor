@@ -54,17 +54,10 @@
                     <TextBlock Text="Маршрут по умолчанию (final)" Style="{StaticResource H2}"/>
                     <TextBlock Text="Куда направлять трафик, не подходящий ни под одно правило"
                                Style="{StaticResource Dim}" Margin="0,4,0,12"/>
-                    <RadioButton x:Name="RbDirect" Content="direct  — напрямую"
-                                 GroupName="Final" Margin="0,4,0,0"
-                                 Checked="Final_Changed"/>
-                    <RadioButton x:Name="RbProxy" Content="proxy  — через WARP"
-                                 GroupName="Final" Margin="0,8,0,0"
-                                 Checked="Final_Changed"/>
-                    <RadioButton x:Name="RbGeo" Content="geo  — через geo-туннель"
-                                 GroupName="Final" Margin="0,8,0,0"
-                                 Checked="Final_Changed"/>
-                    <TextBlock Text="Если geo не настроен, трафик пойдёт через WARP, а без WARP — напрямую"
-                               Style="{StaticResource Dim}" Margin="26,6,0,0" TextWrapping="Wrap"/>
+                    <!-- "напрямую" plus one choice per tunnel, built in code from the list -->
+                    <StackPanel x:Name="FinalChoices"/>
+                    <TextBlock x:Name="FinalHint" Style="{StaticResource Dim}"
+                               Margin="26,6,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 
