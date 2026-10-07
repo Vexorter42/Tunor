@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Tunor.Desktop.Views.AutostartView">
+    <StackPanel Spacing="16">
+        <StackPanel>
+            <TextBlock Text="Автозапуск" Classes="h1"/>
+            <TextBlock Text="Запускать Tunor при входе в систему" Classes="dim" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <Border Classes="card">
+            <StackPanel Spacing="12">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Ellipse x:Name="StateDot" Width="10" Height="10" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="StateText" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                </StackPanel>
+                <TextBlock x:Name="DetailText" Classes="dim" TextWrapping="Wrap"/>
+                <WrapPanel>
+                    <Button x:Name="BtnOn" Classes="primary" Content="✓  Включить автозапуск"
+                            Margin="0,0,8,6" Click="On_Click"/>
+                    <Button x:Name="BtnOff" Content="✕  Выключить автозапуск"
+                            Margin="0,0,8,6" Click="Off_Click"/>
+                </WrapPanel>
+                <TextBlock x:Name="StatusText" Classes="dim" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Как это устроено" Classes="h2"/>
+                <TextBlock x:Name="HowText" Classes="dim" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

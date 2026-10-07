@@ -42,7 +42,7 @@ public partial class MainWindow : Window
         // The shared services ask EngineState whether the engine is up; on Windows the
         // answer comes from ProcessService, which is the only thing that can stop it
         // cleanly here.
-        EngineState.Provide(() => ProcessService.IsRunning, ProcessService.Note);
+        EngineState.Provide(() => ProcessService.IsRunning, ProcessService.Note, () => ProcessService.LastFailure);
 
         _ = TaskService.MigrateLegacyAsync();
         // Records which program talks to which address, for the Apps page.

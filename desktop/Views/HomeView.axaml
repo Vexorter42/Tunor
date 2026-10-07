@@ -93,9 +93,50 @@
 
         <Border Classes="card">
             <StackPanel Spacing="10">
+                <TextBlock Text="Обновления" Classes="h2"/>
+                <TextBlock x:Name="VersionText" Classes="dim"/>
+                <StackPanel Orientation="Horizontal" Spacing="14">
+                    <Button x:Name="BtnUpdate" Content="⭳  Проверить обновления"
+                            Click="Update_Click"/>
+                    <TextBlock x:Name="UpdateStatus" Classes="dim" VerticalAlignment="Center"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Быстрые ссылки" Classes="h2"/>
+                <WrapPanel>
+                    <Button Content="Открыть папку приложения" Margin="0,0,8,6"
+                            Tag="root" Click="OpenPath_Click"/>
+                    <Button Content="Открыть settings.json" Margin="0,0,8,6"
+                            Tag="settings" Click="OpenPath_Click"/>
+                    <Button Content="Открыть config.json" Margin="0,0,8,6"
+                            Tag="config" Click="OpenPath_Click"/>
+                    <Button Content="Открыть rules.json" Margin="0,0,8,6"
+                            Tag="rules" Click="OpenPath_Click"/>
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
                 <TextBlock Text="Движок" Classes="h2"/>
                 <TextBlock x:Name="EngineText" Classes="dim" TextWrapping="Wrap"/>
             </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Нравится проект?" Classes="h2"/>
+                    <TextBlock Classes="dim" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Text="Поддержи разработку любой суммой — это помогает держать проект живым."/>
+                </StackPanel>
+                <Button Grid.Column="1" Classes="primary" Content="❤  Поддержать"
+                        VerticalAlignment="Center" Click="Donate_Click"/>
+            </Grid>
         </Border>
 
     </StackPanel>

@@ -90,8 +90,8 @@ public static class DiagnosticsReport
             Line(sb, "Файл", "НЕ НАЙДЕН: " + exe);
         }
 
-        Line(sb, "Туннель запущен", ProcessService.IsRunning ? "да" : "нет");
-        if (ProcessService.LastFailure is { } failure)
+        Line(sb, "Туннель запущен", EngineState.IsRunning ? "да" : "нет");
+        if (EngineState.LastFailure is { } failure)
             Line(sb, "Последняя ошибка", failure);
 
         // Other apps ship sing-box too (Hiddify, v2rayN). Tunor only owns the one in its
@@ -390,15 +390,23 @@ public static class DiagnosticsReport
         return $"{n} {many}";
     }
 
+    /// <summary>
+    /// Whether this app has the rights the engine needs for TUN. Each system says it its
+    /// own way: an administrator token on Windows, user id 0 elsewhere.
+    /// </summary>
     private static bool IsElevated()
     {
         try
         {
+            if (!OperatingSystem.IsWindows()) return Geteuid() == 0;
             using var id = WindowsIdentity.GetCurrent();
             return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
         }
         catch { return false; }
     }
+
+    [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "geteuid")]
+    private static extern uint Geteuid();
 
     private static string Sha256(string path)
     {

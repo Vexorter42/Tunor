@@ -9,8 +9,9 @@
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
                         VerticalAlignment="Center">
-                <CheckBox x:Name="ChkFollow" Content="Прокрутка" IsChecked="True"/>
-                <Button Classes="ghost" Content="Копировать" Click="Copy_Click"/>
+                <CheckBox x:Name="ChkFollow" Content="Автопрокрутка" IsChecked="True"/>
+                <Button Classes="primary" Content="📋  Собрать отчёт" Click="Report_Click"/>
+                <Button Classes="ghost" Content="Сохранить в файл" Click="Save_Click"/>
                 <Button Classes="ghost" Content="Очистить" Click="Clear_Click"/>
             </StackPanel>
         </Grid>

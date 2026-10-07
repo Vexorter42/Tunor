@@ -38,6 +38,7 @@ public partial class HomeView : UserControl
         BtnStop.IsEnabled = running;
         BtnStopElevated.IsVisible = privileged;
 
+        VersionText.Text = "Текущая версия: " + UpdateService.CurrentVersionString;
         EngineText.Text = EngineService.IsInstalled
             ? Stamp() + "\n" + EngineService.ExePath
             : "не найден по пути " + EngineService.ExePath;
@@ -140,6 +141,57 @@ public partial class HomeView : UserControl
             await CheckService();
         }
         finally { BtnUninstall.IsEnabled = true; Refresh(); }
+    }
+
+    // ------------------------------------------------------------ updates and links
+
+    private async void Update_Click(object? sender, RoutedEventArgs e)
+    {
+        BtnUpdate.IsEnabled = false;
+        UpdateStatus.Text = "проверяю…";
+        try
+        {
+            var info = await UpdateService.CheckAsync();
+            // The installer it offers is a Windows one, so this says what is available
+            // rather than offering to install it: a macOS build is replaced by hand.
+            UpdateStatus.Text = info.Error is { Length: > 0 } err ? err
+                : info.Kind == UpdateKind.None ? "Установлена последняя версия."
+                : $"Доступна {info.Latest}. Скачать: github.com/Vexorter42/Tunor/releases";
+        }
+        catch (Exception ex) { UpdateStatus.Text = "Не удалось проверить: " + ex.Message; }
+        finally { BtnUpdate.IsEnabled = true; }
+    }
+
+    private void OpenPath_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string which }) return;
+        var path = which switch
+        {
+            "settings" => Paths.SettingsJson,
+            "config" => Paths.ConfigJson,
+            "rules" => Paths.RulesJson,
+            _ => Paths.AppRoot,
+        };
+        Launch(path, reveal: which != "root");
+    }
+
+    private void Donate_Click(object? sender, RoutedEventArgs e)
+        => Launch("https://www.donationalerts.com/r/nick556655", reveal: false);
+
+    /// <summary>Hands a path or a link to the system to open as it sees fit.</summary>
+    private void Launch(string target, bool reveal)
+    {
+        try
+        {
+            var (file, args) = OperatingSystem.IsMacOS()
+                ? ("open", reveal ? $"-R \"{target}\"" : $"\"{target}\"")
+                : OperatingSystem.IsWindows()
+                    ? ("explorer.exe", reveal ? $"/select,\"{target}\"" : $"\"{target}\"")
+                    : ("xdg-open", $"\"{target}\"");
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(file, args) { UseShellExecute = false });
+        }
+        catch (Exception ex) { StatusText.Text = "Не удалось открыть: " + ex.Message; }
     }
 
     // ------------------------------------------------------------ connection check

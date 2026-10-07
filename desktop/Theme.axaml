@@ -9,16 +9,16 @@
     <Styles.Resources>
         <!-- palette -->
         <Color x:Key="BgColor">#1A1E25</Color>
-        <Color x:Key="BgPanelColor">#171B21</Color>
-        <Color x:Key="BgInputColor">#222730</Color>
-        <Color x:Key="BgHoverColor">#2A3038</Color>
-        <Color x:Key="BorderColor">#2E3540</Color>
+        <Color x:Key="BgPanelColor">#242932</Color>
+        <Color x:Key="BgInputColor">#1F242B</Color>
+        <Color x:Key="BgHoverColor">#2E343E</Color>
+        <Color x:Key="BorderColor">#3A404A</Color>
         <Color x:Key="TextColor">#F4F6F7</Color>
         <Color x:Key="TextDimColor">#959DA9</Color>
         <Color x:Key="AccentColor">#3DDC5C</Color>
         <Color x:Key="AccentHoverColor">#5BE877</Color>
         <Color x:Key="AccentSoftColor">#383DDC5C</Color>
-        <Color x:Key="DangerColor">#FF6B81</Color>
+        <Color x:Key="DangerColor">#FF6B6B</Color>
         <Color x:Key="SuccessColor">#3DDC5C</Color>
 
         <SolidColorBrush x:Key="BgBrush" Color="{StaticResource BgColor}"/>
@@ -58,8 +58,8 @@
         <Setter Property="Background" Value="{StaticResource BgPanelBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="14"/>
-        <Setter Property="Padding" Value="20"/>
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="Padding" Value="22"/>
     </Style>
 
     <!-- badge -->
@@ -119,15 +119,24 @@
     <!-- the sidebar entries -->
     <Style Selector="RadioButton.nav">
         <Setter Property="Foreground" Value="{StaticResource TextDimBrush}"/>
-        <Setter Property="Padding" Value="14,10"/>
+        <Setter Property="FontSize" Value="13.5"/>
+        <Setter Property="Padding" Value="16,11"/>
+        <Setter Property="Margin" Value="0,2"/>
         <Setter Property="HorizontalAlignment" Value="Stretch"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <ControlTemplate>
-                <Border Name="bg" Background="Transparent" CornerRadius="9" Padding="{TemplateBinding Padding}">
-                    <ContentPresenter Content="{TemplateBinding Content}"
-                                      VerticalAlignment="Center"/>
+                <Border Name="bg" Background="Transparent" CornerRadius="14"
+                        Padding="{TemplateBinding Padding}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <!-- The green bar beside the chosen entry, as on Windows. -->
+                        <Border Name="marker" Width="3" Height="16" CornerRadius="2"
+                                Margin="-8,0,0,0" IsVisible="False"
+                                Background="{StaticResource AccentBrush}"/>
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          VerticalAlignment="Center"/>
+                    </StackPanel>
                 </Border>
             </ControlTemplate>
         </Setter>
@@ -141,6 +150,9 @@
     <Style Selector="RadioButton.nav:checked">
         <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style Selector="RadioButton.nav:checked /template/ Border#marker">
+        <Setter Property="IsVisible" Value="True"/>
     </Style>
 
     <!-- inputs -->

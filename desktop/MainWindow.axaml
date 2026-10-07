@@ -6,7 +6,7 @@
         Background="{StaticResource BgBrush}"
         WindowStartupLocation="CenterScreen">
 
-    <Grid ColumnDefinitions="220,*">
+    <Grid ColumnDefinitions="218,*">
 
         <!-- sidebar -->
         <Border Grid.Column="0" Background="{StaticResource BgPanelBrush}"
@@ -37,17 +37,19 @@
                     <RadioButton Classes="nav" GroupName="nav" IsChecked="True"
                                  Content="Главная" Tag="home" IsCheckedChanged="Nav_Checked"/>
                     <RadioButton Classes="nav" GroupName="nav"
+                                 Content="Настройки" Tag="settings" IsCheckedChanged="Nav_Checked"/>
+                    <RadioButton Classes="nav" GroupName="nav"
+                                 Content="Правила" Tag="rules" IsCheckedChanged="Nav_Checked"/>
+                    <RadioButton Classes="nav" GroupName="nav"
                                  Content="Туннели" Tag="tunnels" IsCheckedChanged="Nav_Checked"/>
                     <RadioButton Classes="nav" GroupName="nav"
                                  Content="Приложения" Tag="apps" IsCheckedChanged="Nav_Checked"/>
                     <RadioButton Classes="nav" GroupName="nav"
-                                 Content="Правила" Tag="rules" IsCheckedChanged="Nav_Checked"/>
-                    <RadioButton Classes="nav" GroupName="nav"
                                  Content="Соединения" Tag="conns" IsCheckedChanged="Nav_Checked"/>
                     <RadioButton Classes="nav" GroupName="nav"
-                                 Content="Настройки" Tag="settings" IsCheckedChanged="Nav_Checked"/>
-                    <RadioButton Classes="nav" GroupName="nav"
                                  Content="Логи" Tag="logs" IsCheckedChanged="Nav_Checked"/>
+                    <RadioButton Classes="nav" GroupName="nav"
+                                 Content="Автозапуск" Tag="autostart" IsCheckedChanged="Nav_Checked"/>
                 </StackPanel>
             </DockPanel>
         </Border>

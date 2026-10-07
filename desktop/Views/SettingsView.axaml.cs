@@ -27,6 +27,13 @@ public partial class SettingsView : UserControl
             ChkTun.IsChecked = _settings.Tun;
             ChkProxy.IsChecked = _settings.Proxy;
             ChkLogging.IsChecked = _settings.Logging;
+            ChkWatchdog.IsChecked = _settings.Watchdog;
+            ChkAutoLists.IsChecked = _settings.AutoUpdateLists;
+            ListsAgeText.Text = _settings.ListsUpdatedAt is { } at
+                ? $"Последнее обновление: {at.ToLocalTime():d MMMM, HH:mm}"
+                : "Ещё не обновлялись — можно скачать на странице «Правила».";
+            AboutText.Text = $"Tunor {GetType().Assembly.GetName().Version?.ToString(3)} · "
+                             + "© 2026 Vexorter42 · MIT" + Environment.NewLine + Paths.AppRoot;
             BuildFinalChoices();
             Hints();
         }
@@ -64,6 +71,8 @@ public partial class SettingsView : UserControl
         _settings.Tun = ChkTun.IsChecked == true;
         _settings.Proxy = ChkProxy.IsChecked == true;
         _settings.Logging = ChkLogging.IsChecked == true;
+        _settings.Watchdog = ChkWatchdog.IsChecked == true;
+        _settings.AutoUpdateLists = ChkAutoLists.IsChecked == true;
         Persist();
     }
 
@@ -80,6 +89,23 @@ public partial class SettingsView : UserControl
         ProxyHint.Text = _settings.Proxy
             ? "SOCKS и HTTP на 127.0.0.1, порты: " + string.Join(", ", doors)
             : "Выключено — локального прокси не будет.";
+    }
+
+    private void Licenses_Click(object? sender, RoutedEventArgs e) => Open(Paths.LicensesDir);
+    private void OpenRoot_Click(object? sender, RoutedEventArgs e) => Open(Paths.AppRoot);
+
+    /// <summary>Shows a folder in whatever this system calls its file manager.</summary>
+    private void Open(string path)
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(path);
+            var file = OperatingSystem.IsMacOS() ? "open"
+                     : OperatingSystem.IsWindows() ? "explorer.exe" : "xdg-open";
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                file, $"\"{path}\"") { UseShellExecute = false });
+        }
+        catch (Exception ex) { StatusText.Text = "Не удалось открыть: " + ex.Message; }
     }
 
     private void Persist()
