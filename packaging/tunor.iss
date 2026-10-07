@@ -6,7 +6,7 @@
 ; Renamed from Nyx in 1.10.0. AppId stays as it was: it is what makes an existing
 ; install upgrade in place instead of appearing twice in "Programs and Features".
 #define MyAppName "Tunor"
-#define MyAppVersion "1.11.4"
+#define MyAppVersion "1.11.5"
 #define MyAppPublisher "Tunor"
 #define MyAppExeName "Tunor.exe"
 #define FormerExeName "Nyx.exe"
@@ -103,9 +103,15 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\ui\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\ui\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-; Interactive install: offer a "launch" checkbox on the finished page
+; Interactive install: offer a "launch" checkbox on the finished page.
+;
+; runascurrentuser, because Tunor's own manifest asks for administrator while a
+; postinstall entry is started as the unelevated user by default — CreateProcess then
+; refuses it outright and the finished page ends on "запрошенная операция требует
+; повышения". Setup is already elevated, so handing the app that token starts it
+; without asking for a password a second time.
 Filename: "{app}\ui\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; \
-  Flags: nowait postinstall skipifsilent
+  Flags: nowait postinstall skipifsilent runascurrentuser
 ; Silent install (OTA): relaunch automatically (postinstall entries don't run when silent)
 Filename: "{app}\ui\{#MyAppExeName}"; Flags: nowait; Check: WizardSilent
 
