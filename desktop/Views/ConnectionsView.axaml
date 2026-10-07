@@ -11,7 +11,7 @@
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
                         VerticalAlignment="Center">
                 <TextBox x:Name="FilterBox" Width="240"
-                         Watermark="фильтр: адрес или программа"/>
+                         PlaceholderText="фильтр: адрес или программа"/>
                 <CheckBox x:Name="ChkTunnelOnly" Content="Только через туннель"/>
             </StackPanel>
         </Grid>
