@@ -83,7 +83,19 @@ public class UpdateInfo
 
 public static class UpdateService
 {
+    /// <summary>For the manifest: a small file, and a slow answer means something is wrong.</summary>
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
+
+    /// <summary>
+    /// For the build itself, which is sixty-odd megabytes through a mirror.
+    ///
+    /// HttpClient.Timeout covers the whole operation, reading the body included, even
+    /// with ResponseHeadersRead — so the thirty seconds meant for a manifest were also
+    /// the budget for the download, and the update simply stopped partway on any
+    /// connection slower than two megabytes a second. Here the limit is on the whole
+    /// transfer and generous enough to be about a stall rather than about speed.
+    /// </summary>
+    private static readonly HttpClient Fetch = new() { Timeout = TimeSpan.FromMinutes(20) };
 
     public static Version CurrentVersion =>
         Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(1, 0, 0);
@@ -181,7 +193,7 @@ public static class UpdateService
             var tmp = Path.Combine(Path.GetTempPath(),
                 mac ? $"Tunor-mac-{info.Latest}.tar.gz" : $"Tunor-Setup-{info.Latest}.exe");
 
-            using (var resp = await Http.GetAsync(dlUrl, HttpCompletionOption.ResponseHeadersRead))
+            using (var resp = await Fetch.GetAsync(dlUrl, HttpCompletionOption.ResponseHeadersRead))
             {
                 resp.EnsureSuccessStatusCode();
                 var total = resp.Content.Headers.ContentLength ?? -1;
@@ -245,6 +257,7 @@ public static class UpdateService
     [System.Runtime.Versioning.SupportedOSPlatform("macos")]
     private static (bool ok, string message) ApplyMac(string archive)
     {
+        if (InstallProblem() is { } why) return (false, why);
         var bundle = CurrentBundle();
         if (bundle == null)
             return (false, "не нашёл, где лежит само приложение — замени Tunor.app вручную");
@@ -297,6 +310,48 @@ public static class UpdateService
         "xattr -dr com.apple.quarantine \"$OLD\" 2>/dev/null",
         "open \"$OLD\"",
         "");
+
+    /// <summary>
+    /// Why this copy cannot replace itself, in words that say what to do about it, or
+    /// null when it can.
+    ///
+    /// Opening an app straight out of a mounted disk image is the easy mistake, and
+    /// macOS makes it quietly: Gatekeeper runs an unsigned app from a randomised
+    /// read-only copy under AppTranslocation, so the program works, is not where the
+    /// user thinks it is, and nothing can be written over it. Said plainly here, because
+    /// the alternative is an update that fails for reasons nobody could guess.
+    /// </summary>
+    public static string? InstallProblem()
+    {
+        if (!OperatingSystem.IsMacOS()) return null;
+        var exe = Environment.ProcessPath ?? "";
+
+        if (exe.Contains("/AppTranslocation/", StringComparison.Ordinal))
+            return "Программа открыта прямо из образа, и macOS запустила её временную копию. "
+                 + "Перетащи Tunor в «Программы» и запусти оттуда — тогда обновления будут ставиться.";
+        if (exe.StartsWith("/Volumes/", StringComparison.Ordinal))
+            return "Программа запущена с подключённого образа, туда ничего не записать. "
+                 + "Перетащи Tunor в «Программы» и запусти оттуда.";
+
+        var bundle = CurrentBundle();
+        if (bundle == null) return null;      // a publish folder: replaced by hand anyway
+        try
+        {
+            // The swap replaces the bundle inside its folder, so that folder is what has
+            // to be writable — the bundle's own permissions say nothing about it.
+            var holder = Path.GetDirectoryName(bundle.TrimEnd('/'));
+            if (holder == null) return null;
+            var probe = Path.Combine(holder, ".tunor-write-test");
+            File.WriteAllText(probe, "");
+            File.Delete(probe);
+        }
+        catch
+        {
+            return "Папку, где лежит Tunor, изменить нельзя — перенеси программу "
+                 + "в «Программы» и запусти оттуда.";
+        }
+        return null;
+    }
 
     /// <summary>
     /// The .app this process is running from, or null when it is not in a bundle — a

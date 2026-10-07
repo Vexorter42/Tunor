@@ -7,9 +7,12 @@ permissions, rather than a .zip, which would arrive unrunnable.
 
     python make-app.py            -> build-mac/Tunor.app and Tunor-mac-arm64.tar.gz
 
-A .dmg is the envelope for handing the .app to other people. It can only be made on
-macOS, so it has its own script there — make-dmg.sh, which takes the bundle this produces.
-For trying it yourself the bundle alone is enough.
+The bundle this makes is NOT fully signed, and cannot be: .NET signs the executable and
+seals nothing else, and codesign only exists on macOS. Such a bundle runs when nothing
+has marked it as downloaded, and macOS calls it damaged when something has — which is
+everyone who downloads it. So what ships is made on a Mac by make-dmg.sh: it signs the
+bundle, writes the .dmg and repacks the .tar.gz. What comes out of here is for trying
+locally.
 """
 import os
 import plistlib
@@ -26,7 +29,7 @@ APP = os.path.join(OUT, "Tunor.app")
 EXE = "TunorDesktop"                       # what the publish produced
 ICON_SRC = os.path.join(os.path.dirname(HERE), "ui", "Assets", "app.png")
 
-VERSION = "1.11.1.5"
+VERSION = "1.11.1.6"
 BUNDLE_ID = "com.vexorter.tunor"
 
 

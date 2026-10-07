@@ -22,10 +22,14 @@ W, H = 620, 400                      # window size in points, as make-dmg.sh set
 APP_AT, APPS_AT = 160, 460           # icon centres, matching make-dmg.sh
 ICON_Y = 190                         # icon centre line
 
-BG = (26, 30, 37)                    # BgColor      #1A1E25
-PANEL = (36, 41, 50)                 # BgPanelColor #242932
-ACCENT = (61, 220, 92)               # AccentColor  #3DDC5C
-DIM = (138, 146, 160)
+# Light, and not by taste: Finder draws the icon labels under the two icons in black,
+# whatever the system appearance is set to, and on the app's own dark background they
+# disappeared into it. The accent stays, so the window is still recognisably Tunor.
+BG = (244, 246, 249)
+PANEL = (255, 255, 255)
+ACCENT = (34, 170, 68)               # darker than the app's #3DDC5C, to carry on white
+INK = (26, 30, 37)                   # BgColor, now used for text
+DIM = (108, 116, 130)
 
 
 def font(size, bold=False):
@@ -60,13 +64,15 @@ def draw(scale):
     img = Image.new("RGB", (W * scale, H * scale), BG)
     d = ImageDraw.Draw(img)
 
-    # A soft panel behind the icons, so they do not float on flat colour.
-    d.rounded_rectangle([40 * scale, 110 * scale, (W - 40) * scale, 275 * scale],
-                        radius=18 * scale, fill=PANEL)
+    # A panel behind the icons and, crucially, behind their labels: the black text has
+    # to land on something lighter than itself.
+    d.rounded_rectangle([40 * scale, 110 * scale, (W - 40) * scale, 285 * scale],
+                        radius=18 * scale, fill=PANEL,
+                        outline=(224, 228, 234), width=max(1, scale))
 
     # The headline, the one instruction, and the thing everyone trips over on an
     # unsigned build — which is the whole reason this window has words on it at all.
-    centred(d, "Tunor", 42 * scale, font(26 * scale, bold=True), (235, 238, 243), scale)
+    centred(d, "Tunor", 42 * scale, font(26 * scale, bold=True), INK, scale)
     centred(d, "Перетащи приложение в папку Applications",
             80 * scale, font(14 * scale), DIM, scale)
 

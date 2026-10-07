@@ -98,6 +98,8 @@
             <StackPanel Spacing="10">
                 <TextBlock Text="Обновления" Classes="h2"/>
                 <TextBlock x:Name="VersionText" Classes="dim"/>
+                <TextBlock x:Name="InstallHint" TextWrapping="Wrap" IsVisible="False"
+                           Foreground="{StaticResource DangerBrush}"/>
                 <StackPanel Orientation="Horizontal" Spacing="14">
                     <Button x:Name="BtnUpdate" Content="⭳  Проверить обновления"
                             Click="Update_Click"/>
