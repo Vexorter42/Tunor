@@ -78,8 +78,12 @@ def draw(scale):
 
     arrow(d, APP_AT + 68, APPS_AT - 68, ICON_Y, scale)
 
-    centred(d, "Первый запуск: правый клик по значку → «Открыть»",
-            332 * scale, font(12 * scale), DIM, scale)
+    # Not "right-click → Open": that stopped working on current macOS, which now sends
+    # people to Settings instead. Said in the two steps they will actually have to take.
+    centred(d, "При первом запуске система скажет, что не смогла проверить приложение.",
+            320 * scale, font(12 * scale), DIM, scale)
+    centred(d, "Тогда: Системные настройки → Конфиденциальность и безопасность → «Все равно открыть»",
+            340 * scale, font(12 * scale), INK, scale)
     return img
 
 

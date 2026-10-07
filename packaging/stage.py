@@ -20,7 +20,9 @@ import hashlib
 import json
 import os
 import secrets
+import re
 import shutil
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -28,7 +30,13 @@ REPO = os.path.dirname(HERE)
 
 APP = os.environ.get("TUNOR_APP", "C:/Program Files/ssnet").replace("\\", "/")
 OUT = os.environ.get("TUNOR_OUT", os.path.join(REPO, "build-out")).replace("\\", "/")
-PUB = APP + "/ui/bin/Release/net8.0-windows/win-x64/publish"
+# The published UI comes from the tree being built, not from the installed copy. It used
+# to come from TUNOR_APP along with the engine and the templates, which is right for
+# those and wrong for this: building a release in a clone then quietly packed whatever
+# publish happened to be sitting in the installed copy, and two releases went out
+# carrying code three versions old without a word.
+PUB = os.environ.get(
+    "TUNOR_PUB", REPO + "/ui/bin/Release/net8.0-windows/win-x64/publish").replace("\\", "/")
 STAGE = OUT + "/dist"
 
 # The engine ships byte for byte as published upstream — this says which build it is.
@@ -45,6 +53,18 @@ from gen_config import build as gen_build
 
 def rnd_key():
     return base64.b64encode(secrets.token_bytes(32)).decode()
+
+
+def _version_of(path):
+    """The file version Explorer shows, read without loading the assembly."""
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             f"(Get-Item '{path}').VersionInfo.FileVersion"],
+            capture_output=True, text=True, timeout=60)
+        return out.stdout.strip() or None
+    except Exception:
+        return None
 
 
 def sha256(path):
@@ -65,6 +85,17 @@ for name in os.listdir(PUB):
     s, d = os.path.join(PUB, name), os.path.join(STAGE + "/ui", name)
     shutil.copy2(s, d) if os.path.isfile(s) else shutil.copytree(s, d)
 print("copied UI publish:", len(os.listdir(STAGE + "/ui")), "entries")
+
+# What actually got staged, against what the installer will call itself. A mismatch here
+# is the whole of the bug above, and it is cheap to refuse.
+_iss = open(REPO + "/packaging/tunor.iss", encoding="utf-8").read()
+_want = re.search(r'#define MyAppVersion "([^"]+)"', _iss)
+_got = _version_of(STAGE + "/ui/Tunor.exe")
+print(f"staged UI version: {_got or 'не прочиталась'} | installer says: {_want.group(1) if _want else '?'}")
+if _want and _got and not _got.startswith(_want.group(1)):
+    sys.exit("version mismatch: staged Tunor.exe is " + str(_got)
+             + ", tunor.iss says " + _want.group(1)
+             + ". Publish the UI first: cd ui && dotnet publish -c Release -r win-x64 --self-contained true")
 
 # 2. settings.json + update.json
 _st = json.load(open(APP + "/settings.json", encoding="utf-8"))
