@@ -33,10 +33,14 @@ public partial class HomeView : UserControl
     private void Refresh()
     {
         var running = EngineService.IsRunning;
-        var privileged = EngineService.PrivilegedRunning;
+        // A service that answers this app is not an engine it cannot touch: the buttons
+        // work, so the elevated-stop one is not needed.
+        var privileged = EngineService.PrivilegedRunning && !ServiceClient.Paired;
         StateDot.Fill = Palette.Brush(running ? "SuccessBrush" : "DangerBrush");
         StateText.Text = running
-            ? (privileged ? "Запущен — с правами администратора" : "Запущен")
+            ? ServiceClient.Paired ? "Запущен — через службу"
+            : privileged ? "Запущен — с правами администратора"
+            : "Запущен"
             : "Остановлен";
         BtnStart.Content = running ? "↻  Перезапустить" : "▶  Запустить";
         BtnStart.IsEnabled = !privileged;
@@ -115,11 +119,12 @@ public partial class HomeView : UserControl
         ServiceText.Text = "проверяю…";
         BtnInstall.IsVisible = false;
         var state = await EngineService.PrivilegedService();
-        ServiceText.Text = EngineService.Explain(state);
+        ServiceText.Text = EngineService.Explain(state)
+                           + (ServiceClient.Paired ? " · приложение подключено" : "");
         // With a service installed the daemon owns the core, and the app's own Start
         // would raise a second engine against it. Saying so beats letting them collide.
-        StateHint.Text = state == EngineService.ServiceState.Running
-            ? "Пока служба стоит, туннелем управляет она — кнопки выше работать не будут."
+        StateHint.Text = state == EngineService.ServiceState.Running && !ServiceClient.Paired
+            ? "Служба стоит, но приложение к ней не подключено — переустанови её, чтобы кнопки заработали."
             : "";
         StateHint.IsVisible = StateHint.Text.Length > 0;
         var good = state == EngineService.ServiceState.Running;
