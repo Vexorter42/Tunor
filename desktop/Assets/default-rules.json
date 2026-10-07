@@ -1,0 +1,130 @@
+[
+  {
+    "type": "inline",
+    "tag": "warp-custom-sample",
+    "rules": [
+      {
+        "domain": [
+          "example.com"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "inline",
+    "tag": "geo-custom-sample",
+    "rules": [
+      {
+        "domain": [
+          "example.com"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "inline",
+    "tag": "warp-custom-processes",
+    "rules": [
+      {
+        "process_name": [
+          "example.exe"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "inline",
+    "tag": "geo-custom-processes",
+    "rules": [
+      {
+        "process_name": [
+          "example.exe"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "local",
+    "tag": "warp-youtube",
+    "_source_url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/youtube.srs",
+    "path": "../data/rulesets/youtube.srs",
+    "format": "binary"
+  },
+  {
+    "type": "local",
+    "tag": "warp-block",
+    "_source_url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/block.srs",
+    "path": "../data/rulesets/block.srs",
+    "format": "binary"
+  },
+  {
+    "type": "local",
+    "tag": "warp-porn",
+    "_source_url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/porn.srs",
+    "path": "../data/rulesets/porn.srs",
+    "format": "binary"
+  },
+  {
+    "type": "local",
+    "tag": "warp-anime",
+    "_source_url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/anime.srs",
+    "path": "../data/rulesets/anime.srs",
+    "format": "binary"
+  },
+  {
+    "type": "local",
+    "tag": "warp-discord",
+    "_source_url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/discord.srs",
+    "path": "../data/rulesets/discord.srs",
+    "format": "binary"
+  },
+  {
+    "type": "local",
+    "tag": "warp-news",
+    "_source_url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/news.srs",
+    "path": "../data/rulesets/news.srs",
+    "format": "binary"
+  },
+  {
+    "type": "local",
+    "tag": "warp-meta",
+    "_source_url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/meta.srs",
+    "path": "../data/rulesets/meta.srs",
+    "format": "binary"
+  },
+  {
+    "type": "local",
+    "tag": "warp-twitter",
+    "_source_url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/twitter.srs",
+    "path": "../data/rulesets/twitter.srs",
+    "format": "binary"
+  },
+  {
+    "type": "local",
+    "tag": "warp-hdrezka",
+    "_source_url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/hdrezka.srs",
+    "path": "../data/rulesets/hdrezka.srs",
+    "format": "binary"
+  },
+  {
+    "type": "local",
+    "tag": "geo-geoblock",
+    "_source_url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/geoblock.srs",
+    "path": "../data/rulesets/geoblock.srs",
+    "format": "binary"
+  },
+  {
+    "type": "local",
+    "tag": "geo-google_ai",
+    "_source_url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/google_ai.srs",
+    "path": "../data/rulesets/google_ai.srs",
+    "format": "binary"
+  },
+  {
+    "type": "local",
+    "tag": "geo-tiktok",
+    "_source_url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/tiktok.srs",
+    "path": "../data/rulesets/tiktok.srs",
+    "format": "binary"
+  }
+]
