@@ -66,10 +66,11 @@ public static class Bootstrap
 
     private static void EnsureConfig(AppSettings settings)
     {
-        if (File.Exists(Paths.ConfigJson)) return;
-        // Nothing is configured yet, so this is a config that routes everything direct —
-        // but it exists, which means "Запустить" works and shows a running engine rather
-        // than a file-not-found.
-        try { ConfigGenerator.Generate(); } catch { /* the Home page will show the failure */ }
+        // Makes one if there is none — so "Запустить" works on a fresh install and shows
+        // a running engine rather than a file-not-found — and rebuilds one written by an
+        // older generator. The rebuild is the point: a fix to what goes into config.json
+        // reaches nobody until the file is written again, and nothing here did that.
+        try { ConfigGenerator.EnsureCompatible(); }
+        catch { /* the Home page will show the failure */ }
     }
 }

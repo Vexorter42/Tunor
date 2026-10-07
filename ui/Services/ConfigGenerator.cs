@@ -112,8 +112,17 @@ public static class ConfigGenerator
     /// </summary>
     private static string StampFile => Paths.ConfigJson + ".version";
 
-    private static string GeneratorVersion =>
-        typeof(ConfigGenerator).Assembly.GetName().Version?.ToString() ?? "0";
+    /// <summary>
+    /// What this generator writes, as a name to compare against the stamp beside the
+    /// config. Bumped whenever the output changes in a way existing users need, which
+    /// is the only thing that makes their config.json be rebuilt.
+    ///
+    /// It used to be the assembly version. That worked on Windows, where the app and the
+    /// generator ship in one assembly that gets a version, and did nothing at all on
+    /// macOS, where the generator lives in Tunor.Core — which carries no version, so the
+    /// stamp read "1.0.0.0" for ever and no fix ever reached a config already on disk.
+    /// </summary>
+    private const string GeneratorVersion = "cache-file";
 
     /// <summary>True when warp.conf holds a usable tunnel. Re-read on each access.</summary>
     public static bool WarpConfigured => IsUsableConf(Paths.WarpConf);
@@ -163,19 +172,28 @@ public static class ConfigGenerator
         // build as the Windows one and carries the same clash_api support, so it is no
         // longer held back there; a build without it would refuse the config, and the
         // engine's complaint now reaches the user instead of being swallowed.
-        if (EnsureController(settings))
+        // Where the engine keeps its cache, said out loud. Left unsaid it is "cache.db"
+        // relative to wherever the engine was started from, and the privileged service is
+        // started by launchd from "/" — which on macOS is read-only even for root, so the
+        // engine refused to start at all: "open cache.db: read-only file system". Named
+        // the same way the rule-sets are, relative to build/, so the file stays portable.
+        var experimental = new JsonObject
         {
-            root["experimental"] = new JsonObject
+            ["cache_file"] = new JsonObject
             {
-                ["clash_api"] = new JsonObject
-                {
-                    // Loopback only, with a secret: nothing outside this machine can
-                    // reach it, and nothing on it can without the token.
-                    ["external_controller"] = $"127.0.0.1:{settings.ControllerPort}",
-                    ["secret"] = settings.ControllerSecret,
-                },
+                ["enabled"] = true,
+                ["path"] = "../data/cache.db",
+            },
+        };
+        if (EnsureController(settings))
+            experimental["clash_api"] = new JsonObject
+            {
+                // Loopback only, with a secret: nothing outside this machine can
+                // reach it, and nothing on it can without the token.
+                ["external_controller"] = $"127.0.0.1:{settings.ControllerPort}",
+                ["secret"] = settings.ControllerSecret,
             };
-        }
+        root["experimental"] = experimental;
 
         File.WriteAllText(Paths.ConfigJson, root.ToJsonString(Opts));
         try { File.WriteAllText(StampFile, GeneratorVersion); } catch { }

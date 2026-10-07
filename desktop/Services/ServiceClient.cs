@@ -166,19 +166,31 @@ public static class ServiceClient
         try
         {
             var root = JsonNode.Parse(json)?.AsObject();
-            var sets = root?["route"]?["rule_set"]?.AsArray();
-            if (sets == null) return json;
+            if (root == null) return json;
 
-            foreach (var set in sets)
+            foreach (var set in root["route"]?["rule_set"]?.AsArray() ?? new JsonArray())
             {
                 var path = set?["path"]?.GetValue<string>();
                 if (string.IsNullOrWhiteSpace(path) || Path.IsPathRooted(path)) continue;
-                set!["path"] = Path.GetFullPath(Path.Combine(Paths.BuildDir, path));
+                set!["path"] = Rooted(path);
             }
-            return root!.ToJsonString();
+
+            // The cache file too, and for the same reason: launchd starts the daemon from
+            // "/", which is read-only on macOS, so a relative cache path is where the
+            // engine stopped before it had even opened a socket.
+            var cache = root["experimental"]?["cache_file"];
+            var at = cache?["path"]?.GetValue<string>();
+            if (!string.IsNullOrWhiteSpace(at) && !Path.IsPathRooted(at))
+                cache!["path"] = Rooted(at);
+
+            return root.ToJsonString();
         }
         catch { return json; }      // unreadable config is the daemon's to complain about
     }
+
+    /// <summary>A path the config gives relative to build/, as the daemon must see it.</summary>
+    private static string Rooted(string relative) =>
+        Path.GetFullPath(Path.Combine(Paths.BuildDir, relative));
 
     // ---------------------------------------------------------------- plumbing
 
