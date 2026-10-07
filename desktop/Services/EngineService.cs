@@ -313,11 +313,18 @@ public static class EngineService
         EngineLog.BeginRun();
         EngineLog.Add("--- запуск с правами администратора");
 
-        // nohup and & so the engine outlives the osascript that started it; its own
-        // output goes to the file the Logs page follows.
+        // osascript waits for the command's output to close, so the engine is backgrounded
+        // with every stream redirected — including stdin, or it keeps the handle open and
+        // the password box never goes away. nohup was the first attempt and fails here
+        // with "can't detach from console": there is no controlling terminal to leave.
+        //
+        // The log is created and handed to the user first, because root writing it would
+        // leave a file the app itself could not reopen on the next ordinary start.
         var log = EngineLog.LogPath;
-        var cmd = $"/usr/bin/nohup \\\"{ExePath}\\\" run -c \\\"{Paths.ConfigJson}\\\" "
-                + $">> \\\"{log}\\\" 2>&1 &";
+        var user = Environment.UserName;
+        var cmd = $"/usr/bin/touch \\\"{log}\\\"; /usr/sbin/chown {user} \\\"{log}\\\"; "
+                + $"\\\"{ExePath}\\\" run -c \\\"{Paths.ConfigJson}\\\" "
+                + $"</dev/null >> \\\"{log}\\\" 2>&1 &";
         var script = $"do shell script \"{cmd}\" with administrator privileges";
 
         var (ok, err, code) = await Elevated(script);
@@ -483,7 +490,7 @@ public static class EngineService
         ServiceState.Stopped => "служба установлена, но не запущена",
         ServiceState.NeedsReinstall => "службу нужно переустановить",
         ServiceState.CopyOnly => "есть копия движка, но служба не установлена",
-        ServiceState.NotInstalled => "служба не установлена — для режима TUN её нужно поставить",
+        ServiceState.NotInstalled => "служба не установлена — TUN работает, но пароль спросят при каждом запуске",
         ServiceState.NotSupported => "движок не найден",
         _ => "состояние службы неизвестно",
     };
