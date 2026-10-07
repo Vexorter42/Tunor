@@ -32,6 +32,18 @@
         </Border>
 
         <Border Classes="card">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Нравится проект?" Classes="h2"/>
+                    <TextBlock Classes="dim" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Text="Поддержи разработку любой суммой — это помогает держать проект живым."/>
+                </StackPanel>
+                <Button Grid.Column="1" Classes="primary" Content="❤  Поддержать"
+                        VerticalAlignment="Center" Click="Donate_Click"/>
+            </Grid>
+        </Border>
+
+        <Border Classes="card">
             <StackPanel Spacing="10">
                 <TextBlock Text="Права для режима TUN" Classes="h2"/>
                 <TextBlock Classes="dim" TextWrapping="Wrap"
@@ -82,14 +94,7 @@
             </StackPanel>
         </Border>
 
-        <Border Classes="card" x:Name="AutostartCard">
-            <StackPanel Spacing="10">
-                <TextBlock Text="Автозапуск" Classes="h2"/>
-                <CheckBox x:Name="ChkAutostart" Content="Запускать Tunor при входе в систему"
-                          IsCheckedChanged="Autostart_Changed"/>
-                <TextBlock x:Name="AutostartText" Classes="dim" TextWrapping="Wrap"/>
-            </StackPanel>
-        </Border>
+        
 
         <Border Classes="card">
             <StackPanel Spacing="10">
@@ -127,17 +132,7 @@
             </StackPanel>
         </Border>
 
-        <Border Classes="card">
-            <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="Нравится проект?" Classes="h2"/>
-                    <TextBlock Classes="dim" Margin="0,4,0,0" TextWrapping="Wrap"
-                               Text="Поддержи разработку любой суммой — это помогает держать проект живым."/>
-                </StackPanel>
-                <Button Grid.Column="1" Classes="primary" Content="❤  Поддержать"
-                        VerticalAlignment="Center" Click="Donate_Click"/>
-            </Grid>
-        </Border>
+
 
     </StackPanel>
 </UserControl>

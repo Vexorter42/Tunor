@@ -203,7 +203,7 @@ public static class EngineService
 
             // Long enough for a refused config to fail, short enough not to feel stuck.
             await Task.Delay(1200);
-            if (!p.HasExited) return (true, "запущен");
+            if (!p.HasExited) { Monitor(elevated: false); return (true, "запущен"); }
 
             var why = EngineLog.Reason();
             return (false, string.IsNullOrWhiteSpace(why)
@@ -223,6 +223,9 @@ public static class EngineService
     /// </summary>
     public static async Task<(bool Ok, string Message)> StopAsync()
     {
+        // Telling the watchdog first: otherwise it sees the engine go and brings back
+        // exactly what the user just asked to stop.
+        _wantRunning = false;
         var procs = Running();
         if (procs.Count == 0) return (true, "уже остановлен");
 
@@ -305,6 +308,7 @@ public static class EngineService
     /// </summary>
     public static async Task<(bool Ok, string Message)> StopElevatedAsync()
     {
+        _wantRunning = false;
         var pids = Running().Where(p => !p.Ours).Select(p => p.Pid).ToList();
         if (pids.Count == 0) return (true, "нечего останавливать");
         if (!OperatingSystem.IsMacOS())
@@ -390,7 +394,7 @@ public static class EngineService
         // Same reasoning as the ordinary start: a refused config dies at once.
         await Task.Delay(1500);
         StateChanged?.Invoke(null, EventArgs.Empty);
-        if (IsRunning) return (true, "запущен с правами администратора");
+        if (IsRunning) { Monitor(elevated: true); return (true, "запущен с правами администратора"); }
 
         var reason = TailOfLog();
         return (false, reason.Length > 0 ? reason : "движок сразу завершился");
@@ -422,6 +426,86 @@ public static class EngineService
             else Kill(pid, sig);
         }
         catch { /* already gone, or not ours after all */ }
+    }
+
+    // ---------------------------------------------------------------- watchdog
+
+    /// <summary>True from a start until someone asks for a stop — the watchdog's mandate.</summary>
+    private static volatile bool _wantRunning;
+    private static readonly List<DateTime> _restarts = new();
+    private static readonly int[] BackoffSeconds = { 3, 10, 30 };
+
+    /// <summary>Said when the tunnel went down and is not coming back by itself.</summary>
+    public static event EventHandler<string>? Alert;
+
+    private static Task? _monitor;
+
+    /// <summary>
+    /// Watches for the engine going away. A process started with rights belongs to root,
+    /// so there is no exit event to subscribe to — asking every couple of seconds works
+    /// for that one and for our own alike, and costs one pgrep.
+    /// </summary>
+    private static void Monitor(bool elevated)
+    {
+        _wantRunning = true;
+        if (_monitor is { IsCompleted: false }) return;
+        _monitor = Task.Run(async () =>
+        {
+            while (_wantRunning)
+            {
+                await Task.Delay(2000);
+                if (!_wantRunning || IsRunning) continue;
+                await WatchdogAsync(elevated);
+                return;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Brings the engine back after it dies on its own, bounded to three attempts in five
+    /// minutes so a config it will never accept does not spin forever.
+    ///
+    /// An engine started with administrator rights is not restarted: doing so would raise
+    /// the password box on its own, which is not something a program should do while
+    /// nobody is looking. That case is reported instead.
+    /// </summary>
+    private static async Task WatchdogAsync(bool wasElevated)
+    {
+        if (!_wantRunning) return;                  // stopped on purpose: nothing to say
+
+        var enabled = true;
+        try { enabled = SettingsService.Load().Watchdog; } catch { }
+        var reason = EngineLog.Reason();
+
+        if (!enabled || wasElevated)
+        {
+            EngineLog.Add("--- движок упал" + (enabled ? ", но перезапуск потребовал бы пароля" : ""));
+            Alert?.Invoke(null, reason ?? "Туннель остановился.");
+            return;
+        }
+
+        int attempt;
+        lock (_restarts)
+        {
+            _restarts.RemoveAll(t => DateTime.UtcNow - t > TimeSpan.FromMinutes(5));
+            if (_restarts.Count >= BackoffSeconds.Length)
+            {
+                EngineLog.Add("--- движок падает снова и снова, больше не перезапускаю");
+                Alert?.Invoke(null, "Туннель падает снова и снова, Tunor перестал его перезапускать. "
+                                    + (reason ?? ""));
+                return;
+            }
+            _restarts.Add(DateTime.UtcNow);
+            attempt = _restarts.Count;
+        }
+
+        var delay = BackoffSeconds[attempt - 1];
+        EngineLog.Add($"--- перезапускаю через {delay} с (попытка {attempt} из {BackoffSeconds.Length})");
+        await Task.Delay(TimeSpan.FromSeconds(delay));
+
+        // The user may have stopped it, or started it by hand, in the meantime.
+        if (!_wantRunning || IsRunning) return;
+        await StartAsync();
     }
 
     private const int SIGTERM = 15;
