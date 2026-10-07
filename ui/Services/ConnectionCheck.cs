@@ -48,15 +48,19 @@ public static class ConnectionCheck
 
     public static async Task<List<PathResult>> RunAsync()
     {
-        var warp = ConfigGenerator.WarpState;
-        var geo = ConfigGenerator.GeoState;
+        var tunnels = TunnelService.Load();
+        var live = ConfigGenerator.LiveTunnels(tunnels);
 
-        var tasks = new List<Task<PathResult>>
+        // Every tunnel in the list, not just the two that came with the app: a VPN the
+        // user added themselves is the one they most want to see an answer from.
+        var tasks = new List<Task<PathResult>> { Probe("Напрямую", 1081, chained: false) };
+        foreach (var t in tunnels)
         {
-            Probe("Напрямую", 1081),
-            warp.Usable ? Probe("WARP", 1082) : Task.FromResult(Skipped("WARP", warp)),
-            geo.Usable ? Probe("geo", 1083) : Task.FromResult(Skipped("geo", geo)),
-        };
+            var port = ConfigGenerator.DoorPort(t.Id, tunnels);
+            tasks.Add(live.Contains(t.Id) && port is > 0 and <= 65535
+                ? Probe(t.Title, port, chained: t.Detour.Length > 0)
+                : Task.FromResult(Skipped(t, tunnels)));
+        }
         var results = (await Task.WhenAll(tasks)).ToList();
 
         // Into the log as well, so a saved log shows the state of every tunnel.
@@ -70,14 +74,57 @@ public static class ConnectionCheck
         return results;
     }
 
-    private static PathResult Skipped(string name, ConfigGenerator.ConfState state) => new()
+    /// <summary>
+    /// Why a tunnel is not being tested, in words the user can act on. The reasons follow
+    /// what decides a tunnel is live: its own settings first, then the one it rides
+    /// inside — geo without WARP is a dead end, not a slow path.
+    /// </summary>
+    private static PathResult Skipped(Tunnel t, List<Tunnel> tunnels)
     {
-        Name = name,
-        Status = "skip",
-        Note = state.Problem != null ? "конфиг не подходит: " + state.Problem : "не настроен",
-    };
+        string note;
+        if (!t.Enabled) note = "выключен";
+        else if (t.IsWireguard)
+        {
+            var state = ConfigGenerator.Inspect(ConfigGenerator.ConfPath(t));
+            note = state.Problem != null ? "конфиг не подходит: " + state.Problem
+                 : !state.Usable ? "не настроен"
+                 : Via(t, tunnels);
+        }
+        else
+        {
+            var problem = t.IsAuto
+                ? t.Nodes.Count == 0 ? "в подписке нет серверов — обнови её"
+                  : t.Nodes.All(n => !ProxyLink.Parse(n.Url).Ok)
+                      ? "ни один сервер подписки не разобрался" : null
+                : ProxyLink.Parse(t.ActiveUrl).Problem;
+            note = problem ?? Via(t, tunnels);
+        }
+        return new PathResult { Name = t.Title, Status = "skip", Note = note };
+    }
 
-    private static async Task<PathResult> Probe(string name, int port)
+    /// <summary>A tunnel that is fine in itself, but has nothing to ride inside.</summary>
+    private static string Via(Tunnel t, List<Tunnel> tunnels)
+    {
+        var via = tunnels.FirstOrDefault(
+            x => string.Equals(x.Id, t.Detour, StringComparison.OrdinalIgnoreCase));
+        return via == null ? "не настроен" : $"идёт через «{via.Title}», а он не готов";
+    }
+
+    /// <summary>
+    /// One request through one door, with a second attempt for a tunnel that rides inside
+    /// another. Its own handshake cannot even begin until the outer tunnel is up, so the
+    /// first try just after a start can fail while nothing at all is wrong — which is
+    /// exactly how geo behaves on a cold start.
+    /// </summary>
+    private static async Task<PathResult> Probe(string name, int port, bool chained)
+    {
+        var first = await Attempt(name, port);
+        if (first.Status == "ok" || !chained) return first;
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        return await Attempt(name, port);
+    }
+
+    private static async Task<PathResult> Attempt(string name, int port)
     {
         var sw = Stopwatch.StartNew();
         try

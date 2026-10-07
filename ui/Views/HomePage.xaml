@@ -70,7 +70,7 @@
 
                     <Grid x:Name="CheckGrid" Margin="0,14,0,0" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="130"/>
                             <ColumnDefinition Width="28"/>
                             <ColumnDefinition Width="150"/>
                             <ColumnDefinition Width="60"/>
