@@ -47,9 +47,7 @@
             <StackPanel Spacing="10">
                 <TextBlock Text="Права для режима TUN" Classes="h2"/>
                 <TextBlock Classes="dim" TextWrapping="Wrap"
-                           Text="Перехват всего трафика поднимает сетевой интерфейс, а на это нужны права root. По умолчанию приложение спрашивает пароль при каждом запуске — это системное окно macOS, пароль сюда не попадает."/>
-                <TextBlock Classes="dim" TextWrapping="Wrap" Margin="0,2,0,0"
-                           Text="Служба движка держит эти права постоянно и избавляет от пароля, но пока ею управляет не приложение: с установленной службой туннель включается и выключается только установкой и удалением самой службы."/>
+                           Text="Перехват всего трафика поднимает сетевой интерфейс, а на это нужны права root. Без службы приложение спрашивает пароль при каждом запуске; со службой — один раз при её установке."/>
                 <TextBlock x:Name="ServiceText" TextWrapping="Wrap" Margin="0,4,0,0"/>
                 <!-- A row that cannot wrap pushes its last button off the card, which is
                      what happened to "Установить службу" on a narrow window. -->

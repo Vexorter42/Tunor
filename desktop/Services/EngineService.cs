@@ -154,6 +154,21 @@ public static class EngineService
     {
         if (!IsInstalled) return (false, $"движок не найден: {ExePath}");
         if (!File.Exists(Paths.ConfigJson)) return (false, $"нет конфига: {Paths.ConfigJson}");
+
+        // With the service paired, it owns the engine and already holds the rights: ask
+        // it, and nothing asks for a password. This is the whole point of pairing.
+        if (ServiceClient.Paired)
+        {
+            EngineLog.BeginRun();
+            EngineLog.Add("--- запуск через службу");
+            var (ok, msg) = await ServiceClient.StartAsync();
+            if (ok) await Task.Delay(1200);
+            StateChanged?.Invoke(null, EventArgs.Empty);
+            if (!ok) return (false, msg);
+            Monitor(elevated: true);              // the service's engine is root's
+            return (true, "запущен через службу");
+        }
+
         // Starting a second engine over a privileged one gives two of them fighting for
         // the same ports and the same interface, and the new one usually loses noisily.
         if (PrivilegedRunning)
@@ -226,6 +241,16 @@ public static class EngineService
         // Telling the watchdog first: otherwise it sees the engine go and brings back
         // exactly what the user just asked to stop.
         _wantRunning = false;
+
+        if (ServiceClient.Paired)
+        {
+            var (ok, msg) = await ServiceClient.StopAsync();
+            await Task.Delay(600);
+            StateChanged?.Invoke(null, EventArgs.Empty);
+            if (ok) { EngineLog.Add("--- остановлен через службу"); EngineLog.EndRun(); }
+            return ok ? (true, "остановлен") : (false, msg);
+        }
+
         var procs = Running();
         if (procs.Count == 0) return (true, "уже остановлен");
 
@@ -272,6 +297,7 @@ public static class EngineService
         var (ok, err, code) = await Elevated(script);
         if (ok)
         {
+            ServiceClient.Forget();
             EngineLog.Add("--- служба удалена");
             StateChanged?.Invoke(null, EventArgs.Empty);
             return (true, "служба удалена, туннель остановлен");
@@ -573,9 +599,19 @@ public static class EngineService
         // can be missing, and the engine then refuses with exactly that complaint. Making
         // it here costs nothing when it is already there and saves a dead end when it is
         // not — and it rides in the same elevated command, so still only one password.
+        //
+        // The invite is asked for in the same breath and handed to this user, so pairing
+        // follows without a second password. Its code is one-time and the file is deleted
+        // once used; an installed service this app cannot command is what made the buttons
+        // lie the first time round.
+        var invite = Path.Combine(Paths.DataDir, "service-invite.txt");
+        try { Directory.CreateDirectory(Paths.DataDir); File.Delete(invite); } catch { }
+
         var cmd = "/bin/mkdir -m 0755 -p /Library/PrivilegedHelperTools && "
                 + $"/usr/sbin/chown root:wheel /Library/PrivilegedHelperTools && "
-                + $"\\\"{ExePath}\\\" lxd --service install";
+                + $"\\\"{ExePath}\\\" lxd --service install"
+                + $" --invite-out \\\"{invite}\\\" --invite-name Tunor && "
+                + $"/usr/sbin/chown {Environment.UserName} \\\"{invite}\\\"";
         var script = $"do shell script \"{cmd}\" with administrator privileges";
         try
         {
@@ -593,7 +629,16 @@ public static class EngineService
 
             var err = await p.StandardError.ReadToEndAsync();
             await p.WaitForExitAsync();
-            if (p.ExitCode == 0) return (true, "служба установлена");
+            if (p.ExitCode == 0)
+            {
+                EngineLog.Add("--- служба установлена");
+                var (paired, pairMsg) = await ServiceClient.PairAsync(invite);
+                EngineLog.Add("--- сопряжение со службой: " + (paired ? "готово" : pairMsg));
+                StateChanged?.Invoke(null, EventArgs.Empty);
+                return paired
+                    ? (true, "служба установлена, приложение к ней подключено")
+                    : (true, "служба установлена, но подключиться не вышло: " + pairMsg);
+            }
 
             // -128 is what osascript returns when the user dismisses the password box.
             if (err.Contains("-128") || err.Contains("User canceled")) return (false, "отменено");
