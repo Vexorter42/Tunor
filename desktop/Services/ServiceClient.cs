@@ -7,6 +7,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Tunor.Services;
 
@@ -88,7 +89,24 @@ public static class ServiceClient
 
     // ---------------------------------------------------------------- control
 
-    public static Task<(bool Ok, string Message)> StartAsync() => Post("start");
+    /// <summary>
+    /// Hands the daemon the config and brings the core up. Both steps are needed: the
+    /// daemon keeps its own copy of the config, separate from the file on disk, and
+    /// starting without giving it one answers "no config to start from".
+    /// </summary>
+    public static async Task<(bool Ok, string Message)> StartAsync()
+    {
+        string config;
+        try { config = Absolutise(File.ReadAllText(Paths.ConfigJson)); }
+        catch (Exception ex) { return (false, "конфиг не прочитался: " + ex.Message); }
+
+        var applied = await Send(HttpMethod.Post, "apply", config);
+        if (applied == null) return (false, "служба не отвечает");
+        if (!applied.Value.Ok) return (false, Error(applied.Value.Body, "служба не приняла конфиг"));
+
+        return await Post("start");
+    }
+
     public static Task<(bool Ok, string Message)> StopAsync() => Post("stop");
 
     /// <summary>
@@ -116,7 +134,8 @@ public static class ServiceClient
         return sent.Value.Ok ? (true, "готово") : (false, Error(sent.Value.Body, "служба отказала"));
     }
 
-    private static async Task<(bool Ok, string Body)?> Send(HttpMethod method, string route)
+    private static async Task<(bool Ok, string Body)?> Send(HttpMethod method, string route,
+                                                           string? body = null)
     {
         if (!Paired) return null;
         try
@@ -127,10 +146,38 @@ public static class ServiceClient
 
             using var http = Http(pin.Fingerprint, cert);
             using var req = new HttpRequestMessage(method, $"https://{pin.Address}/admin/{route}");
+            // apply takes the config as the body itself, not wrapped in anything.
+            if (body != null)
+                req.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
             var resp = await http.SendAsync(req);
             return (resp.IsSuccessStatusCode, await resp.Content.ReadAsStringAsync());
         }
         catch { return null; }
+    }
+
+    /// <summary>
+    /// Rule-set paths in the config are written relative to the engine's own working
+    /// directory, build/. The daemon runs from its own state directory and would look for
+    /// them somewhere else entirely, so they are made absolute on the way out. The file
+    /// on disk is left as it is: it still has to work for an engine started normally.
+    /// </summary>
+    private static string Absolutise(string json)
+    {
+        try
+        {
+            var root = JsonNode.Parse(json)?.AsObject();
+            var sets = root?["route"]?["rule_set"]?.AsArray();
+            if (sets == null) return json;
+
+            foreach (var set in sets)
+            {
+                var path = set?["path"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(path) || Path.IsPathRooted(path)) continue;
+                set!["path"] = Path.GetFullPath(Path.Combine(Paths.BuildDir, path));
+            }
+            return root!.ToJsonString();
+        }
+        catch { return json; }      // unreadable config is the daemon's to complain about
     }
 
     // ---------------------------------------------------------------- plumbing
