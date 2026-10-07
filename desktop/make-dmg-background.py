@@ -78,12 +78,15 @@ def draw(scale):
 
     arrow(d, APP_AT + 68, APPS_AT - 68, ICON_Y, scale)
 
-    # Not "right-click → Open": that stopped working on current macOS, which now sends
-    # people to Settings instead. Said in the two steps they will actually have to take.
+    # Not "right-click → Open": that stopped working on current macOS. All three steps
+    # are spelled out, the last one included — it asks again, and the button it
+    # highlights is "Переместить в Корзину", which is not the one to press.
     centred(d, "При первом запуске система скажет, что не смогла проверить приложение.",
-            320 * scale, font(12 * scale), DIM, scale)
-    centred(d, "Тогда: Системные настройки → Конфиденциальность и безопасность → «Все равно открыть»",
-            340 * scale, font(12 * scale), INK, scale)
+            306 * scale, font(12 * scale), DIM, scale)
+    centred(d, "Системные настройки → Конфиденциальность и безопасность → «Все равно открыть»",
+            326 * scale, font(12 * scale), INK, scale)
+    centred(d, "Спросит ещё раз — снова «Все равно открыть». Подсвеченная кнопка не та.",
+            346 * scale, font(12 * scale), DIM, scale)
     return img
 
 
