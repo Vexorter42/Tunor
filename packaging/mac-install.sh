@@ -1,16 +1,16 @@
 #!/bin/bash
-# Installs the latest macOS preview of Tunor, straight from GitHub.
+# Installs the current macOS build of Tunor, straight from GitHub.
 #
 #   curl -fsSL https://raw.githubusercontent.com/Vexorter42/Tunor/main/packaging/mac-install.sh | bash
 #
 # or, having saved it:  bash mac-install.sh
 #
-# Downloads the preview build, unpacks it beside this script, clears the quarantine flag
+# Reads the release manifest to find the current build, downloads and checks it, unpacks
+# it beside this script, clears the quarantine flag
 # (the build is not signed by an Apple developer) and puts the engine where the app looks
 # for it. No sudo, no system changes: the app asks for rights itself when it needs them.
 
 set -u
-TAG="mac-preview"
 REPO="Vexorter42/Tunor"
 ENGINE_VER="1.14.2-lx.11"
 ROOT="$HOME/Library/Application Support/Tunor"
@@ -25,12 +25,34 @@ head_ "Проверяю"
 [ "$(uname -m)" = "arm64" ] || { bad "эта сборка для Apple Silicon, а тут $(uname -m)"; exit 1; }
 ok "macOS $(sw_vers -productVersion) · arm64"
 
-head_ "Скачиваю свежую сборку"
+head_ "Смотрю, что лежит в релизе"
 cd "$HERE" || exit 1
-URL="https://github.com/$REPO/releases/download/$TAG/Tunor-mac-arm64.tar.gz"
+# The same manifest the app reads when it checks for updates, so this script cannot
+# drift away from it: one place says which build is current, for both systems.
+JSON="$(curl -fsSL "https://github.com/$REPO/releases/latest/download/version.json")" \
+  || { bad "манифест не скачался — проверь, открыт ли github"; exit 1; }
+# The macOS half of the manifest, read without a JSON parser: python3 is not on a
+# clean macOS, and asking for the developer tools is not what this script is for.
+MAC="${JSON#*\"mac\"}"
+field() { printf '%s' "$MAC" | tr ',' '\n' | sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\\1/p" | head -1; }
+URL="$(field url)"
+WANT="$(field sha256)"
+[ -n "$URL" ] || { bad "в этом релизе нет сборки для macOS"; exit 1; }
+ok "в релизе: $(field version)"
+
+head_ "Скачиваю"
 curl -fL --progress-bar -o Tunor-mac-arm64.tar.gz "$URL" \
-  || { bad "не скачалось — проверь, открыт ли github"; exit 1; }
+  || { bad "не скачалось"; exit 1; }
 ok "$(du -h Tunor-mac-arm64.tar.gz | cut -f1)"
+# The engine below is checked against its published sums; the app deserves the same.
+if [ -n "$WANT" ]; then
+  GOT="$(shasum -a 256 Tunor-mac-arm64.tar.gz | awk '{print $1}')"
+  if [ "$WANT" = "$GOT" ]; then ok "контрольная сумма совпала"
+  else bad "контрольная сумма не совпала — загрузка отклонена"; exit 1
+  fi
+else
+  info "в манифесте нет контрольной суммы — пропускаю проверку"
+fi
 
 head_ "Закрываю приложение, если открыто"
 pkill -x TunorDesktop 2>/dev/null && ok "закрыл" || info "не было запущено"
