@@ -17,6 +17,8 @@ public sealed class ConnInfo
     public string Target { get; init; } = "";
     public bool TargetIsIp { get; init; }
     public string ProcessPath { get; init; } = "";
+    /// <summary>Whose process it is, as the engine reported it; empty when it did not.</summary>
+    public string User { get; init; } = "";
     public string Outbound { get; init; } = "";
     public string Rule { get; init; } = "";
     public string Process { get; init; } = "";
@@ -82,7 +84,7 @@ public static class ConnectionsService
                             break;   // the first link is the outbound the rule picked
                         }
 
-                    var path = Str(m, "processPath");
+                    var (path, user) = SplitUser(Str(m, "processPath"));
                     snap.Connections.Add(new ConnInfo
                     {
                         Id = Str(c, "id"),
@@ -90,6 +92,7 @@ public static class ConnectionsService
                         Target = target,
                         TargetIsIp = host.Length == 0,
                         ProcessPath = path,
+                        User = user,
                         Outbound = outbound,
                         Rule = Str(c, "rule"),
                         Process = System.IO.Path.GetFileName(path),
@@ -103,6 +106,32 @@ public static class ConnectionsService
             return snap;
         }
         catch { return null; }
+    }
+
+    /// <summary>
+    /// Takes the user name off the program's path.
+    ///
+    /// The engine reports a path with the owner appended — "…/MacOS/Telegram (vex)" for a
+    /// file that is called Telegram on disk — while its own rules match the bare name. A
+    /// rule written from the decorated name therefore never matches anything, which is how
+    /// an app rule could look right on the page and route nothing. The owner is kept
+    /// separately, because knowing a process belongs to root is worth something.
+    /// </summary>
+    private static (string Path, string User) SplitUser(string reported)
+    {
+        if (reported.Length == 0 || reported[^1] != ')') return (reported, "");
+
+        var slash = reported.LastIndexOfAny(new[] { '/', '\\' });
+        var name = reported[(slash + 1)..];
+        var at = name.LastIndexOf(" (", StringComparison.Ordinal);
+        if (at <= 0) return (reported, "");
+
+        var user = name[(at + 2)..^1];
+        // A user name is one word; anything else is part of the program's own name.
+        if (user.Length == 0 || user.Any(ch => ch == ' ' || ch == '/' || ch == '(' || ch == ')'))
+            return (reported, "");
+
+        return (reported[..(slash + 1)] + name[..at], user);
     }
 
     /// <summary>Human label for an outbound tag: the tunnel's own name, as the user set it.</summary>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -83,8 +84,9 @@ public static class RulesService
                             group.ItemKind = RuleItemKind.ProcessName;
                             foreach (var p in procs)
                             {
-                                var s = p?.GetValue<string>();
-                                if (!string.IsNullOrWhiteSpace(s)) group.Items.Add(s!);
+                                var s = Undecorate(p?.GetValue<string>());
+                                if (s.Length > 0 && !group.Items.Contains(s, StringComparer.Ordinal))
+                                    group.Items.Add(s);
                             }
                         }
                         else if (ro["domain"] is JsonArray domains)
@@ -106,6 +108,30 @@ public static class RulesService
             Debug.WriteLine($"RulesService.Load: {ex.Message}");
         }
         return result;
+    }
+
+    /// <summary>
+    /// A program name as the engine will match it.
+    ///
+    /// The engine reports a process as "Telegram (vex)" — its own name with the owner
+    /// appended — but matches rules against the bare "Telegram". Names were taken from
+    /// what it reported, so rules written before this looked right and routed nothing.
+    /// They are corrected on the way in; where both forms ended up in the same group, the
+    /// duplicate falls away, because the caller skips a name it already has.
+    /// </summary>
+    private static string Undecorate(string? name)
+    {
+        var s = (name ?? "").Trim();
+        if (s.Length == 0 || s[^1] != ')') return s;
+
+        var at = s.LastIndexOf(" (", StringComparison.Ordinal);
+        if (at <= 0) return s;
+
+        var user = s[(at + 2)..^1];
+        // One word, or it is part of the program's own name rather than a user.
+        return user.Length > 0 && !user.Any(ch => ch == ' ' || ch == '(' || ch == ')')
+            ? s[..at]
+            : s;
     }
 
     public static void Save(IEnumerable<RuleGroup> groups)
