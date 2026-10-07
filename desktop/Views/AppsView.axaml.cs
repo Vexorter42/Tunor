@@ -5,6 +5,8 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using Tunor.Desktop.Services;
 using Tunor.Services;
 
 namespace Tunor.Desktop.Views;
@@ -23,6 +25,14 @@ public partial class AppsView : UserControl
     public sealed record HostRow(string Host, string Down);
 
     private string? _chosen;
+
+    /// <summary>
+    /// Programs the user named themselves. A program that has not been on the network
+    /// yet is in no traffic record and carries no rule, so without this it would vanish
+    /// from the list the moment it was picked — before there was anything to pick for it.
+    /// </summary>
+    private readonly HashSet<string> _picked = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _paths = new(StringComparer.OrdinalIgnoreCase);
 
     public AppsView()
     {
@@ -46,6 +56,7 @@ public partial class AppsView : UserControl
         // Programs seen in traffic, plus any that already carry a rule but have been
         // quiet — otherwise a rule someone set yesterday would vanish from the page.
         var names = new HashSet<string>(stats.Select(s => s.Exe), StringComparer.OrdinalIgnoreCase);
+        names.UnionWith(_picked);
         foreach (var g in groups.Where(g => g.IsInline && g.ItemKind == RuleItemKind.ProcessName))
             foreach (var item in g.Items)
                 if (!string.IsNullOrWhiteSpace(item)) names.Add(item.Trim());
@@ -85,9 +96,9 @@ public partial class AppsView : UserControl
 
         var stat = stats.FirstOrDefault(s => string.Equals(s.Exe, exe, StringComparison.OrdinalIgnoreCase));
         AppName.Text = exe;
-        AppPath.Text = string.IsNullOrEmpty(stat?.Path)
-            ? "путь неизвестен — программа ещё не выходила в сеть"
-            : stat.Path;
+        AppPath.Text = !string.IsNullOrEmpty(stat?.Path) ? stat.Path
+            : _paths.TryGetValue(exe, out var known) ? known
+            : "путь неизвестен — программа ещё не выходила в сеть";
 
         var route = RouteEditor.ProcessRoute(exe, groups, tunnels);
         BuildRouteButtons(tunnels, route);
@@ -183,6 +194,79 @@ public partial class AppsView : UserControl
         }
         btn.ContextMenu = menu;
         menu.Open(btn);
+    }
+
+    // ---------------------------------------------------------------- naming a program
+
+    private async void PickRunning_Click(object? sender, RoutedEventArgs e)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner) return;
+        var dlg = new ProcessPickerWindow();
+        await dlg.ShowDialog(owner);
+        if (dlg.Picked == null) return;
+        Took(dlg.Picked);
+    }
+
+    /// <summary>
+    /// Points at a program in Finder. An app is a folder on macOS, and the name a rule
+    /// needs is of the executable inside it, which is why the bundle is opened rather
+    /// than its name taken.
+    /// </summary>
+    private async void Browse_Click(object? sender, RoutedEventArgs e)
+    {
+        if (TopLevel.GetTopLevel(this) is not { } top) return;
+        try
+        {
+            var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Программа, для которой нужно правило",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("Программы")
+                    {
+                        Patterns = new[] { "*.app", "*" },
+                        AppleUniformTypeIdentifiers = new[] { "com.apple.application-bundle" },
+                    },
+                },
+            });
+            var path = files.FirstOrDefault()?.TryGetLocalPath();
+            if (string.IsNullOrEmpty(path)) return;
+
+            var entry = ProcessList.FromBundle(path);
+            if (entry == null) { StatusText.Text = "Внутри не нашлось программы."; return; }
+            Took(entry);
+        }
+        catch (Exception ex) { StatusText.Text = "Не удалось открыть: " + ex.Message; }
+    }
+
+    /// <summary>
+    /// Takes a program into the list. Every executable of a bundle is taken, not just
+    /// the one named like the app: the connections come from the helpers, so a rule for
+    /// the app alone would match nothing it does.
+    /// </summary>
+    private void Took(ProcessEntry entry)
+    {
+        foreach (var name in entry.Names) _picked.Add(name);
+        foreach (var name in entry.Names) _paths[name] = entry.Path;
+        _chosen = entry.Names.FirstOrDefault();
+        Refresh();
+
+        StatusText.Text = entry.Names.Count > 1
+            ? $"{entry.Title}: выбери туннель. Внутри {entry.Names.Count} программ — "
+              + "правило нужно каждой, сеть обычно у вспомогательной."
+            : $"{entry.Title}: выбери, куда отправлять её трафик.";
+    }
+
+    private void ClearHistory_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            TrafficRecorder.Clear();
+            Refresh();
+            StatusText.Text = "История очищена. Правила не тронуты.";
+        }
+        catch (Exception ex) { StatusText.Text = "Не удалось очистить: " + ex.Message; }
     }
 
     private static string Size(long b) => b switch

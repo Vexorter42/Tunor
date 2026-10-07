@@ -9,7 +9,7 @@
         <TextBlock x:Name="BodyText" Classes="dim" TextWrapping="Wrap"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
             <Button Content="Отмена" MinWidth="110" Click="No_Click"/>
-            <Button Classes="danger" Content="Удалить" MinWidth="110" Click="Yes_Click"/>
+            <Button x:Name="BtnYes" Classes="danger" Content="Удалить" MinWidth="110" Click="Yes_Click"/>
         </StackPanel>
     </StackPanel>
 </Window>

@@ -6,9 +6,24 @@
 
         <!-- the programs that have been seen -->
         <DockPanel Grid.Column="0">
-            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-                <TextBlock Text="Приложения" Classes="h1"/>
-                <TextBlock Text="Куда ходит каждая программа" Classes="dim" Margin="0,4,0,0"/>
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12" Spacing="10">
+                <StackPanel>
+                    <TextBlock Text="Приложения" Classes="h1"/>
+                    <TextBlock Text="Куда ходит каждая программа" Classes="dim" Margin="0,4,0,0"/>
+                </StackPanel>
+                <StackPanel Spacing="6">
+                    <Button x:Name="BtnPickRunning" Classes="primary"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                            Content="+  Выбрать запущенную" Click="PickRunning_Click"/>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                        <Button Grid.Column="0" Content="Указать программу…" x:Name="BtnBrowse"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Click="Browse_Click"/>
+                        <Button Grid.Column="1" Classes="ghost" Content="Очистить историю"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Click="ClearHistory_Click"/>
+                    </Grid>
+                </StackPanel>
             </StackPanel>
             <Border Classes="card" Padding="0">
                 <ScrollViewer Padding="10">

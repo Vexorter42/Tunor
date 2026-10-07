@@ -43,6 +43,7 @@ public partial class MainWindow : Window
             "tunnels" => new TunnelsView(),
             "apps" => new AppsView(),
             "rules" => new RulesView(),
+            "configs" => new ConfigsView(),
             "conns" => new ConnectionsView(),
             "settings" => new SettingsView(),
             "logs" => new LogsView(),

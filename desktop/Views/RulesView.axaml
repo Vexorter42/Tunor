@@ -10,12 +10,27 @@
                        Classes="dim" Margin="0,4,0,0"/>
         </StackPanel>
 
+        <!-- where would this go? the one question the rules are there to answer -->
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Куда пойдёт" Classes="h2"/>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <TextBox Grid.Column="0" x:Name="LookupBox"
+                             KeyDown="Lookup_KeyDown"/>
+                    <Button Grid.Column="1" x:Name="BtnLookup" Content="Проверить"
+                            Click="Lookup_Click"/>
+                </Grid>
+                <TextBlock x:Name="LookupResult" TextWrapping="Wrap" IsVisible="False"/>
+                <TextBlock x:Name="LookupDetail" Classes="dim" TextWrapping="Wrap" IsVisible="False"/>
+            </StackPanel>
+        </Border>
+
         <!-- adding one -->
         <Border Classes="card">
             <StackPanel Spacing="12">
                 <TextBlock Text="Добавить" Classes="h2"/>
                 <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
-                    <TextBox Grid.Column="0" x:Name="EntryBox"/>
+                    <TextBox Grid.Column="0" x:Name="EntryBox" KeyDown="Entry_KeyDown"/>
                     <ComboBox Grid.Column="1" x:Name="KindBox" MinWidth="130"
                               SelectionChanged="Kind_Changed"/>
                     <ComboBox Grid.Column="2" x:Name="TunnelBox" MinWidth="140"/>
@@ -27,20 +42,34 @@
         </Border>
 
         <!-- what is there -->
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <TextBox Grid.Column="0" x:Name="SearchBox" PlaceholderText="Поиск по правилам"
+                     TextChanged="Search_Changed"/>
+            <Button Grid.Column="1" Content="+  Группа" Click="AddGroup_Click"/>
+        </Grid>
+        <TextBlock x:Name="SearchHint" Classes="dim" IsVisible="False" Margin="0,-8,0,0"/>
+
         <ItemsControl x:Name="Groups">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="v:RulesView+GroupRow">
                     <Border Classes="card" Margin="0,0,0,10">
                         <StackPanel Spacing="10">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
-                                    <Border Classes="badge">
-                                        <TextBlock Text="{Binding TunnelName}" FontSize="11"
-                                                   Foreground="{Binding TunnelBrush}"/>
-                                    </Border>
+                            <Grid ColumnDefinitions="*,Auto,Auto">
+                                <StackPanel Grid.Column="0" Spacing="3">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+                                        <Border Classes="badge">
+                                            <TextBlock Text="{Binding TunnelName}" FontSize="11"
+                                                       Foreground="{Binding TunnelBrush}"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Tag}" Classes="dim" FontSize="11"/>
                                 </StackPanel>
-                                <TextBlock Grid.Column="1" Text="{Binding Count}" Classes="dim"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Count}" Classes="dim"
+                                           VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <Button Grid.Column="2" Content="Изменить" Padding="12,6"
+                                        VerticalAlignment="Center"
+                                        Tag="{Binding Tag}" Click="EditGroup_Click"/>
                             </Grid>
                             <ItemsControl ItemsSource="{Binding Items}">
                                 <ItemsControl.ItemsPanel>
@@ -64,13 +93,15 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <TextBlock Text="{Binding Empty}" Classes="dim" FontSize="12"
+                                       IsVisible="{Binding IsEmpty}"/>
                         </StackPanel>
                     </Border>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <!-- the downloaded lists, which are not edited here -->
+        <!-- the downloaded lists: their entries belong to whoever publishes them -->
         <Border Classes="card">
             <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="*,Auto">
@@ -83,11 +114,16 @@
                 <ItemsControl x:Name="Sets">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="v:RulesView+SetRow">
-                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
-                                <TextBlock Grid.Column="0" Text="{Binding Tag}"/>
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,3">
+                                <TextBlock Grid.Column="0" Text="{Binding Tag}"
+                                           VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="1" Text="{Binding TunnelName}"
-                                           Foreground="{Binding TunnelBrush}" Margin="0,0,14,0"/>
-                                <TextBlock Grid.Column="2" Text="{Binding State}" Classes="dim"/>
+                                           Foreground="{Binding TunnelBrush}" Margin="0,0,14,0"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="{Binding State}" Classes="dim"
+                                           VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <Button Grid.Column="3" Content="Изменить" Padding="10,4"
+                                        FontSize="12" Tag="{Binding Tag}" Click="EditGroup_Click"/>
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
