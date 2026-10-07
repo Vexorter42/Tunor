@@ -26,7 +26,7 @@ public partial class HomeView : UserControl
     {
         var running = EngineService.IsRunning;
         var privileged = EngineService.PrivilegedRunning;
-        StateDot.Fill = (IBrush?)this.FindResource(running ? "SuccessBrush" : "DangerBrush");
+        StateDot.Fill = Palette.Brush(running ? "SuccessBrush" : "DangerBrush");
         StateText.Text = running
             ? (privileged ? "Запущен — с правами администратора" : "Запущен")
             : "Остановлен";
@@ -68,7 +68,7 @@ public partial class HomeView : UserControl
             var (ok, msg) = await EngineService.StartAsync();
             StatusText.Text = ok ? "Движок " + msg : "Не удалось запустить: " + msg;
             // A failure is the engine's own words, and the rest of them are one page away.
-            StatusText.Foreground = (IBrush?)this.FindResource(ok ? "TextDimBrush" : "DangerBrush");
+            StatusText.Foreground = Palette.Brush(ok ? "TextDimBrush" : "DangerBrush");
         }
         finally { BtnStart.IsEnabled = true; Refresh(); }
     }
@@ -81,7 +81,7 @@ public partial class HomeView : UserControl
         {
             var (ok, msg) = await EngineService.StopAsync();
             StatusText.Text = ok ? "Движок " + msg : "Не удалось остановить: " + msg;
-            StatusText.Foreground = (IBrush?)this.FindResource(ok ? "TextDimBrush" : "DangerBrush");
+            StatusText.Foreground = Palette.Brush(ok ? "TextDimBrush" : "DangerBrush");
         }
         finally { BtnStop.IsEnabled = true; Refresh(); }
     }
@@ -94,7 +94,7 @@ public partial class HomeView : UserControl
         {
             var (ok, msg) = await EngineService.StopElevatedAsync();
             StatusText.Text = ok ? "Движок " + msg : "Не удалось остановить: " + msg;
-            StatusText.Foreground = (IBrush?)this.FindResource(ok ? "TextDimBrush" : "DangerBrush");
+            StatusText.Foreground = Palette.Brush(ok ? "TextDimBrush" : "DangerBrush");
         }
         finally { BtnStopElevated.IsEnabled = true; Refresh(); }
     }
@@ -114,7 +114,7 @@ public partial class HomeView : UserControl
             : "";
         StateHint.IsVisible = StateHint.Text.Length > 0;
         var good = state == EngineService.ServiceState.Running;
-        ServiceText.Foreground = (IBrush?)this.FindResource(good ? "AccentBrush" : "TextDimBrush");
+        ServiceText.Foreground = Palette.Brush(good ? "AccentBrush" : "TextDimBrush");
         // Offering to install it only where this app can: elsewhere the engine's own
         // command does it, and saying so is better than a button that cannot work.
         BtnInstall.IsVisible = OperatingSystem.IsMacOS() && state is
@@ -167,7 +167,7 @@ public partial class HomeView : UserControl
             CheckList.ItemsSource = results.Select(r => new CheckRow(
                 r.Name,
                 r.Status switch { "ok" => "✓", "fail" => "✕", _ => "—" },
-                (IBrush?)this.FindResource(r.Status switch
+                Palette.Brush(r.Status switch
                 {
                     "ok" => "AccentBrush", "fail" => "DangerBrush", _ => "TextDimBrush",
                 }),
