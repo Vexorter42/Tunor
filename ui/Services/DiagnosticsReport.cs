@@ -262,7 +262,7 @@ public static class DiagnosticsReport
                 var type = s?["type"]?.ToString();
                 var path = s?["path"]?.ToString();
                 var where = type == "local"
-                    ? $"{path} — файл {(File.Exists(Path.Combine(Paths.AppRoot, path ?? "")) ? "есть" : "ОТСУТСТВУЕТ")}"
+                    ? $"{path} — файл {(ConfigGenerator.LocalRuleSetExists(path ?? "") ? "есть" : "ОТСУТСТВУЕТ")}"
                     : type == "remote" ? "по сети" : "встроенный";
                 Line(sb, $"  {s?["tag"]}", $"{type} · {where}");
             }

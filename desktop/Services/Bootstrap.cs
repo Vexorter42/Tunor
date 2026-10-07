@@ -20,6 +20,10 @@ public static class Bootstrap
         EngineState.Provide(() => EngineService.IsRunning,
             (text, problem) => EngineLog.Add((problem ? "[!] " : "[i] ") + text));
 
+        // The Apps page is built from what this has seen; without it the page stays
+        // empty however much traffic goes through.
+        try { TrafficRecorder.Start(); } catch { }
+
         var settings = EnsureSettings();
         EnsureRules();
         EnsureConfig(settings);
