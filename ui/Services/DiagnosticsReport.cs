@@ -152,15 +152,27 @@ public static class DiagnosticsReport
     private static void Tunnels(StringBuilder sb)
     {
         Head(sb, "ТУННЕЛИ");
-        Tunnel(sb, "warp.conf", Paths.WarpConf, ConfigGenerator.WarpState);
-        Tunnel(sb, "geo.conf", Paths.GeoConf, ConfigGenerator.GeoState);
 
-        // Tunnels the user added. The link and the subscription address are credentials —
-        // they hold the keys to someone's VPN — so only the shape of each one is reported.
+        // Every tunnel in the list, in its order. Naming warp.conf and geo.conf here was
+        // right while those were the only two; a WireGuard tunnel added afterwards was
+        // simply missing from the report that is meant to explain why nothing works.
         try
         {
-            var live = ConfigGenerator.LiveTunnels(TunnelService.Load());
-            foreach (var t in TunnelService.Load().Where(t => !t.IsWireguard))
+            var all = TunnelService.Load();
+            var live = ConfigGenerator.LiveTunnels(all);
+
+            foreach (var t in all.Where(t => t.IsWireguard))
+            {
+                var path = ConfigGenerator.ConfPath(t);
+                Tunnel(sb, $"{t.Title} [{t.Id}] · {Path.GetFileName(path)}",
+                       path, ConfigGenerator.Inspect(path));
+                if (t.Detour.Length > 0) Line(sb, "  идёт через", t.Detour);
+                if (!t.Enabled) Line(sb, "  выключен", "да");
+            }
+
+            // The link and the subscription address are credentials — they hold the keys
+            // to someone's VPN — so only the shape of each one is reported.
+            foreach (var t in all.Where(t => !t.IsWireguard))
             {
                 var what = t.IsSubscription
                     ? $"подписка · серверов {t.Nodes.Count} · "
