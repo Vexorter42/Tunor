@@ -26,7 +26,7 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <!-- The fourth number is the macOS preview re-cut: the Windows release it was
          built from stands still while this moves, and the updater compares all four. -->
-    <Version>1.11.1.5</Version>
+    <Version>1.11.1.6</Version>
   </PropertyGroup>
 
   <ItemGroup>

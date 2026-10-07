@@ -14,8 +14,16 @@
 # needs permission to drive Finder. Run over ssh that permission is usually refused;
 # the image is still made, just with the plain list view, and the script says so.
 #
-# Not signed or notarised — there is no Apple developer account behind this build — so
-# the first launch still needs right-click → Open. The backdrop says that too.
+# The bundle is signed here, ad-hoc, because it has to be. .NET gives the executable a
+# signature of its own but seals nothing else, and macOS refuses a quarantined bundle
+# whose signature covers no resources with "«Tunor» повреждён и не может быть открыт" —
+# which is what anyone who downloads the image and drags it to Applications would see.
+# Signing is codesign's job and codesign only exists here, which is why the .tar.gz the
+# updater downloads is repacked from the signed bundle in this script rather than left
+# as make-app.py produced it.
+#
+# Ad-hoc is not a Developer ID — there is no Apple developer account behind this build —
+# so the first launch still needs right-click → Open. The backdrop says that too.
 
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$PWD}")" && pwd)"
@@ -61,6 +69,20 @@ cleanup() {
 trap cleanup EXIT
 
 /usr/bin/ditto "$APP" "$STAGE/Tunor.app" || { bad "не скопировался бандл"; exit 1; }
+
+# Seals the whole bundle, not just the executable .NET already signed. --deep is what
+# signs the two hundred libraries inside; Apple calls it deprecated and offers nothing
+# else for a tree that arrived unsigned.
+codesign --force --deep --sign - "$STAGE/Tunor.app" >/dev/null 2>&1   || { bad "не удалось подписать бандл"; exit 1; }
+codesign --verify --deep --strict "$STAGE/Tunor.app" >/dev/null 2>&1   || { bad "подпись не проходит проверку — образ собирать нет смысла"; exit 1; }
+ok "бандл подписан ad-hoc и проверку проходит"
+
+# The archive the in-app update downloads, from the signed bundle and nothing else:
+# the link and the backdrop below belong to the image, not to what gets installed.
+TARBALL="$OUT_DIR/Tunor-mac-arm64.tar.gz"
+mkdir -p "$OUT_DIR"
+tar -czf "$TARBALL" -C "$STAGE" Tunor.app   && ok "$TARBALL  ($(du -h "$TARBALL" | cut -f1))"   || bad "архив не собрался"
+
 ln -s /Applications "$STAGE/Applications"
 
 HAVE_BACKDROP=0
@@ -84,16 +106,25 @@ hdiutil create -volname "$VOLUME" -srcfolder "$STAGE" -fs HFS+ \
   -format UDRW -size "${SIZE_MB}m" -ov -quiet "$RW" \
   || { bad "hdiutil не собрал черновой образ"; exit 1; }
 
-MOUNT="$(hdiutil attach "$RW" -nobrowse -noautoopen 2>/dev/null \
-  | grep -o '/Volumes/.*' | head -1)"
+# Mounted where Finder can see it: with -nobrowse the volume does not appear in
+# Finder at all, and the layout step fails. The window this opens is closed again
+# by the AppleScript below.
+MOUNT="$(hdiutil attach "$RW" -noautoopen 2>/dev/null \
+  | grep -o '/Volumes/.*' | head -1 | sed 's/[[:space:]]*$//')"
 [ -n "$MOUNT" ] || { bad "черновой образ не примонтировался"; exit 1; }
+# The name it actually got, which is not always the one asked for: a volume of that
+# name already mounted makes macOS add a number, and addressing Finder by the intended
+# name then points it at somebody else's read-only volume, where setting the view
+# silently does nothing. Ask the mount point instead.
+MOUNT_NAME="$(basename "$MOUNT")"
+[ "$MOUNT_NAME" = "$VOLUME" ] || info "том подключён как «$MOUNT_NAME» — такой уже есть"
 
 if [ "$HAVE_BACKDROP" = 1 ]; then
   # Finder is the only thing that writes a .DS_Store, so the layout is dictated to it.
   # Quietly skipped when it refuses: over ssh it is not allowed to send Apple events.
-  /usr/bin/osascript <<APPLESCRIPT >/dev/null 2>&1
+  /usr/bin/osascript <<APPLESCRIPT >"$STAGE/finder.log" 2>&1
 tell application "Finder"
-  tell disk "$VOLUME"
+  tell disk "$MOUNT_NAME"
     open
     set current view of container window to icon view
     set toolbar visible of container window to false
@@ -117,7 +148,9 @@ APPLESCRIPT
   if [ $? -eq 0 ] && [ -f "$MOUNT/.DS_Store" ]; then
     ok "окно оформлено: фон, значки по $ICON_SIZE, стрелка"
   else
-    info "Finder не дал разложить окно (так бывает по ssh) — образ собран с обычным видом"
+    info "Finder не разложил окно — образ собран с обычным видом"
+    [ -s "$STAGE/finder.log" ] && info "он сказал: $(head -2 "$STAGE/finder.log" | tr '
+' ' ')"
     info "чтобы с оформлением: запусти этот скрипт прямо на маке, в Терминале"
   fi
 fi

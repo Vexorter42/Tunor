@@ -64,6 +64,10 @@ public partial class HomeView : UserControl
         BtnStopElevated.IsVisible = privileged;
 
         VersionText.Text = "Текущая версия: " + UpdateService.CurrentVersionString;
+        // Said before an update is attempted rather than after it fails: a copy running
+        // out of a disk image cannot replace itself, and nothing on screen hints at it.
+        InstallHint.Text = UpdateService.InstallProblem() ?? "";
+        InstallHint.IsVisible = InstallHint.Text.Length > 0;
         EngineText.Text = EngineService.IsInstalled
             ? Stamp() + "\n" + EngineService.ExePath
             : "не найден по пути " + EngineService.ExePath;
