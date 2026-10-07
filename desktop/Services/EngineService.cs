@@ -35,7 +35,10 @@ public static class EngineService
     /// the process — which is what happens with the privileged one: root's under the
     /// macOS service, elevated on Windows. That one is visible but not ours to signal.
     /// </summary>
-    public sealed record EngineProcess(int Pid, bool Ours);
+    /// <param name="Daemon">The service's own process. It hosts the core inside
+    /// itself and runs whether the tunnel is up or not, so its presence says nothing
+    /// about the tunnel — only the service can be asked that.</param>
+    public sealed record EngineProcess(int Pid, bool Ours, bool Daemon);
 
     /// <summary>
     /// The names an engine runs under. The privileged service does not run the binary
@@ -74,9 +77,10 @@ public static class EngineService
                 if (!int.TryParse(pid, out var id)) continue;
                 // Ours to signal only when it runs as this user; root's needs elevation,
                 // and the service's copy is never ours whoever owns it.
-                var mine = name != "sing-box-lxd" && Shell("pgrep", $"-x -u {me} {name}")
+                var daemon = name == "sing-box-lxd";
+                var mine = !daemon && Shell("pgrep", $"-x -u {me} {name}")
                     .Any(l => l.Trim() == id.ToString());
-                found.Add(new EngineProcess(id, mine));
+                found.Add(new EngineProcess(id, mine, daemon));
             }
         }
         return found;
@@ -96,18 +100,18 @@ public static class EngineService
                 {
                     if (!seen.Add(p.Id)) continue;
                     // The service's copy is never ours to signal, whatever its path says.
-                    if (name == "sing-box-lxd") { found.Add(new EngineProcess(p.Id, false)); continue; }
+                    if (name == "sing-box-lxd") { found.Add(new EngineProcess(p.Id, false, true)); continue; }
                     try
                     {
                         var path = p.MainModule?.FileName;
                         // A readable path that is not ours belongs to another install.
                         if (path != null && !PathEquals(path, ExePath)) continue;
-                        found.Add(new EngineProcess(p.Id, true));
+                        found.Add(new EngineProcess(p.Id, true, false));
                     }
                     catch
                     {
                         // Unreadable means elevated, and the name already matched.
-                        found.Add(new EngineProcess(p.Id, false));
+                        found.Add(new EngineProcess(p.Id, false, false));
                     }
                 }
             }
@@ -135,10 +139,45 @@ public static class EngineService
         catch { return new List<string>(); }
     }
 
-    public static bool IsRunning => Running().Count > 0;
+    /// <summary>
+    /// Whether the tunnel is up.
+    ///
+    /// With the service paired this cannot be answered by looking at processes: the
+    /// service hosts the core inside its own process, which is there from boot whether
+    /// the tunnel runs or not. Asking it instead is the only truthful answer — looking
+    /// for the process said "ещё работает" at every stop, over a tunnel that was down.
+    /// An engine started some other way still counts, because it really is up.
+    /// </summary>
+    public static bool IsRunning => ServiceClient.Paired
+        ? _serviceCore || Running().Any(p => !p.Daemon)
+        : Running().Count > 0;
 
     /// <summary>True when an engine is up that this app has no right to stop.</summary>
-    public static bool PrivilegedRunning => Running().Any(p => !p.Ours);
+    public static bool PrivilegedRunning =>
+        // The daemon counts only while this app cannot command it: once paired, stopping
+        // it is two REST calls, and calling it untouchable would hide its own buttons.
+        Running().Any(p => !p.Ours && (!p.Daemon || !ServiceClient.Paired));
+
+    /// <summary>What the service last said about its core, for the properties above.</summary>
+    private static bool _serviceCore;
+
+    /// <summary>
+    /// The word the service used for its core last time it was asked: idle, started or
+    /// fatal. Worth showing, because fatal means it tried and the engine refused — a
+    /// state that otherwise looks exactly like "остановлен" and explains nothing.
+    /// </summary>
+    public static string ServiceCoreStatus { get; private set; } = "";
+
+    /// <summary>
+    /// Asks the service whether its core is up. Cheap, over loopback, and the only way
+    /// to know; the UI calls it on its own tick so the buttons follow the truth.
+    /// </summary>
+    public static async Task RefreshServiceCoreAsync()
+    {
+        if (!ServiceClient.Paired) { _serviceCore = false; ServiceCoreStatus = ""; return; }
+        ServiceCoreStatus = await ServiceClient.StatusAsync() ?? "";
+        _serviceCore = ServiceCoreStatus == "started";
+    }
 
     private static bool PathEquals(string a, string b) =>
         string.Equals(Path.GetFullPath(a), Path.GetFullPath(b),
@@ -150,6 +189,33 @@ public static class EngineService
     /// "запущен" the instant the process exists would be a lie the user then has to
     /// investigate on their own.
     /// </summary>
+    /// <summary>
+    /// Throws away a cache file this app cannot write.
+    ///
+    /// The engine started with rights, or by the service, runs as root and leaves the
+    /// cache owned by root. A later start without rights — proxy only, no TUN — then
+    /// cannot open it and the engine refuses to run at all. The cache holds nothing worth
+    /// keeping, and the directory is the user's own, so the file can simply go.
+    /// </summary>
+    private static void DropUnwritableCache()
+    {
+        var cache = Path.Combine(Paths.DataDir, "cache.db");
+        if (!File.Exists(cache)) return;
+        try
+        {
+            using var probe = new FileStream(cache, FileMode.Open, FileAccess.ReadWrite);
+        }
+        catch
+        {
+            try
+            {
+                File.Delete(cache);
+                EngineLog.Add("--- кэш движка принадлежал root, удалён");
+            }
+            catch (Exception ex) { EngineLog.Add("--- кэш не удалился: " + ex.Message); }
+        }
+    }
+
     public static async Task<(bool Ok, string Message)> StartAsync()
     {
         if (!IsInstalled) return (false, $"движок не найден: {ExePath}");
@@ -163,6 +229,7 @@ public static class EngineService
             EngineLog.Add("--- запуск через службу");
             var (ok, msg) = await ServiceClient.StartAsync();
             if (ok) await Task.Delay(1200);
+            await RefreshServiceCoreAsync();
             StateChanged?.Invoke(null, EventArgs.Empty);
             if (!ok) return (false, msg);
             Monitor(elevated: true);              // the service's engine is root's
@@ -182,6 +249,7 @@ public static class EngineService
         // up as a privileged process, which is what the Stop button already handles.
         if (NeedsPrivileges()) return await StartElevatedAsync();
 
+        DropUnwritableCache();
         EngineLog.BeginRun();
         EngineLog.Add($"--- запуск: {ExePath} run -c {Paths.ConfigJson}");
         try
@@ -245,7 +313,12 @@ public static class EngineService
         if (ServiceClient.Paired)
         {
             var (ok, msg) = await ServiceClient.StopAsync();
-            for (var i = 0; i < 20 && IsRunning; i++) await Task.Delay(200);
+            for (var i = 0; i < 20; i++)
+            {
+                await RefreshServiceCoreAsync();
+                if (!IsRunning) break;
+                await Task.Delay(200);
+            }
             StateChanged?.Invoke(null, EventArgs.Empty);
 
             // The service stops its own core. An engine started some other way — by an
@@ -597,6 +670,11 @@ public static class EngineService
     /// box. Nothing here handles the password: it is typed into that box and never
     /// reaches this process.
     /// </summary>
+    /// <summary>A multi-line complaint as one log line.</summary>
+    private static string Flatten(string text) => string.Join(" ", text
+        .Split(new[] { "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+        .Select(l => l.Trim()));
+
     public static async Task<(bool Ok, string Message)> InstallService()
     {
         if (!IsInstalled) return (false, "движок не найден");
@@ -653,7 +731,15 @@ public static class EngineService
             }
 
             // -128 is what osascript returns when the user dismisses the password box.
-            if (err.Contains("-128") || err.Contains("User canceled")) return (false, "отменено");
+            if (err.Contains("-128") || err.Contains("User canceled"))
+            {
+                EngineLog.Add("--- установка службы отменена");
+                return (false, "отменено");
+            }
+            // Into the log as well: the card below has room for one line, and the reason
+            // the engine gives is usually several — and is the whole of the diagnosis.
+            EngineLog.Add("--- служба не установилась (код " + p.ExitCode + "): "
+                          + Flatten(err));
             var why = Readable(err);
             return (false, why.Length > 0 ? why : $"код выхода {p.ExitCode}");
         }
