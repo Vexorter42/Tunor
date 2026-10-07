@@ -38,6 +38,23 @@
 
             <!-- Connection check: one request through each tunnel -->
             <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Нравится проект?" Style="{StaticResource H2}"/>
+                        <TextBlock Text="Поддержи разработку любой суммой — это помогает держать проект живым."
+                                   Style="{StaticResource Dim}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="❤  Поддержать"
+                            Style="{StaticResource PrimaryButton}"
+                            Click="BtnSupport_Click" MinWidth="150" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
                 <StackPanel>
                     <DockPanel>
                         <Button x:Name="BtnCheck" DockPanel.Dock="Right" Content="Проверить соединение"
@@ -157,23 +174,6 @@
                                 Click="OpenRulesFile_Click" Margin="4,4,0,4"/>
                     </UniformGrid>
                 </StackPanel>
-            </Border>
-
-            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Нравится проект?" Style="{StaticResource H2}"/>
-                        <TextBlock Text="Поддержи разработку любой суммой — это помогает держать проект живым."
-                                   Style="{StaticResource Dim}" Margin="0,4,0,0" TextWrapping="Wrap"/>
-                    </StackPanel>
-                    <Button Grid.Column="1" Content="❤  Поддержать"
-                            Style="{StaticResource PrimaryButton}"
-                            Click="BtnSupport_Click" MinWidth="150" VerticalAlignment="Center"/>
-                </Grid>
             </Border>
 
         </StackPanel>

@@ -18,7 +18,15 @@ public partial class HomeView : UserControl
     {
         InitializeComponent();
         _tick.Tick += (_, _) => Refresh();
-        AttachedToVisualTree += (_, _) => { Refresh(); RefreshAutostart(); _ = CheckService(); _tick.Start(); };
+        // The watchdog speaks when the tunnel is down for good; without this the only
+        // symptom is the status quietly flipping back to stopped.
+        EngineService.Alert += (_, text) => Dispatcher.UIThread.Post(() =>
+        {
+            StatusText.Text = text;
+            StatusText.Foreground = Palette.Brush("DangerBrush");
+            Refresh();
+        });
+        AttachedToVisualTree += (_, _) => { Refresh(); _ = CheckService(); _tick.Start(); };
         DetachedFromVisualTree += (_, _) => _tick.Stop();
     }
 
@@ -251,28 +259,4 @@ public partial class HomeView : UserControl
         finally { BtnInstall.IsEnabled = true; }
     }
 
-    private void Autostart_Changed(object? sender, RoutedEventArgs e)
-    {
-        if (_loadingAutostart) return;
-        var want = ChkAutostart.IsChecked == true;
-        var (ok, msg) = want ? AutostartService.Enable() : AutostartService.Disable();
-        AutostartText.Text = ok ? "Автозапуск " + msg : "Не удалось: " + msg;
-        if (!ok) RefreshAutostart();
-    }
-
-    private bool _loadingAutostart;
-
-    private void RefreshAutostart()
-    {
-        _loadingAutostart = true;
-        try
-        {
-            AutostartCard.IsVisible = AutostartService.Supported;
-            ChkAutostart.IsChecked = AutostartService.Enabled;
-            AutostartText.Text = AutostartService.Supported
-                ? "Через LaunchAgent в ~/Library/LaunchAgents — пароль не нужен."
-                : "";
-        }
-        finally { _loadingAutostart = false; }
-    }
 }
