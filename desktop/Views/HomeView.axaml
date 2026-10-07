@@ -26,6 +26,8 @@
                             Click="StopElevated_Click"/>
                 </StackPanel>
                 <TextBlock x:Name="StatusText" Classes="dim" TextWrapping="Wrap"/>
+                <TextBlock x:Name="StateHint" Classes="dim" TextWrapping="Wrap"
+                           IsVisible="False" Foreground="{StaticResource AccentBrush}"/>
             </StackPanel>
         </Border>
 
@@ -33,7 +35,9 @@
             <StackPanel Spacing="10">
                 <TextBlock Text="Права для режима TUN" Classes="h2"/>
                 <TextBlock Classes="dim" TextWrapping="Wrap"
-                           Text="Перехват всего трафика требует прав, которых у приложения нет. Их держит отдельная служба движка."/>
+                           Text="Перехват всего трафика поднимает сетевой интерфейс, а на это нужны права root. По умолчанию приложение спрашивает пароль при каждом запуске — это системное окно macOS, пароль сюда не попадает."/>
+                <TextBlock Classes="dim" TextWrapping="Wrap" Margin="0,2,0,0"
+                           Text="Служба движка держит эти права постоянно и избавляет от пароля, но пока ею управляет не приложение: с установленной службой туннель включается и выключается только установкой и удалением самой службы."/>
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock x:Name="ServiceText" VerticalAlignment="Center"
                                TextWrapping="Wrap" MaxWidth="560"/>

@@ -108,11 +108,12 @@ public static class EngineService
             return (false, "движок уже работает с правами администратора — сначала останови его");
         if (IsRunning) return (true, "уже запущен");
 
-        // TUN raises a network interface, which needs rights this app does not have. The
-        // engine says so in its own way — "configure tun interface: operation not
-        // permitted" — which is true but leaves the user to work out what to do about it.
-        if (NeedsPrivileges(out var what))
-            return (false, what);
+        // TUN raises a network interface, and the rights for that belong to root. Rather
+        // than fail with the engine's "operation not permitted", or send the user off to
+        // install a service, the engine is started with those rights: macOS asks for the
+        // password in its own box, and the engine runs as root from there. It then shows
+        // up as a privileged process, which is what the Stop button already handles.
+        if (NeedsPrivileges()) return await StartElevatedAsync();
 
         EngineLog.BeginRun();
         EngineLog.Add($"--- запуск: {ExePath} run -c {Paths.ConfigJson}");
@@ -293,19 +294,60 @@ public static class EngineService
     /// do about it. Checked before starting, so the answer is advice rather than the
     /// engine's complaint after the fact.
     /// </summary>
-    private static bool NeedsPrivileges(out string what)
+    private static bool NeedsPrivileges()
     {
-        what = "";
         if (OperatingSystem.IsWindows()) return false;   // the WPF app runs elevated
+        try { return SettingsService.Load().Tun; } catch { return false; }
+    }
+
+    /// <summary>
+    /// Starts the engine as root, for TUN. The output cannot be piped back through
+    /// osascript, so the engine is told to write its log beside the config and the Logs
+    /// page reads that file instead — the user still sees why, if it will not start.
+    /// </summary>
+    private static async Task<(bool Ok, string Message)> StartElevatedAsync()
+    {
+        if (!OperatingSystem.IsMacOS())
+            return (false, "запуск с правами отсюда поддерживается только на macOS");
+
+        EngineLog.BeginRun();
+        EngineLog.Add("--- запуск с правами администратора");
+
+        // nohup and & so the engine outlives the osascript that started it; its own
+        // output goes to the file the Logs page follows.
+        var log = EngineLog.LogPath;
+        var cmd = $"/usr/bin/nohup \\\"{ExePath}\\\" run -c \\\"{Paths.ConfigJson}\\\" "
+                + $">> \\\"{log}\\\" 2>&1 &";
+        var script = $"do shell script \"{cmd}\" with administrator privileges";
+
+        var (ok, err, code) = await Elevated(script);
+        if (!ok)
+        {
+            if (err.Contains("-128") || err.Contains("User canceled")) return (false, "отменено");
+            var why = Readable(err);
+            return (false, why.Length > 0 ? why : $"код выхода {code}");
+        }
+
+        // Same reasoning as the ordinary start: a refused config dies at once.
+        await Task.Delay(1500);
+        StateChanged?.Invoke(null, EventArgs.Empty);
+        if (IsRunning) return (true, "запущен с правами администратора");
+
+        var reason = TailOfLog();
+        return (false, reason.Length > 0 ? reason : "движок сразу завершился");
+    }
+
+    /// <summary>The last complaint in the log file, for a start we could not watch.</summary>
+    private static string TailOfLog()
+    {
         try
         {
-            if (!SettingsService.Load().Tun) return false;
+            if (!File.Exists(EngineLog.LogPath)) return "";
+            var lines = File.ReadAllLines(EngineLog.LogPath);
+            foreach (var l in lines) EngineLog.Add(l);
+            return EngineLog.Reason() ?? "";
         }
-        catch { return false; }
-
-        what = "включён режим TUN — он поднимает сетевой интерфейс, а на это нужны права. "
-             + "Поставь службу кнопкой ниже или выключи TUN в «Настройках».";
-        return true;
+        catch { return ""; }
     }
 
     /// <summary>Sends a signal, or kills on Windows where signals do not exist.</summary>
