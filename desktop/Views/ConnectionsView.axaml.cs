@@ -42,8 +42,12 @@ public partial class ConnectionsView : UserControl
 
         var tunnels = TunnelService.Load();
         var onlyTunnel = ChkTunnelOnly.IsChecked == true;
+        var q = (FilterBox.Text ?? "").Trim();
         var rows = snap.Connections
             .Where(c => !onlyTunnel || (c.Outbound.Length > 0 && c.Outbound != "direct-out"))
+            .Where(c => q.Length == 0
+                        || c.Host.Contains(q, StringComparison.OrdinalIgnoreCase)
+                        || c.Process.Contains(q, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(c => c.Download)
             .Take(300)
             .Select(c =>

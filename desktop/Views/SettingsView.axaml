@@ -9,24 +9,46 @@
         <Border Classes="card">
             <StackPanel Spacing="12">
                 <TextBlock Text="Режимы работы" Classes="h2"/>
-                <CheckBox x:Name="ChkTun" Content="TUN — перехват всего трафика"
+                <CheckBox x:Name="ChkTun" Content="TUN — системный сетевой интерфейс"
                           IsCheckedChanged="Toggle_Changed"/>
                 <TextBlock x:Name="TunHint" Classes="dim" Margin="24,-6,0,0" TextWrapping="Wrap"/>
-                <CheckBox x:Name="ChkProxy" Content="Proxy — локальный HTTP/SOCKS"
+                <CheckBox x:Name="ChkProxy" Content="Proxy — HTTP/SOCKS-прокси"
                           IsCheckedChanged="Toggle_Changed"/>
                 <TextBlock x:Name="ProxyHint" Classes="dim" Margin="24,-6,0,0" TextWrapping="Wrap"/>
-                <CheckBox x:Name="ChkLogging" Content="Запись логов"
+                <CheckBox x:Name="ChkLogging" Content="Logging — запись логов"
                           IsCheckedChanged="Toggle_Changed"/>
+                <TextBlock Classes="dim" Margin="24,-6,0,0" TextWrapping="Wrap"
+                           Text="Сохранение логов движка."/>
+                <CheckBox x:Name="ChkWatchdog" Content="Сторож — поднимать движок, если он упал"
+                          IsCheckedChanged="Toggle_Changed"/>
+                <TextBlock Classes="dim" Margin="24,-6,0,0" TextWrapping="Wrap"
+                           Text="До 3 попыток за 5 минут. Не перезапускает, если причина не лечится перезапуском."/>
+                <CheckBox x:Name="ChkAutoLists" Content="Обновлять списки правил раз в неделю"
+                          IsCheckedChanged="Toggle_Changed"/>
+                <TextBlock x:Name="ListsAgeText" Classes="dim" Margin="24,-6,0,0" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
         <Border Classes="card">
             <StackPanel Spacing="10">
-                <TextBlock Text="Маршрут по умолчанию" Classes="h2"/>
+                <TextBlock Text="Маршрут по умолчанию (final)" Classes="h2"/>
                 <TextBlock Classes="dim" TextWrapping="Wrap"
                            Text="Куда направлять трафик, не подходящий ни под одно правило"/>
                 <StackPanel x:Name="FinalChoices" Spacing="8" Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="О программе" Classes="h2"/>
+                <TextBlock x:Name="AboutText" Classes="dim" TextWrapping="Wrap"/>
+                <WrapPanel>
+                    <Button Classes="ghost" Content="Лицензии" Margin="0,0,8,6"
+                            Click="Licenses_Click"/>
+                    <Button Classes="ghost" Content="Открыть папку приложения" Margin="0,0,8,6"
+                            Click="OpenRoot_Click"/>
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
         <TextBlock x:Name="StatusText" Classes="dim" TextWrapping="Wrap"/>
     </StackPanel>
 </UserControl>

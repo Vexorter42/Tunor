@@ -8,8 +8,12 @@
                 <TextBlock Text="Соединения" Classes="h1"/>
                 <TextBlock Text="Что идёт через туннель прямо сейчас" Classes="dim" Margin="0,4,0,0"/>
             </StackPanel>
-            <CheckBox Grid.Column="1" x:Name="ChkTunnelOnly" Content="Только через туннель"
-                      VerticalAlignment="Center"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                        VerticalAlignment="Center">
+                <TextBox x:Name="FilterBox" Width="240"
+                         Watermark="фильтр: адрес или программа"/>
+                <CheckBox x:Name="ChkTunnelOnly" Content="Только через туннель"/>
+            </StackPanel>
         </Grid>
 
         <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12" Padding="18,14">

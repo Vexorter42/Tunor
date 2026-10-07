@@ -46,6 +46,7 @@ public partial class MainWindow : Window
             "conns" => new ConnectionsView(),
             "settings" => new SettingsView(),
             "logs" => new LogsView(),
+            "autostart" => new AutostartView(),
             _ => new HomeView(),
         };
     }

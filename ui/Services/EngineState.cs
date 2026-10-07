@@ -16,12 +16,29 @@ public static class EngineState
 {
     private static Func<bool>? _isRunning;
     private static Action<string, bool>? _note;
+    private static Func<string?>? _lastFailure;
 
     /// <summary>Set once, at startup, by the app that owns the engine.</summary>
-    public static void Provide(Func<bool> isRunning, Action<string, bool>? note = null)
+    public static void Provide(Func<bool> isRunning, Action<string, bool>? note = null,
+                               Func<string?>? lastFailure = null)
     {
         _isRunning = isRunning;
         _note = note;
+        _lastFailure = lastFailure;
+    }
+
+    /// <summary>
+    /// Why the engine last died on its own, in plain words, or null. Each app knows this
+    /// differently — one watches the process it started, the other reads the log — so it
+    /// is asked for rather than computed here.
+    /// </summary>
+    public static string? LastFailure
+    {
+        get
+        {
+            try { return _lastFailure?.Invoke(); }
+            catch { return null; }
+        }
     }
 
     /// <summary>
