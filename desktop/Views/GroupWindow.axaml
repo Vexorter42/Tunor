@@ -1,0 +1,81 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Tunor.Desktop.Views.GroupWindow"
+        Title="Группа правил" Width="560" SizeToContent="Height"
+        Background="{StaticResource BgBrush}"
+        WindowStartupLocation="CenterOwner" CanResize="False">
+    <StackPanel Margin="24" Spacing="14">
+
+        <TextBlock x:Name="HeadText" Classes="h2"/>
+
+        <StackPanel Spacing="6">
+            <TextBlock Text="Имя группы" Classes="dim"/>
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <TextBox Grid.Column="0" x:Name="TagBox" PlaceholderText="например warp-my-sites"
+                         TextChanged="Tag_Changed"/>
+                <ComboBox Grid.Column="1" x:Name="TunnelBox" MinWidth="150"
+                          SelectionChanged="Tunnel_Changed"/>
+            </Grid>
+            <TextBlock x:Name="TagHint" Classes="dim" TextWrapping="Wrap" FontSize="12"/>
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+            <TextBlock Text="Откуда берётся список" Classes="dim"/>
+            <ComboBox x:Name="TypeBox" HorizontalAlignment="Stretch"
+                      SelectionChanged="Type_Changed"/>
+            <TextBlock x:Name="TypeHint" Classes="dim" TextWrapping="Wrap" FontSize="12"/>
+        </StackPanel>
+
+        <!-- inline: the user's own entries -->
+        <StackPanel x:Name="InlinePanel" Spacing="6">
+            <TextBlock Text="Что в нём перечислено" Classes="dim"/>
+            <ComboBox x:Name="KindBox" HorizontalAlignment="Stretch"/>
+        </StackPanel>
+
+        <!-- remote: the engine fetches it itself -->
+        <StackPanel x:Name="RemotePanel" Spacing="10" IsVisible="False">
+            <StackPanel Spacing="6">
+                <TextBlock Text="Адрес списка" Classes="dim"/>
+                <TextBox x:Name="UrlBox" PlaceholderText="https://…"/>
+            </StackPanel>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                <StackPanel Grid.Column="0" Spacing="6">
+                    <TextBlock Text="Формат" Classes="dim"/>
+                    <TextBox x:Name="FormatBox" PlaceholderText="binary"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock Text="Как часто обновлять" Classes="dim"/>
+                    <TextBox x:Name="IntervalBox" PlaceholderText="1d"/>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+
+        <!-- local: a file on disk, refreshed from its source -->
+        <StackPanel x:Name="LocalPanel" Spacing="10" IsVisible="False">
+            <StackPanel Spacing="6">
+                <TextBlock Text="Файл (путь от папки build)" Classes="dim"/>
+                <TextBox x:Name="PathBox" PlaceholderText="geosite-example.srs"/>
+            </StackPanel>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                <StackPanel Grid.Column="0" Spacing="6">
+                    <TextBlock Text="Формат" Classes="dim"/>
+                    <TextBox x:Name="LocalFormatBox" PlaceholderText="binary"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock Text="Откуда скачивать" Classes="dim"/>
+                    <TextBox x:Name="SourceUrlBox" PlaceholderText="https://…"/>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+
+        <TextBlock x:Name="ProblemText" Classes="dim" TextWrapping="Wrap" IsVisible="False"
+                   Foreground="{StaticResource DangerBrush}"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+            <Button x:Name="BtnDelete" Classes="danger" Content="Удалить" MinWidth="110"
+                    Click="Delete_Click" IsVisible="False"/>
+            <Button Content="Отмена" MinWidth="110" Click="Cancel_Click"/>
+            <Button Classes="primary" Content="Сохранить" MinWidth="130" Click="Save_Click"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

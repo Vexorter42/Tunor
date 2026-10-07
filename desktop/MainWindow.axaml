@@ -41,6 +41,8 @@
                     <RadioButton Classes="nav" GroupName="nav"
                                  Content="Правила" Tag="rules" IsCheckedChanged="Nav_Checked"/>
                     <RadioButton Classes="nav" GroupName="nav"
+                                 Content="Конфиги" Tag="configs" IsCheckedChanged="Nav_Checked"/>
+                    <RadioButton Classes="nav" GroupName="nav"
                                  Content="Туннели" Tag="tunnels" IsCheckedChanged="Nav_Checked"/>
                     <RadioButton Classes="nav" GroupName="nav"
                                  Content="Приложения" Tag="apps" IsCheckedChanged="Nav_Checked"/>

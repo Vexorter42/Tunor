@@ -17,7 +17,18 @@ public static class ProfileService
     public const string Geo = "geo";
 
     private static string Dir(string kind) => Path.Combine(Paths.DataDir, "profiles", kind);
-    private static string Target(string kind) => kind == Geo ? Paths.GeoConf : Paths.WarpConf;
+    /// <summary>
+    /// The file a profile of this kind replaces. The kind is a tunnel's id, so any
+    /// WireGuard tunnel can have profiles, not only the two that came with the app;
+    /// warp and geo resolve to the same files they always did.
+    /// </summary>
+    private static string Target(string kind)
+    {
+        var t = TunnelService.Load().FirstOrDefault(
+            x => string.Equals(x.Id, kind, StringComparison.OrdinalIgnoreCase));
+        return t is { IsWireguard: true } ? ConfigGenerator.ConfPath(t)
+             : kind == Geo ? Paths.GeoConf : Paths.WarpConf;
+    }
     private static string FileOf(string kind, string name) => Path.Combine(Dir(kind), name + ".conf");
 
     public static List<string> List(string kind)

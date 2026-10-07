@@ -1,0 +1,63 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Tunor.Desktop.Views.ConfigsView">
+    <DockPanel>
+
+        <StackPanel DockPanel.Dock="Top" Spacing="12" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="Конфиги" Classes="h1"/>
+                <TextBlock Text="Текстовый редактор служебных файлов"
+                           Classes="dim" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <!-- one tab per file worth editing; built from the tunnel list -->
+            <WrapPanel x:Name="Tabs"/>
+
+            <!-- named copies of a tunnel, switchable in one click -->
+            <Border x:Name="ProfileBar" Classes="card" Padding="14,12" IsVisible="False">
+                <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <TextBlock Grid.Column="0" Text="Профиль" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="1" x:Name="ProfileBox" IsVisible="False"
+                                  HorizontalAlignment="Stretch"
+                                  SelectionChanged="Profile_Changed"/>
+                        <TextBlock Grid.Column="1" x:Name="NoProfilesText" Classes="dim"
+                                   VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Text="пока нет — впиши имя ниже и сохрани текущий конфиг"/>
+                        <Button Grid.Column="2" x:Name="BtnDeleteProfile" Classes="ghost"
+                                Content="Удалить" Padding="12,6" IsVisible="False"
+                                Click="DeleteProfile_Click"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <TextBlock Grid.Column="0" Text="Новый" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1" x:Name="NewProfileBox"
+                                 PlaceholderText="например «geo Германия»"/>
+                        <Button Grid.Column="2" Content="Сохранить текущий" Padding="12,6"
+                                Click="SaveProfile_Click"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,12,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Classes="primary" Content="💾  Сохранить" Click="Save_Click"/>
+                <Button Content="↻  Перечитать" Click="Reload_Click"/>
+                <TextBlock x:Name="StatusText" Classes="dim" VerticalAlignment="Center"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+            <TextBlock x:Name="PathText" Classes="dim" FontSize="11"
+                       TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+
+        <Border Classes="card" Padding="0">
+            <!-- the page scrolls as a whole, so the editor cannot be told to fill it;
+                 a floor keeps it usable when the file is three lines long -->
+            <TextBox x:Name="Editor" MinHeight="420" AcceptsReturn="True" AcceptsTab="True"
+                     TextWrapping="NoWrap" FontFamily="SF Mono, Menlo, Monaco, monospace"
+                     FontSize="13" BorderThickness="0" Padding="16"
+                     Background="Transparent"
+                     TextChanged="Editor_Changed"/>
+        </Border>
+    </DockPanel>
+</UserControl>
