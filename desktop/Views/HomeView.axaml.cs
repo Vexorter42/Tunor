@@ -107,6 +107,12 @@ public partial class HomeView : UserControl
         BtnInstall.IsVisible = false;
         var state = await EngineService.PrivilegedService();
         ServiceText.Text = EngineService.Explain(state);
+        // With a service installed the daemon owns the core, and the app's own Start
+        // would raise a second engine against it. Saying so beats letting them collide.
+        StateHint.Text = state == EngineService.ServiceState.Running
+            ? "Пока служба стоит, туннелем управляет она — кнопки выше работать не будут."
+            : "";
+        StateHint.IsVisible = StateHint.Text.Length > 0;
         var good = state == EngineService.ServiceState.Running;
         ServiceText.Foreground = (IBrush?)this.FindResource(good ? "AccentBrush" : "TextDimBrush");
         // Offering to install it only where this app can: elsewhere the engine's own
