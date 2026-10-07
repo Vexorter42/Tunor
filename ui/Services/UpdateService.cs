@@ -90,7 +90,14 @@ public static class UpdateService
 
     public static string CurrentVersionString
     {
-        get { var v = CurrentVersion; return $"{v.Major}.{v.Minor}.{v.Build}"; }
+        get
+        {
+            var v = CurrentVersion;
+            var three = $"{v.Major}.{v.Minor}.{v.Build}";
+            // A macOS preview is re-cut between releases, and only the fourth number
+            // moves; hiding it would make two different builds look like one.
+            return v.Revision > 0 ? $"{three} (сборка {v.Revision})" : three;
+        }
     }
 
     private static string Mirror(UpdateConfig c, string githubUrl)
@@ -114,6 +121,21 @@ public static class UpdateService
             var url = json?["url"]?.GetValue<string>() ?? "";
             var sha = json?["sha256"]?.GetValue<string>() ?? "";
             var notes = json?["notes"]?.GetValue<string>() ?? "";
+
+            // One manifest for both systems: the macOS build is a different file with a
+            // different checksum, and may be re-cut while the Windows release stands, so
+            // it carries its own version too.
+            if (OperatingSystem.IsMacOS() && json?["mac"] is JsonObject mac)
+            {
+                latest = mac["version"]?.GetValue<string>() ?? latest;
+                url = mac["url"]?.GetValue<string>() ?? "";
+                sha = mac["sha256"]?.GetValue<string>() ?? "";
+                notes = mac["notes"]?.GetValue<string>() ?? notes;
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                return new UpdateInfo { Error = "Для macOS сборки пока нет в этом релизе" };
+            }
 
             if (string.IsNullOrWhiteSpace(latest) || string.IsNullOrWhiteSpace(url))
                 return new UpdateInfo { Error = "Некорректный version.json" };
@@ -154,8 +176,10 @@ public static class UpdateService
         var cfg = UpdateConfig.Load();
         try
         {
+            var mac = OperatingSystem.IsMacOS();
             var dlUrl = Mirror(cfg, info.Url);
-            var tmp = Path.Combine(Path.GetTempPath(), $"Tunor-Setup-{info.Latest}.exe");
+            var tmp = Path.Combine(Path.GetTempPath(),
+                mac ? $"Tunor-mac-{info.Latest}.tar.gz" : $"Tunor-Setup-{info.Latest}.exe");
 
             using (var resp = await Http.GetAsync(dlUrl, HttpCompletionOption.ResponseHeadersRead))
             {
@@ -184,6 +208,10 @@ public static class UpdateService
                 }
             }
 
+            // Spelled out rather than reusing `mac`, so the compiler can see the
+            // guard: everything below this line is macOS-only API.
+            if (OperatingSystem.IsMacOS()) return ApplyMac(tmp);
+
             // Run installer silently. It force-closes this app (taskkill in the .iss),
             // replaces files, and relaunches the app itself. The caller must exit this
             // process so file locks are released.
@@ -200,6 +228,86 @@ public static class UpdateService
         {
             return (false, ex.Message);
         }
+    }
+
+    // ---------------------------------------------------------------- macOS
+
+    /// <summary>
+    /// Puts a new app bundle where the running one is.
+    ///
+    /// There is no installer on macOS: an app is a folder, and updating it means
+    /// replacing that folder. It cannot be replaced from inside itself — the executable
+    /// being replaced is the one doing the work — so the swap is handed to a small script
+    /// that waits for this process to end, moves the old bundle aside, puts the new one
+    /// in its place and starts it. The old bundle goes back if the copy fails, so a
+    /// broken download cannot leave the user with no app at all.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("macos")]
+    private static (bool ok, string message) ApplyMac(string archive)
+    {
+        var bundle = CurrentBundle();
+        if (bundle == null)
+            return (false, "не нашёл, где лежит само приложение — замени Tunor.app вручную");
+
+        var staging = Path.Combine(Path.GetTempPath(), "tunor-update");
+        try
+        {
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+            Directory.CreateDirectory(staging);
+
+            var untar = Process.Start(new ProcessStartInfo("/usr/bin/tar",
+                $"-xzf \"{archive}\" -C \"{staging}\"") { UseShellExecute = false });
+            untar?.WaitForExit(120_000);
+            if (untar is not { ExitCode: 0 }) return (false, "архив не распаковался");
+
+            var fresh = Path.Combine(staging, "Tunor.app");
+            if (!Directory.Exists(fresh)) return (false, "в архиве нет Tunor.app");
+
+            var script = Path.Combine(staging, "swap.sh");
+            File.WriteAllText(script, SwapScript(Environment.ProcessId, fresh, bundle));
+            File.SetUnixFileMode(script, UnixFileMode.UserRead | UnixFileMode.UserWrite |
+                                         UnixFileMode.UserExecute);
+
+            Process.Start(new ProcessStartInfo("/bin/bash", $"\"{script}\"")
+            {
+                UseShellExecute = false,
+                // Detached from this app's streams, or it would die along with it.
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                RedirectStandardInput = true,
+            });
+            return (true, "Обновление скачано. Приложение закроется и откроется заново.");
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    private static string SwapScript(int pid, string fresh, string bundle) => string.Join("\n",
+        "#!/bin/bash",
+        "# Waits for Tunor to let go of its own folder, then puts the new one in its place.",
+        $"for i in $(seq 1 120); do kill -0 {pid} 2>/dev/null || break; sleep 0.5; done",
+        $"OLD=\"{bundle}\"",
+        $"NEW=\"{fresh}\"",
+        "rm -rf \"$OLD.old\"",
+        "mv \"$OLD\" \"$OLD.old\" || exit 1",
+        "if /usr/bin/ditto \"$NEW\" \"$OLD\"; then",
+        "  rm -rf \"$OLD.old\"",
+        "else",
+        "  rm -rf \"$OLD\"; mv \"$OLD.old\" \"$OLD\"",   // the old app back, rather than none
+        "fi",
+        "xattr -dr com.apple.quarantine \"$OLD\" 2>/dev/null",
+        "open \"$OLD\"",
+        "");
+
+    /// <summary>
+    /// The .app this process is running from, or null when it is not in a bundle — a
+    /// build run straight from a publish folder, which is replaced by hand.
+    /// </summary>
+    private static string? CurrentBundle()
+    {
+        var exe = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(exe)) return null;
+        var at = exe.IndexOf(".app/", StringComparison.OrdinalIgnoreCase);
+        return at < 0 ? null : exe[..(at + 4)];
     }
 
     private static string Sha256File(string path)
