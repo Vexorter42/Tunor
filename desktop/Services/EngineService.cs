@@ -245,10 +245,22 @@ public static class EngineService
         if (ServiceClient.Paired)
         {
             var (ok, msg) = await ServiceClient.StopAsync();
-            await Task.Delay(600);
+            for (var i = 0; i < 20 && IsRunning; i++) await Task.Delay(200);
             StateChanged?.Invoke(null, EventArgs.Empty);
-            if (ok) { EngineLog.Add("--- остановлен через службу"); EngineLog.EndRun(); }
-            return ok ? (true, "остановлен") : (false, msg);
+
+            // The service stops its own core. An engine started some other way — by an
+            // earlier elevated start, say — is still there, and saying "остановлен" over
+            // a running tunnel is the one answer this must never give.
+            if (!IsRunning)
+            {
+                EngineLog.Add("--- остановлен через службу");
+                EngineLog.EndRun();
+                return (true, "остановлен");
+            }
+            if (!ok) EngineLog.Add("--- служба не остановила: " + msg);
+            return (false, PrivilegedRunning
+                ? "служба своё ядро остановила, но движок, запущенный отдельно, ещё работает"
+                : msg);
         }
 
         var procs = Running();
