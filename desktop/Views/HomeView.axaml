@@ -76,7 +76,7 @@
                 <ItemsControl x:Name="CheckList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="v:HomeView+CheckRow">
-                            <Grid ColumnDefinitions="110,24,*,60,Auto" Margin="0,3">
+                            <Grid ColumnDefinitions="130,24,*,60,Auto" Margin="0,3">
                                 <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold"/>
                                 <TextBlock Grid.Column="1" Text="{Binding Mark}"
                                            Foreground="{Binding MarkBrush}"/>
@@ -101,6 +101,8 @@
                 <StackPanel Orientation="Horizontal" Spacing="14">
                     <Button x:Name="BtnUpdate" Content="⭳  Проверить обновления"
                             Click="Update_Click"/>
+                    <Button x:Name="BtnInstallUpdate" Classes="primary" Content="Обновить"
+                            Click="InstallUpdate_Click" IsVisible="False"/>
                     <TextBlock x:Name="UpdateStatus" Classes="dim" VerticalAlignment="Center"
                                TextWrapping="Wrap"/>
                 </StackPanel>

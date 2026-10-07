@@ -17,7 +17,9 @@ public partial class HomeView : UserControl
     public HomeView()
     {
         InitializeComponent();
-        _tick.Tick += (_, _) => Refresh();
+        // The service is asked on the same tick: with it paired, its answer is the only
+        // thing that says whether the tunnel is up, and a stale one freezes the buttons.
+        _tick.Tick += async (_, _) => { await EngineService.RefreshServiceCoreAsync(); Refresh(); };
         // The watchdog speaks when the tunnel is down for good; without this the only
         // symptom is the status quietly flipping back to stopped.
         EngineService.Alert += (_, text) => Dispatcher.UIThread.Post(() =>
@@ -26,7 +28,14 @@ public partial class HomeView : UserControl
             StatusText.Foreground = Palette.Brush("DangerBrush");
             Refresh();
         });
-        AttachedToVisualTree += (_, _) => { Refresh(); _ = CheckService(); _tick.Start(); };
+        AttachedToVisualTree += async (_, _) =>
+        {
+            Refresh();
+            await EngineService.RefreshServiceCoreAsync();
+            Refresh();
+            _ = CheckService();
+            _tick.Start();
+        };
         DetachedFromVisualTree += (_, _) => _tick.Stop();
     }
 
@@ -41,7 +50,11 @@ public partial class HomeView : UserControl
             ? ServiceClient.Paired ? "Запущен — через службу"
             : privileged ? "Запущен — с правами администратора"
             : "Запущен"
-            : "Остановлен";
+            // A service sitting on a core that refused to start is not simply stopped,
+            // and saying so sends the user to the logs instead of pressing Start again.
+            : EngineService.ServiceCoreStatus == "fatal"
+                ? "Остановлен — служба не смогла поднять движок, причина в «Логах»"
+                : "Остановлен";
         BtnStart.Content = running ? "↻  Перезапустить" : "▶  Запустить";
         BtnStart.IsEnabled = !privileged;
         // An engine this app may not signal needs the other button, and offering the one
@@ -158,21 +171,61 @@ public partial class HomeView : UserControl
 
     // ------------------------------------------------------------ updates and links
 
+    /// <summary>The update found by the last check, kept for the button beside it.</summary>
+    private UpdateInfo? _update;
+
     private async void Update_Click(object? sender, RoutedEventArgs e)
     {
         BtnUpdate.IsEnabled = false;
+        BtnInstallUpdate.IsVisible = false;
         UpdateStatus.Text = "проверяю…";
         try
         {
             var info = await UpdateService.CheckAsync();
-            // The installer it offers is a Windows one, so this says what is available
-            // rather than offering to install it: a macOS build is replaced by hand.
+            _update = info.Available ? info : null;
             UpdateStatus.Text = info.Error is { Length: > 0 } err ? err
                 : info.Kind == UpdateKind.None ? "Установлена последняя версия."
-                : $"Доступна {info.Latest}. Скачать: github.com/Vexorter42/Tunor/releases";
+                : $"Доступна {info.Latest}"
+                  + (info.Notes is { Length: > 0 } n ? " — " + FirstLine(n) : "");
+            BtnInstallUpdate.IsVisible = _update != null;
         }
         catch (Exception ex) { UpdateStatus.Text = "Не удалось проверить: " + ex.Message; }
         finally { BtnUpdate.IsEnabled = true; }
+    }
+
+    /// <summary>The first line of the release notes, which is the headline.</summary>
+    private static string FirstLine(string text)
+    {
+        var at = text.IndexOfAny(new[] { '\r', '\n' });
+        return at < 0 ? text.Trim() : text[..at].Trim();
+    }
+
+    /// <summary>
+    /// Downloads the new bundle and hands the swap to a helper, then quits: the app
+    /// cannot replace the folder it is running out of, so it has to be gone first.
+    /// </summary>
+    private async void InstallUpdate_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_update == null) return;
+        BtnInstallUpdate.IsEnabled = false;
+        UpdateStatus.Text = "скачиваю…";
+        try
+        {
+            var progress = new Progress<double>(p => Dispatcher.UIThread.Post(
+                () => UpdateStatus.Text = $"скачиваю… {p * 100:0}%"));
+            var (ok, message) = await UpdateService.DownloadAndApplyAsync(_update, progress);
+            UpdateStatus.Text = message;
+            if (!ok) { BtnInstallUpdate.IsEnabled = true; return; }
+
+            // A moment for the message to be read, then out of the way of the swap.
+            await System.Threading.Tasks.Task.Delay(1500);
+            (TopLevel.GetTopLevel(this) as Window)?.Close();
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus.Text = "Не удалось обновить: " + ex.Message;
+            BtnInstallUpdate.IsEnabled = true;
+        }
     }
 
     private void OpenPath_Click(object? sender, RoutedEventArgs e)
