@@ -1,0 +1,85 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Tunor.Desktop.Views"
+             x:Class="Tunor.Desktop.Views.AppsView">
+    <Grid ColumnDefinitions="300,*" ColumnSpacing="16">
+
+        <!-- the programs that have been seen -->
+        <DockPanel Grid.Column="0">
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                <TextBlock Text="Приложения" Classes="h1"/>
+                <TextBlock Text="Куда ходит каждая программа" Classes="dim" Margin="0,4,0,0"/>
+            </StackPanel>
+            <Border Classes="card" Padding="0">
+                <ScrollViewer Padding="10">
+                    <ItemsControl x:Name="List">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="v:AppsView+AppRow">
+                                <Button Classes="ghost" HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Left" Padding="10,8"
+                                        Margin="0,0,0,4" Tag="{Binding Exe}" Click="Pick_Click">
+                                    <StackPanel Spacing="3">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Exe}" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextBrush}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <Border Classes="badge">
+                                                <TextBlock Text="{Binding Badge}" FontSize="10.5"
+                                                           Foreground="{Binding BadgeBrush}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Summary}" Classes="dim" FontSize="11.5"/>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+        </DockPanel>
+
+        <!-- what to do with the chosen one -->
+        <DockPanel Grid.Column="1">
+            <TextBlock DockPanel.Dock="Top" x:Name="EmptyText" Classes="dim" TextWrapping="Wrap"
+                       Text="Выбери программу слева. Список наполняется сам, по мере того как программы выходят в сеть при запущенном движке."/>
+
+            <StackPanel x:Name="Detail" IsVisible="False" Spacing="14">
+                <StackPanel>
+                    <TextBlock x:Name="AppName" Classes="h2" FontSize="18"/>
+                    <TextBlock x:Name="AppPath" Classes="dim" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Весь трафик программы" FontWeight="SemiBold"/>
+                    <WrapPanel x:Name="RouteButtons"/>
+                    <TextBlock x:Name="RouteHint" Classes="dim" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <Border Height="1" Background="{StaticResource BorderBrush}"/>
+
+                <StackPanel Spacing="8">
+                    <TextBlock x:Name="HostsTitle" Text="Куда ходит за этот сеанс"
+                               FontWeight="SemiBold"/>
+                    <ItemsControl x:Name="Hosts">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="v:AppsView+HostRow">
+                                <Grid ColumnDefinitions="*,80,Auto" Margin="0,3">
+                                    <TextBlock Grid.Column="0" Text="{Binding Host}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Down}" Classes="dim"
+                                               TextAlignment="Right" Margin="0,0,10,0"/>
+                                    <Button Grid.Column="2" Classes="ghost" Content="→ в туннель"
+                                            FontSize="11.5" Padding="8,3"
+                                            Tag="{Binding Host}" Click="HostRoute_Click"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </DockPanel>
+
+        <TextBlock Grid.Column="1" x:Name="StatusText" Classes="dim" TextWrapping="Wrap"
+                   VerticalAlignment="Bottom"/>
+    </Grid>
+</UserControl>

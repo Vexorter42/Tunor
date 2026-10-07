@@ -82,7 +82,7 @@ public partial class RulesView : UserControl
             else
             {
                 var where = g.IsLocal
-                    ? (LocalExists(g.Path) ? "скачан" : "ещё не скачан")
+                    ? (ConfigGenerator.LocalRuleSetExists(g.Path) ? "скачан" : "ещё не скачан")
                     : "обновляется по сети";
                 sets.Add(new SetRow(g.Tag, NameOf(slot), BrushFor(slot), where));
             }
@@ -95,12 +95,6 @@ public partial class RulesView : UserControl
             .ThenBy(r => r.Title)
             .ToList();
         Sets.ItemsSource = sets;
-    }
-
-    private static bool LocalExists(string path)
-    {
-        try { return path.Length > 0 && File.Exists(Path.Combine(Paths.AppRoot, path)); }
-        catch { return false; }
     }
 
     private static string Count(int n, bool process)

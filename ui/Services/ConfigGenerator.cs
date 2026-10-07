@@ -632,8 +632,13 @@ public static class ConfigGenerator
         return sb.ToString();
     }
 
-    /// <summary>Rule-set paths are relative to the engine's working directory (build/).</summary>
-    private static bool LocalRuleSetExists(string relativePath)
+    /// <summary>
+    /// Whether a downloaded rule-set file is on disk. The path recorded in rules.json is
+    /// relative to the engine's working directory (build/), not to the app root — reading
+    /// it from the root looks one level too high and reports every downloaded list as
+    /// missing. Public because three places need this answer and only one had it right.
+    /// </summary>
+    public static bool LocalRuleSetExists(string relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath)) return false;
         try
