@@ -16,15 +16,15 @@
                     <Ellipse x:Name="StateDot" Width="10" Height="10" VerticalAlignment="Center"/>
                     <TextBlock x:Name="StateText" VerticalAlignment="Center"/>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="10">
+                <WrapPanel>
                     <Button x:Name="BtnStart" Classes="primary" Content="▶  Запустить"
-                            MinWidth="160" Click="Start_Click"/>
+                            MinWidth="160" Margin="0,0,10,6" Click="Start_Click"/>
                     <Button x:Name="BtnStop" Classes="danger" Content="■  Остановить"
-                            MinWidth="140" Click="Stop_Click"/>
+                            MinWidth="140" Margin="0,0,10,6" Click="Stop_Click"/>
                     <Button x:Name="BtnStopElevated" Classes="danger" IsVisible="False"
                             Content="■  Остановить с правами" MinWidth="200"
-                            Click="StopElevated_Click"/>
-                </StackPanel>
+                            Margin="0,0,10,6" Click="StopElevated_Click"/>
+                </WrapPanel>
                 <TextBlock x:Name="StatusText" Classes="dim" TextWrapping="Wrap"/>
                 <TextBlock x:Name="StateHint" Classes="dim" TextWrapping="Wrap"
                            IsVisible="False" Foreground="{StaticResource AccentBrush}"/>
@@ -38,16 +38,17 @@
                            Text="Перехват всего трафика поднимает сетевой интерфейс, а на это нужны права root. По умолчанию приложение спрашивает пароль при каждом запуске — это системное окно macOS, пароль сюда не попадает."/>
                 <TextBlock Classes="dim" TextWrapping="Wrap" Margin="0,2,0,0"
                            Text="Служба движка держит эти права постоянно и избавляет от пароля, но пока ею управляет не приложение: с установленной службой туннель включается и выключается только установкой и удалением самой службы."/>
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <TextBlock x:Name="ServiceText" VerticalAlignment="Center"
-                               TextWrapping="Wrap" MaxWidth="560"/>
+                <TextBlock x:Name="ServiceText" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                <!-- A row that cannot wrap pushes its last button off the card, which is
+                     what happened to "Установить службу" on a narrow window. -->
+                <WrapPanel Margin="0,4,0,0">
                     <Button x:Name="BtnService" Classes="ghost" Content="Проверить снова"
-                            Click="Service_Click"/>
+                            Margin="0,0,8,6" Click="Service_Click"/>
                     <Button x:Name="BtnInstall" Classes="primary" Content="Установить службу"
-                            IsVisible="False" Click="Install_Click"/>
+                            Margin="0,0,8,6" IsVisible="False" Click="Install_Click"/>
                     <Button x:Name="BtnUninstall" Classes="ghost" Content="Удалить службу"
-                            IsVisible="False" Click="Uninstall_Click"/>
-                </StackPanel>
+                            Margin="0,0,8,6" IsVisible="False" Click="Uninstall_Click"/>
+                </WrapPanel>
             </StackPanel>
         </Border>
 
