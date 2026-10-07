@@ -51,6 +51,38 @@ public static class EngineService
 
     /// <summary>Every engine running, with whether this app may signal it.</summary>
     public static List<EngineProcess> Running()
+        => OperatingSystem.IsWindows() ? RunningWindows() : RunningUnix();
+
+    /// <summary>
+    /// On macOS the engine usually runs as root — started with rights for TUN, or by the
+    /// service — and .NET cannot read another user's process details there, so
+    /// Process.GetProcessesByName finds nothing and the app reports a running tunnel as
+    /// stopped. pgrep asks the kernel directly and answers for every owner, which is what
+    /// ps does and what the user sees.
+    /// </summary>
+    private static List<EngineProcess> RunningUnix()
+    {
+        var found = new List<EngineProcess>();
+        var me = Environment.UserName;
+        foreach (var name in ProcessNames.Distinct())
+        {
+            // -x: whole name only, so "sing-box" never matches "sing-box-lxd" twice.
+            var lines = Shell("pgrep", $"-x -l -u root,{me} {name}");
+            foreach (var line in lines)
+            {
+                var pid = line.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+                if (!int.TryParse(pid, out var id)) continue;
+                // Ours to signal only when it runs as this user; root's needs elevation,
+                // and the service's copy is never ours whoever owns it.
+                var mine = name != "sing-box-lxd" && Shell("pgrep", $"-x -u {me} {name}")
+                    .Any(l => l.Trim() == id.ToString());
+                found.Add(new EngineProcess(id, mine));
+            }
+        }
+        return found;
+    }
+
+    private static List<EngineProcess> RunningWindows()
     {
         var found = new List<EngineProcess>();
         var seen = new HashSet<int>();
@@ -74,13 +106,33 @@ public static class EngineService
                     }
                     catch
                     {
-                        // Unreadable means privileged, and the name already matched.
+                        // Unreadable means elevated, and the name already matched.
                         found.Add(new EngineProcess(p.Id, false));
                     }
                 }
             }
         }
         return found;
+    }
+
+    /// <summary>Runs a command and returns its output lines; empty on any failure.</summary>
+    private static List<string> Shell(string file, string args)
+    {
+        try
+        {
+            var p = Process.Start(new ProcessStartInfo
+            {
+                FileName = file, Arguments = args,
+                UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true, RedirectStandardError = true,
+            });
+            if (p == null) return new List<string>();
+            var text = p.StandardOutput.ReadToEnd();
+            p.WaitForExit(3000);
+            return text.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                       .Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+        }
+        catch { return new List<string>(); }
     }
 
     public static bool IsRunning => Running().Count > 0;

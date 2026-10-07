@@ -1,0 +1,96 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Tunor.Desktop.Views"
+             x:Class="Tunor.Desktop.Views.RulesView">
+    <StackPanel Spacing="16">
+
+        <StackPanel>
+            <TextBlock Text="Правила" Classes="h1"/>
+            <TextBlock Text="Какие домены и программы идут через какой туннель"
+                       Classes="dim" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- adding one -->
+        <Border Classes="card">
+            <StackPanel Spacing="12">
+                <TextBlock Text="Добавить" Classes="h2"/>
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                    <TextBox Grid.Column="0" x:Name="EntryBox"
+                             Watermark="например youtube.com или Discord.exe"/>
+                    <ComboBox Grid.Column="1" x:Name="TunnelBox" MinWidth="150"/>
+                    <Button Grid.Column="2" Classes="primary" Content="Добавить"
+                            Click="Add_Click"/>
+                </Grid>
+                <TextBlock Classes="dim" TextWrapping="Wrap"
+                           Text="Домен ловится вместе со всеми поддоменами. Имя программы — как у файла: Discord.exe, Telegram.exe. Регистр не важен."/>
+            </StackPanel>
+        </Border>
+
+        <!-- what is there -->
+        <ItemsControl x:Name="Groups">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="v:RulesView+GroupRow">
+                    <Border Classes="card" Margin="0,0,0,10">
+                        <StackPanel Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+                                    <Border Classes="badge">
+                                        <TextBlock Text="{Binding TunnelName}" FontSize="11"
+                                                   Foreground="{Binding TunnelBrush}"/>
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding Count}" Classes="dim"/>
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding Items}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="v:RulesView+ItemRow">
+                                        <Border Background="{StaticResource BgInputBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1" CornerRadius="7"
+                                                Padding="9,4" Margin="0,0,6,6">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="{Binding Text}" FontSize="12"
+                                                           VerticalAlignment="Center"/>
+                                                <Button Content="✕" Padding="3,0" FontSize="11"
+                                                        Background="Transparent" BorderThickness="0"
+                                                        Foreground="{StaticResource TextDimBrush}"
+                                                        Tag="{Binding Key}" Click="Remove_Click"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- the downloaded lists, which are not edited here -->
+        <Border Classes="card">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Готовые списки" Classes="h2"/>
+                <TextBlock Classes="dim" TextWrapping="Wrap"
+                           Text="Скачиваются из открытых источников и обновляются сами. Отдельные записи в них не правятся — добавляй свои выше, они идут первыми."/>
+                <ItemsControl x:Name="Sets">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="v:RulesView+SetRow">
+                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
+                                <TextBlock Grid.Column="0" Text="{Binding Tag}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding TunnelName}"
+                                           Foreground="{Binding TunnelBrush}" Margin="0,0,14,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding State}" Classes="dim"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <TextBlock x:Name="StatusText" Classes="dim" TextWrapping="Wrap"/>
+    </StackPanel>
+</UserControl>

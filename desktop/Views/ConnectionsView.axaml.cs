@@ -53,7 +53,7 @@ public partial class ConnectionsView : UserControl
                 return new Row(
                     c.Host,
                     ConnectionsService.RouteLabel(c.Outbound),
-                    TunnelBrush(at < 0 ? "" : tunnels[at].Id, at),
+                    Palette.TunnelBrush(at < 0 ? "" : tunnels[at].Id, at),
                     c.Process,
                     Size(c.Download),
                     Age(DateTime.Now - c.Start));
@@ -65,15 +65,6 @@ public partial class ConnectionsView : UserControl
         UpText.Text = Size(snap.UploadTotal);
         CountText.Text = rows.Count.ToString();
         StatusText.Text = "";
-    }
-
-    /// <summary>The shared colour list, as an Avalonia brush.</summary>
-    private IBrush? TunnelBrush(string id, int index)
-    {
-        var c = TunnelColors.For(id, index);
-        return c == null ? (IBrush?)this.FindResource("TextDimBrush")
-             : id == TunnelService.Warp ? (IBrush?)this.FindResource("AccentBrush")
-             : new SolidColorBrush(Color.FromRgb(c.Value.R, c.Value.G, c.Value.B));
     }
 
     private static string Size(long b) => b switch
