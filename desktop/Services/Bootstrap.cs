@@ -21,7 +21,28 @@ public static class Bootstrap
             (text, problem) => EngineLog.Add((problem ? "[!] " : "[i] ") + text));
 
         var settings = EnsureSettings();
+        EnsureRules();
         EnsureConfig(settings);
+    }
+
+    /// <summary>
+    /// The starting rule lists. Without them a fresh macOS install has no routing at all:
+    /// no sample lists to add to and no rule-sets to download, so the Rules page was bare
+    /// and nothing but the default route ever applied.
+    /// </summary>
+    private static void EnsureRules()
+    {
+        if (File.Exists(Paths.RulesJson)) return;
+        try
+        {
+            using var src = typeof(Bootstrap).Assembly
+                .GetManifestResourceStream("Tunor.Desktop.Assets.default-rules.json");
+            if (src == null) return;
+            Directory.CreateDirectory(Paths.DataDir);
+            using var dst = File.Create(Paths.RulesJson);
+            src.CopyTo(dst);
+        }
+        catch { /* the Rules page will simply show nothing, as before */ }
     }
 
     private static AppSettings EnsureSettings()

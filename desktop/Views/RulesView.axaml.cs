@@ -47,6 +47,9 @@ public partial class RulesView : UserControl
         {
             TunnelBox.ItemsSource = tunnels.Select(t => new TunnelChoice(t.Id, t.Title)).ToList();
             TunnelBox.SelectedIndex = 0;
+            KindBox.ItemsSource = new[] { "домен", "программа" };
+            KindBox.SelectedIndex = 0;
+            Hint();
         }
 
         IBrush? BrushFor(string id)
@@ -110,6 +113,50 @@ public partial class RulesView : UserControl
         return $"{n} {word}";
     }
 
+    /// <summary>
+    /// What to type, in the terms of the system this is running on. A program is named
+    /// differently on each: Discord.exe on Windows, plain Discord on macOS.
+    /// </summary>
+    private void Hint()
+    {
+        var process = KindBox.SelectedIndex == 1;
+        var example = OperatingSystem.IsWindows() ? "Discord.exe" : "Discord";
+        EntryBox.PlaceholderText = process ? $"например {example}" : "например youtube.com";
+        AddHint.Text = process
+            ? $"Имя программы, как её видит система: {example}. "
+              + (OperatingSystem.IsWindows() ? "" : "Без расширения — на macOS его нет. ")
+              + "Регистр не важен."
+            : "Домен ловится вместе со всеми поддоменами: youtube.com поймает и m.youtube.com.";
+    }
+
+    private void Kind_Changed(object? sender, SelectionChangedEventArgs e)
+    {
+        if (AddHint != null) Hint();
+    }
+
+    // ---------------------------------------------------------------- downloading
+
+    private async void Update_Click(object? sender, RoutedEventArgs e)
+    {
+        BtnUpdate.IsEnabled = false;
+        StatusText.Text = "скачиваю списки…";
+        try
+        {
+            var groups = RulesService.Load();
+            // Through the same mirror the updater uses: the original source is often
+            // unreachable from here, which is rather the point of the whole program.
+            var results = await RulesetDownloader.DownloadAllAsync(groups, "https://ghproxy.net/");
+            RulesService.Save(groups);
+            ConfigGenerator.Generate();
+            ListsUpdater.MarkUpdated();
+            Refresh();
+            StatusText.Text = RulesetDownloader.FormatSummary(results)
+                              + " Перезапусти движок, чтобы применить.";
+        }
+        catch (Exception ex) { StatusText.Text = "Не удалось обновить: " + ex.Message; }
+        finally { BtnUpdate.IsEnabled = true; }
+    }
+
     // ---------------------------------------------------------------- editing
 
     private void Add_Click(object? sender, RoutedEventArgs e)
@@ -120,12 +167,10 @@ public partial class RulesView : UserControl
 
         try
         {
-            // A name with an extension is a program; anything else is a domain. That is
-            // the same guess the Windows app makes, and the user can see the result.
-            var isProcess = text.Contains('.') &&
-                            Path.GetExtension(text).Length is > 1 and <= 5 &&
-                            !text.Contains('/') && text.Count(c => c == '.') == 1 &&
-                            Path.GetExtension(text).ToLowerInvariant() is ".exe" or ".app";
+            // Guessing by extension was wrong the moment this left Windows: a macOS
+            // program is "Discord", not "Discord.exe", and that is indistinguishable
+            // from a domain. The user says which.
+            var isProcess = KindBox.SelectedIndex == 1;
 
             if (isProcess) RouteEditor.SetProcessRoute(text, pick.Id);
             else RouteEditor.AddDomain(text, pick.Id);

@@ -39,5 +39,12 @@
     <ProjectReference Include="..\core\Tunor.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The starting rules. On Windows the installer puts this file in place; a macOS
+         install is an empty folder, so the app carries its own copy and writes it on
+         first run. Same content, so the two platforms start alike. -->
+    <EmbeddedResource Include="Assets\default-rules.json" />
+  </ItemGroup>
+
 
 </Project>
