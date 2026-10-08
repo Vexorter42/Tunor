@@ -30,5 +30,21 @@
                 <TextBlock x:Name="HowText" Classes="dim" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
+
+        <Border Classes="card" x:Name="MenuCard" IsVisible="False">
+            <StackPanel Spacing="10">
+                <TextBlock Text="В меню приложений" Classes="h2"/>
+                <TextBlock Classes="dim" TextWrapping="Wrap"
+                           Text="Скачанный AppImage — просто файл в папке загрузок. Это добавит Tunor в меню рядом с остальными программами; файл записывается в твою папку и не требует пароля."/>
+                <TextBlock x:Name="MenuText" TextWrapping="Wrap"/>
+                <WrapPanel>
+                    <Button x:Name="BtnMenuOn" Classes="primary" Content="Добавить в меню"
+                            Margin="0,0,8,6" Click="MenuOn_Click"/>
+                    <Button x:Name="BtnMenuOff" Classes="ghost" Content="Убрать из меню"
+                            Margin="0,0,8,6" Click="MenuOff_Click"/>
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
     </StackPanel>
 </UserControl>
