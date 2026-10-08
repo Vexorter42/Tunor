@@ -27,17 +27,23 @@ public static class Paths
     public static string UiExe { get; } = Environment.ProcessPath ?? Assembly.GetEntryAssembly()?.Location ?? "";
 
     /// <summary>
-    /// Where a macOS build keeps its files. A program there lives in /Applications as a
-    /// bundle that the user may not write to, and everything it owns belongs under
-    /// Application Support instead — unlike Windows, where the install directory holds
-    /// both. The folder is created on first look, so a fresh install has somewhere to
-    /// write before anything has been set up.
+    /// Where a Linux build keeps its files: $XDG_CONFIG_HOME/tunor, or ~/.config/tunor
+    /// when that is not set, which is what the XDG base-directory spec asks for. The
+    /// program itself may sit in /usr/bin or inside an AppImage — neither is a place it
+    /// can write — so nothing of the user's lives beside it.
     /// </summary>
-    private static string MacRoot()
+    private static string LinuxRoot()
     {
-        var root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            "Library", "Application Support", "Tunor");
+        var config = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        if (string.IsNullOrWhiteSpace(config))
+            config = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config");
+        return Ensure(Path.Combine(config, "tunor"));
+    }
+
+    /// <summary>Makes the root and the two folders everything else assumes.</summary>
+    private static string Ensure(string root)
+    {
         try
         {
             Directory.CreateDirectory(root);
@@ -48,9 +54,26 @@ public static class Paths
         return root;
     }
 
+    /// <summary>
+    /// Where a macOS build keeps its files. A program there lives in /Applications as a
+    /// bundle that the user may not write to, and everything it owns belongs under
+    /// Application Support instead — unlike Windows, where the install directory holds
+    /// both. The folder is created on first look, so a fresh install has somewhere to
+    /// write before anything has been set up.
+    /// </summary>
+    private static string MacRoot()
+    {
+        return Ensure(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Library", "Application Support", "Tunor"));
+    }
+
     static Paths()
     {
+        // Neither of these keeps anything beside the program: on macOS it lives in a
+        // bundle the user may not write to, on Linux in /usr/bin or an AppImage.
         if (OperatingSystem.IsMacOS()) { AppRoot = MacRoot(); return; }
+        if (OperatingSystem.IsLinux()) { AppRoot = LinuxRoot(); return; }
 
         var exeDir = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location
             ?? Environment.ProcessPath

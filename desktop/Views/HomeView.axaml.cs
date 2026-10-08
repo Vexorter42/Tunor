@@ -129,10 +129,30 @@ public partial class HomeView : UserControl
         finally { BtnStopElevated.IsEnabled = true; Refresh(); }
     }
 
+    /// <summary>
+    /// The card's words, which differ by system because the mechanism does. On Linux
+    /// the right is a capability on the engine's own file and is granted once, with
+    /// nothing asked afterwards; elsewhere it belongs to a service that has to be
+    /// installed and kept.
+    /// </summary>
+    private void Rights()
+    {
+        var linux = OperatingSystem.IsLinux();
+        RightsText.Text = linux
+            ? "Перехват всего трафика поднимает сетевой интерфейс, а на это нужны права root. "
+              + "Их можно выдать один раз самому движку — после этого пароль не спрашивают вовсе."
+            : "Перехват всего трафика поднимает сетевой интерфейс, а на это нужны права root. "
+              + "Без службы приложение спрашивает пароль при каждом запуске; со службой — "
+              + "один раз при её установке.";
+        BtnInstall.Content = linux ? "Выдать права движку" : "Установить службу";
+        BtnUninstall.Content = linux ? "Снять права" : "Удалить службу";
+    }
+
     private async void Service_Click(object? sender, RoutedEventArgs e) => await CheckService();
 
     private async System.Threading.Tasks.Task CheckService()
     {
+        Rights();
         ServiceText.Text = "проверяю…";
         BtnInstall.IsVisible = false;
         var state = await EngineService.PrivilegedService();
@@ -148,13 +168,13 @@ public partial class HomeView : UserControl
         ServiceText.Foreground = Palette.Brush(good ? "AccentBrush" : "TextDimBrush");
         // Offering to install it only where this app can: elsewhere the engine's own
         // command does it, and saying so is better than a button that cannot work.
-        BtnInstall.IsVisible = OperatingSystem.IsMacOS() && state is
+        BtnInstall.IsVisible = (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux()) && state is
             EngineService.ServiceState.NotInstalled or
             EngineService.ServiceState.NeedsReinstall or
             EngineService.ServiceState.CopyOnly;
         // Removing it is the engine's only documented off switch, so it is offered
         // wherever the service exists at all.
-        BtnUninstall.IsVisible = OperatingSystem.IsMacOS() && state is
+        BtnUninstall.IsVisible = (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux()) && state is
             EngineService.ServiceState.Running or
             EngineService.ServiceState.Stopped or
             EngineService.ServiceState.NeedsReinstall;

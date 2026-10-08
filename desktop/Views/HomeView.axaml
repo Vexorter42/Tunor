@@ -46,17 +46,16 @@
         <Border Classes="card">
             <StackPanel Spacing="10">
                 <TextBlock Text="Права для режима TUN" Classes="h2"/>
-                <TextBlock Classes="dim" TextWrapping="Wrap"
-                           Text="Перехват всего трафика поднимает сетевой интерфейс, а на это нужны права root. Без службы приложение спрашивает пароль при каждом запуске; со службой — один раз при её установке."/>
+                <TextBlock x:Name="RightsText" Classes="dim" TextWrapping="Wrap"/>
                 <TextBlock x:Name="ServiceText" TextWrapping="Wrap" Margin="0,4,0,0"/>
                 <!-- A row that cannot wrap pushes its last button off the card, which is
                      what happened to "Установить службу" on a narrow window. -->
                 <WrapPanel Margin="0,4,0,0">
                     <Button x:Name="BtnService" Classes="ghost" Content="Проверить снова"
                             Margin="0,0,8,6" Click="Service_Click"/>
-                    <Button x:Name="BtnInstall" Classes="primary" Content="Установить службу"
+                    <Button x:Name="BtnInstall" Classes="primary"
                             Margin="0,0,8,6" IsVisible="False" Click="Install_Click"/>
-                    <Button x:Name="BtnUninstall" Classes="ghost" Content="Удалить службу"
+                    <Button x:Name="BtnUninstall" Classes="ghost"
                             Margin="0,0,8,6" IsVisible="False" Click="Uninstall_Click"/>
                 </WrapPanel>
             </StackPanel>
