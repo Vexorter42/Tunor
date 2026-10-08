@@ -61,6 +61,7 @@ internal static class Program
 
         Programs();
         Swap(failures);
+        Autostart(failures);
         Live();
         ConfigCheck(failures);
 
@@ -103,6 +104,7 @@ internal static class Program
     /// </summary>
     private static void Swap(List<string> failures)
     {
+        if (OperatingSystem.IsLinux()) { SwapFile(failures); return; }
         if (!OperatingSystem.IsMacOS()) return;
         Console.WriteLine();
 
@@ -157,6 +159,118 @@ internal static class Program
     /// Avalonia deadlocks: their continuations go back to the dispatcher, and the
     /// dispatcher is not running — there is no app loop here.
     /// </summary>
+    /// <summary>
+    /// The Linux swap: one file, because an AppImage is the whole program in one. Same
+    /// reasoning as the macOS check above — this is the step that cannot be retried, so
+    /// it is run here against a file nobody minds losing.
+    /// </summary>
+    private static void SwapFile(List<string> failures)
+    {
+        Console.WriteLine();
+        var root = Path.Combine(Path.GetTempPath(), "tunor-swap-check");
+        try
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+            Directory.CreateDirectory(root);
+            var target = Path.Combine(root, "Tunor.AppImage");
+            var fresh = Path.Combine(root, "downloaded.AppImage");
+            File.WriteAllText(target, "старая");
+            File.WriteAllText(fresh, "новая");
+
+            var make = typeof(UpdateService).GetMethod("SwapFileScript",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            if (make == null)
+            {
+                Console.WriteLine("  ✗ подмена файла: SwapFileScript не найден");
+                failures.Add("SwapFileScript не найден");
+                return;
+            }
+
+            var text = (string)make.Invoke(null, new object[] { 999999, fresh, target })!;
+            var script = Path.Combine(root, "swap.sh");
+            File.WriteAllText(script, text);
+
+            var p = Process.Start(new ProcessStartInfo("/bin/sh", $"\"{script}\"")
+            { RedirectStandardError = true, RedirectStandardOutput = true })!;
+            p.WaitForExit(60_000);
+
+            var landed = File.Exists(target) ? File.ReadAllText(target).Trim() : "ничего";
+            var tidy = !File.Exists(target + ".old");
+            if (landed == "новая" && tidy)
+                Console.WriteLine("  ✓ подмена файла: новая версия встала на место старой");
+            else
+            {
+                Console.WriteLine($"  ✗ подмена файла: на месте оказалась {landed}"
+                                  + (tidy ? "" : ", и остался .old"));
+                failures.Add("подмена файла: на месте " + landed);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("  ✗ подмена файла: " + ex.Message);
+            failures.Add("подмена файла — " + ex.Message);
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    /// <summary>
+    /// Autostart, switched on and off again. Only where it can be asked back: systemd
+    /// and launchd both answer whether a unit is enabled, and a file written without
+    /// anyone being told about it looks exactly like one that works.
+    /// </summary>
+    private static void Autostart(List<string> failures)
+    {
+        if (!AutostartService.Supported) return;
+        Console.WriteLine();
+        var was = AutostartService.Enabled;
+        try
+        {
+            var (ok, msg) = AutostartService.Enable();
+            Console.WriteLine($"    включаю:  {(ok ? "получилось" : "не вышло — " + msg)}");
+            Console.WriteLine($"    записано: {AutostartService.Enabled}");
+
+            if (OperatingSystem.IsLinux())
+                Console.WriteLine("    systemd говорит: " + Ask("systemctl", "--user is-enabled tunor.service"));
+
+            if (ok && !AutostartService.Enabled)
+            {
+                Console.WriteLine("  ✗ автозапуск: сказал, что включил, а файла нет");
+                failures.Add("автозапуск включился только на словах");
+            }
+            else Console.WriteLine("  ✓ автозапуск: включается и виден системе");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("  ✗ автозапуск: " + ex.Message);
+            failures.Add("автозапуск — " + ex.Message);
+        }
+        finally
+        {
+            // Left as it was found: this is somebody's machine.
+            if (!was) try { AutostartService.Disable(); } catch { }
+        }
+    }
+
+    /// <summary>One line of output from a command, or why there was none.</summary>
+    private static string Ask(string file, string args)
+    {
+        try
+        {
+            var p = Process.Start(new ProcessStartInfo(file, args)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            });
+            if (p == null) return "не запустилось";
+            var outp = p.StandardOutput.ReadToEnd().Trim();
+            var err = p.StandardError.ReadToEnd().Trim();
+            p.WaitForExit(10_000);
+            return outp.Length > 0 ? outp : err.Length > 0 ? err : "(пусто)";
+        }
+        catch (Exception ex) { return ex.Message; }
+    }
+
     private static void Live()
     {
         Console.WriteLine();
@@ -174,6 +288,14 @@ internal static class Program
                 var set = SettingsService.Load();
                 Console.WriteLine($"    контроллер:                      порт {set.ControllerPort}, "
                                   + (string.IsNullOrEmpty(set.ControllerSecret) ? "секрета нет" : "секрет есть"));
+
+                // The release manifest carries both systems; this is the proof that each
+                // one picks its own half, run on each.
+                var up = await UpdateService.CheckAsync();
+                Console.WriteLine($"    обновление:                      "
+                    + (up.Error is { Length: > 0 } e ? "ошибка: " + e
+                       : $"установлено {up.Current}, в релизе {up.Latest}"
+                         + (up.Available ? " — есть новее" : " — это и есть последняя")));
 
                 var snap = await ConnectionsService.FetchAsync();
                 Console.WriteLine(snap == null

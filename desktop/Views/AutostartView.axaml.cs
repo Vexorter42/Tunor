@@ -35,6 +35,8 @@ public partial class AutostartView : UserControl
 
         // Named out loud, because both are ordinary files the user owns: deleting one
         // turns autostart off even with the app nowhere in sight.
+        Menu();
+
         HowText.Text = !supported ? "—"
             : OperatingSystem.IsLinux()
                 ? "Через systemd — обычный файл в ~/.config/systemd/user, он принадлежит "
@@ -43,6 +45,30 @@ public partial class AutostartView : UserControl
                 : "Через LaunchAgent — обычный файл в ~/Library/LaunchAgents, он принадлежит "
                   + "тебе и не требует пароля. Удалить файл значит выключить автозапуск, даже "
                   + "если приложения под рукой нет.";
+    }
+
+    private void Menu()
+    {
+        MenuCard.IsVisible = AutostartService.MenuSupported;
+        if (!MenuCard.IsVisible) return;
+        var on = AutostartService.InMenu;
+        MenuText.Text = on ? "Tunor есть в меню приложений" : "Tunor в меню пока нет";
+        BtnMenuOn.IsEnabled = !on;
+        BtnMenuOff.IsEnabled = on;
+    }
+
+    private void MenuOn_Click(object? sender, RoutedEventArgs e)
+    {
+        var (ok, msg) = AutostartService.AddToMenu();
+        MenuText.Text = ok ? msg : "Не вышло: " + msg;
+        Menu();
+    }
+
+    private void MenuOff_Click(object? sender, RoutedEventArgs e)
+    {
+        var (ok, msg) = AutostartService.RemoveFromMenu();
+        MenuText.Text = ok ? msg : "Не вышло: " + msg;
+        Menu();
     }
 
     private void On_Click(object? sender, RoutedEventArgs e) => Apply(true);
