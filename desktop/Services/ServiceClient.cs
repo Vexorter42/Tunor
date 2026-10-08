@@ -31,13 +31,24 @@ public static class ServiceClient
 {
     private const string ClientName = "Tunor";
 
-    private static string KeyFile => Path.Combine(Paths.DataDir, "service-client.pfx");
+    /// <summary>
+    /// Certificate and key together, as PEM. Not a PFX: loading one on macOS imports
+    /// it into a keychain, and every call then has to ask for the keychain password —
+    /// granted to an application identity that changes with every unsigned build, so
+    /// the question returns after each update.
+    /// </summary>
+    private static string PemFile => Path.Combine(Paths.DataDir, "service-client.pem");
+
+    /// <summary>The old format, read once and replaced.</summary>
+    private static string PfxFile => Path.Combine(Paths.DataDir, "service-client.pfx");
+
     private static string PinFile => Path.Combine(Paths.DataDir, "service-pin.json");
 
     /// <summary>Where the daemon is and what it must prove to be, as recorded at pairing.</summary>
     private sealed record Pin(string Address, string Fingerprint);
 
-    public static bool Paired => File.Exists(KeyFile) && File.Exists(PinFile);
+    public static bool Paired =>
+        (File.Exists(PemFile) || File.Exists(PfxFile)) && File.Exists(PinFile);
 
     // ---------------------------------------------------------------- pairing
 
@@ -72,8 +83,7 @@ public static class ServiceClient
             if (!resp.IsSuccessStatusCode) return (false, Error(text, resp.StatusCode.ToString()));
 
             Directory.CreateDirectory(Paths.DataDir);
-            // The private key never leaves this file, which is the user's own.
-            File.WriteAllBytes(KeyFile, cert.Export(X509ContentType.Pfx));
+            Store(cert);
             File.WriteAllText(PinFile, JsonSerializer.Serialize(new Pin(address, fingerprint)));
             try { File.Delete(invitePath); } catch { }
             return (true, "приложение сопряжено со службой");
@@ -83,8 +93,38 @@ public static class ServiceClient
 
     public static void Forget()
     {
-        foreach (var f in new[] { KeyFile, PinFile })
+        foreach (var f in new[] { PemFile, PfxFile, PinFile })
             try { File.Delete(f); } catch { }
+    }
+
+    /// <summary>
+    /// Writes the pair out, readable by nobody else. This key is the whole of the
+    /// authority over the privileged service — anything that can read it can apply a
+    /// config and bring the tunnel up or down — and it was being left world-readable.
+    /// </summary>
+    private static void Store(X509Certificate2 cert)
+    {
+        var key = cert.GetRSAPrivateKey() ?? throw new InvalidOperationException("нет закрытого ключа");
+        File.WriteAllText(PemFile,
+            cert.ExportCertificatePem() + "\n" + key.ExportPkcs8PrivateKeyPem() + "\n");
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(PemFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+    }
+
+    /// <summary>
+    /// This app's certificate, from PEM — and from memory, which is the point. A key
+    /// still in the old PFX is converted on the way past: that costs one last trip to
+    /// the keychain and saves every one after it.
+    /// </summary>
+    private static X509Certificate2 Load()
+    {
+        if (File.Exists(PemFile)) return X509Certificate2.CreateFromPemFile(PemFile);
+
+        var old = new X509Certificate2(File.ReadAllBytes(PfxFile));
+        Store(old);
+        try { File.Delete(PfxFile); } catch { }
+        EngineLog.Add("--- ключ службы переписан без связки ключей");
+        return X509Certificate2.CreateFromPemFile(PemFile);
     }
 
     // ---------------------------------------------------------------- control
@@ -142,7 +182,7 @@ public static class ServiceClient
         {
             var pin = JsonSerializer.Deserialize<Pin>(File.ReadAllText(PinFile));
             if (pin == null) return null;
-            var cert = new X509Certificate2(File.ReadAllBytes(KeyFile));
+            var cert = Load();
 
             using var http = Http(pin.Fingerprint, cert);
             using var req = new HttpRequestMessage(method, $"https://{pin.Address}/admin/{route}");
