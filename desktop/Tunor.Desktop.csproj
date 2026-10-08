@@ -27,7 +27,7 @@
     <!-- The same number every system uses. All three are built from one tree, so
          giving them different versions only made it harder to say what someone is
          running; a build that needs re-cutting bumps this for everyone. -->
-    <Version>1.11.5</Version>
+    <Version>1.11.6</Version>
   </PropertyGroup>
 
   <ItemGroup>

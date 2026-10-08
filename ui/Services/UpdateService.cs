@@ -135,19 +135,25 @@ public static class UpdateService
             var sha = json?["sha256"]?.GetValue<string>() ?? "";
             var notes = json?["notes"]?.GetValue<string>() ?? "";
 
-            // One manifest for both systems: the macOS build is a different file with a
-            // different checksum, and may be re-cut while the Windows release stands, so
-            // it carries its own version too.
-            if (OperatingSystem.IsMacOS() && json?["mac"] is JsonObject mac)
+            // One manifest for every system. Each gets its own file and checksum, and
+            // may carry its own notes; the version is shared, because all of them are
+            // built from one tree and saying otherwise only confused people.
+            var section = OperatingSystem.IsMacOS() ? "mac"
+                        : OperatingSystem.IsLinux() ? "linux"
+                        : null;
+            if (section != null)
             {
-                latest = mac["version"]?.GetValue<string>() ?? latest;
-                url = mac["url"]?.GetValue<string>() ?? "";
-                sha = mac["sha256"]?.GetValue<string>() ?? "";
-                notes = mac["notes"]?.GetValue<string>() ?? notes;
-            }
-            else if (OperatingSystem.IsMacOS())
-            {
-                return new UpdateInfo { Error = "Для macOS сборки пока нет в этом релизе" };
+                if (json?[section] is not JsonObject part)
+                    return new UpdateInfo
+                    {
+                        Error = $"Для {(section == "mac" ? "macOS" : "Linux")} сборки "
+                                + "пока нет в этом релизе",
+                    };
+
+                latest = part["version"]?.GetValue<string>() ?? latest;
+                url = part["url"]?.GetValue<string>() ?? "";
+                sha = part["sha256"]?.GetValue<string>() ?? "";
+                notes = part["notes"]?.GetValue<string>() ?? notes;
             }
 
             if (string.IsNullOrWhiteSpace(latest) || string.IsNullOrWhiteSpace(url))
@@ -189,10 +195,11 @@ public static class UpdateService
         var cfg = UpdateConfig.Load();
         try
         {
-            var mac = OperatingSystem.IsMacOS();
             var dlUrl = Mirror(cfg, info.Url);
-            var tmp = Path.Combine(Path.GetTempPath(),
-                mac ? $"Tunor-mac-{info.Latest}.tar.gz" : $"Tunor-Setup-{info.Latest}.exe");
+            var name = OperatingSystem.IsMacOS() ? $"Tunor-mac-{info.Latest}.tar.gz"
+                     : OperatingSystem.IsLinux() ? $"Tunor-{info.Latest}-x86_64.AppImage"
+                     : $"Tunor-Setup-{info.Latest}.exe";
+            var tmp = Path.Combine(Path.GetTempPath(), name);
 
             using (var resp = await Fetch.GetAsync(dlUrl, HttpCompletionOption.ResponseHeadersRead))
             {
@@ -221,9 +228,10 @@ public static class UpdateService
                 }
             }
 
-            // Spelled out rather than reusing `mac`, so the compiler can see the
-            // guard: everything below this line is macOS-only API.
+            // Spelled out so the compiler can see the guard: what follows each one is
+            // that system's own API.
             if (OperatingSystem.IsMacOS()) return ApplyMac(tmp);
+            if (OperatingSystem.IsLinux()) return ApplyLinux(tmp);
 
             // Run installer silently. It force-closes this app (taskkill in the .iss),
             // replaces files, and relaunches the app itself. The caller must exit this
@@ -242,6 +250,68 @@ public static class UpdateService
             return (false, ex.Message);
         }
     }
+
+    // ---------------------------------------------------------------- Linux
+
+    /// <summary>
+    /// Puts the downloaded AppImage where the running one is.
+    ///
+    /// An AppImage is the whole program in one file, so an update is a copy over that
+    /// file — but not while it is running: the kernel holds it open and writing into it
+    /// gives a half-written program. It is written beside it and moved into place by a
+    /// helper once this process is gone, the same dance as on macOS and for the same
+    /// reason.
+    ///
+    /// A copy started from an unpacked folder has no such file, and $APPIMAGE is empty.
+    /// That case is said out loud instead of guessed at.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    private static (bool ok, string message) ApplyLinux(string downloaded)
+    {
+        var self = Environment.GetEnvironmentVariable("APPIMAGE");
+        if (string.IsNullOrWhiteSpace(self) || !File.Exists(self))
+            return (false, "это не AppImage, а распакованная папка — "
+                         + "скачай новую сборку и замени её сам");
+
+        try
+        {
+            File.SetUnixFileMode(downloaded,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+
+            var script = Path.Combine(Path.GetTempPath(), "tunor-swap.sh");
+            File.WriteAllText(script, SwapFileScript(Environment.ProcessId, downloaded, self));
+            File.SetUnixFileMode(script, UnixFileMode.UserRead | UnixFileMode.UserWrite |
+                                         UnixFileMode.UserExecute);
+
+            Process.Start(new ProcessStartInfo("/bin/sh", $"\"{script}\"")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                RedirectStandardInput = true,
+            });
+            return (true, "Обновление скачано. Приложение закроется и откроется заново.");
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    private static string SwapFileScript(int pid, string fresh, string target) => string.Join("\n",
+        "#!/bin/sh",
+        "# Waits for Tunor to exit, then puts the new AppImage where the old one was.",
+        $"i=0; while [ $i -lt 120 ] && kill -0 {pid} 2>/dev/null; do sleep 0.5; i=$((i+1)); done",
+        $"OLD=\"{target}\"",
+        $"NEW=\"{fresh}\"",
+        "cp \"$OLD\" \"$OLD.old\" 2>/dev/null",
+        "if cp \"$NEW\" \"$OLD\"; then",
+        "  rm -f \"$OLD.old\" \"$NEW\"",
+        "else",
+        "  [ -f \"$OLD.old\" ] && mv \"$OLD.old\" \"$OLD\"",   // the old program back, rather than none
+        "fi",
+        "chmod +x \"$OLD\"",
+        "\"$OLD\" &",
+        "");
 
     // ---------------------------------------------------------------- macOS
 

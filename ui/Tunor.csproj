@@ -22,9 +22,9 @@
     <Company>Vexorter42</Company>
     <Description>Графический интерфейс для sing-box с поддержкой AmneziaWG</Description>
     <Copyright>© 2026 Vexorter42 · MIT</Copyright>
-    <Version>1.11.5</Version>
-    <FileVersion>1.11.5</FileVersion>
-    <AssemblyVersion>1.11.5</AssemblyVersion>
+    <Version>1.11.6</Version>
+    <FileVersion>1.11.6</FileVersion>
+    <AssemblyVersion>1.11.6</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
