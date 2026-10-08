@@ -47,6 +47,9 @@
          install is an empty folder, so the app carries its own copy and writes it on
          first run. Same content, so the two platforms start alike. -->
     <EmbeddedResource Include="Assets\default-rules.json" />
+    <!-- The one icon, shared with the Windows app rather than copied: the window,
+         the dock and the tray all want it, and two files would drift apart. -->
+    <AvaloniaResource Include="..\ui\Assets\app.png" Link="Assets\app.png" />
   </ItemGroup>
 
 
