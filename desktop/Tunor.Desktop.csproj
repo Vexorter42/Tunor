@@ -24,9 +24,10 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <!-- The fourth number is the macOS preview re-cut: the Windows release it was
-         built from stands still while this moves, and the updater compares all four. -->
-    <Version>1.11.1.7</Version>
+    <!-- The same number every system uses. All three are built from one tree, so
+         giving them different versions only made it harder to say what someone is
+         running; a build that needs re-cutting bumps this for everyone. -->
+    <Version>1.11.5</Version>
   </PropertyGroup>
 
   <ItemGroup>

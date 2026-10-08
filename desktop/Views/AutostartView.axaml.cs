@@ -33,11 +33,16 @@ public partial class AutostartView : UserControl
         BtnOn.IsEnabled = supported && !on;
         BtnOff.IsEnabled = supported && on;
 
-        HowText.Text = supported
-            ? "Через LaunchAgent — обычный файл в ~/Library/LaunchAgents, он принадлежит "
-              + "тебе и не требует пароля. Удалить файл значит выключить автозапуск, даже "
-              + "если приложения под рукой нет."
-            : "—";
+        // Named out loud, because both are ordinary files the user owns: deleting one
+        // turns autostart off even with the app nowhere in sight.
+        HowText.Text = !supported ? "—"
+            : OperatingSystem.IsLinux()
+                ? "Через systemd — обычный файл в ~/.config/systemd/user, он принадлежит "
+                  + "тебе и не требует пароля. Удалить файл значит выключить автозапуск, "
+                  + "даже если приложения под рукой нет."
+                : "Через LaunchAgent — обычный файл в ~/Library/LaunchAgents, он принадлежит "
+                  + "тебе и не требует пароля. Удалить файл значит выключить автозапуск, даже "
+                  + "если приложения под рукой нет.";
     }
 
     private void On_Click(object? sender, RoutedEventArgs e) => Apply(true);

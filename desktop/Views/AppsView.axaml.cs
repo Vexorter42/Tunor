@@ -208,9 +208,9 @@ public partial class AppsView : UserControl
     }
 
     /// <summary>
-    /// Points at a program in Finder. An app is a folder on macOS, and the name a rule
-    /// needs is of the executable inside it, which is why the bundle is opened rather
-    /// than its name taken.
+    /// Points at a program on disk. On macOS that is a folder — an app is a bundle,
+    /// and the name a rule needs belongs to the executable inside it, so the bundle is
+    /// opened rather than its name taken. On Linux a program is the file itself.
     /// </summary>
     private async void Browse_Click(object? sender, RoutedEventArgs e)
     {
@@ -221,14 +221,7 @@ public partial class AppsView : UserControl
             {
                 Title = "Программа, для которой нужно правило",
                 AllowMultiple = false,
-                FileTypeFilter = new[]
-                {
-                    new FilePickerFileType("Программы")
-                    {
-                        Patterns = new[] { "*.app", "*" },
-                        AppleUniformTypeIdentifiers = new[] { "com.apple.application-bundle" },
-                    },
-                },
+                FileTypeFilter = new[] { Programs() },
             });
             var path = files.FirstOrDefault()?.TryGetLocalPath();
             if (string.IsNullOrEmpty(path)) return;
@@ -239,6 +232,19 @@ public partial class AppsView : UserControl
         }
         catch (Exception ex) { StatusText.Text = "Не удалось открыть: " + ex.Message; }
     }
+
+    /// <summary>
+    /// What the picker should let through. An app on macOS is a bundle and has to be
+    /// named as one, or the panel greys it out; elsewhere a program is an ordinary
+    /// file with no extension to filter on.
+    /// </summary>
+    private static FilePickerFileType Programs() => OperatingSystem.IsMacOS()
+        ? new FilePickerFileType("Программы")
+        {
+            Patterns = new[] { "*.app", "*" },
+            AppleUniformTypeIdentifiers = new[] { "com.apple.application-bundle" },
+        }
+        : new FilePickerFileType("Программы") { Patterns = new[] { "*" } };
 
     /// <summary>
     /// Takes a program into the list. Every executable of a bundle is taken, not just

@@ -373,6 +373,7 @@ public static class EngineService
     /// </summary>
     public static async Task<(bool Ok, string Message)> UninstallService()
     {
+        if (OperatingSystem.IsLinux()) return await GrantTunCapability(revoke: true);
         if (!IsInstalled) return (false, "движок не найден");
         if (!OperatingSystem.IsMacOS())
             return (false, "удаление службы отсюда поддерживается только на macOS");
@@ -464,6 +465,8 @@ public static class EngineService
     private static bool NeedsPrivileges()
     {
         if (OperatingSystem.IsWindows()) return false;   // the WPF app runs elevated
+        // With the capability set, an ordinary start raises TUN on its own.
+        if (OperatingSystem.IsLinux() && HasTunCapability) return false;
         try { return SettingsService.Load().Tun; } catch { return false; }
     }
 
@@ -627,6 +630,75 @@ public static class EngineService
 
     // ---------------------------------------------------------------- privileges
 
+    // ---------------------------------------------------------------- Linux rights
+
+    /// <summary>
+    /// Whether the engine may raise a TUN interface without being root.
+    ///
+    /// On Linux that is a property of the file, not of a service: cap_net_admin set on
+    /// the binary lets any user start it with TUN and nothing is asked. getcap reads it
+    /// back; its absence (libcap not installed) is reported as "not granted" rather than
+    /// guessed at, because offering to start something that will fail is worse than
+    /// offering to grant rights that are already there.
+    /// </summary>
+    public static bool HasTunCapability
+    {
+        get
+        {
+            if (!OperatingSystem.IsLinux() || !IsInstalled) return false;
+            foreach (var line in Shell("getcap", $"\"{ExePath}\""))
+                if (line.Contains("cap_net_admin", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
+        }
+    }
+
+    /// <summary>The command that grants them, shown when this app cannot run it itself.</summary>
+    public static string TunCapabilityCommand =>
+        $"sudo setcap cap_net_admin,cap_net_raw+ep \"{ExePath}\"";
+
+    /// <summary>
+    /// Grants the capability through pkexec, which asks for the password in the
+    /// desktop's own dialog. Not every system has polkit — a minimal install or a
+    /// container often does not — and there the command is handed over instead of a
+    /// prompt that would never appear.
+    /// </summary>
+    private static async Task<(bool Ok, string Message)> GrantTunCapability(bool revoke)
+    {
+        if (!IsInstalled) return (false, "движок не найден");
+        if (Shell("sh", "-c \"command -v pkexec\"").Count == 0)
+            return (false, "в системе нет pkexec — выполни вручную:\n" + TunCapabilityCommand);
+
+        var args = revoke
+            ? $"setcap -r \"{ExePath}\""
+            : $"setcap cap_net_admin,cap_net_raw+ep \"{ExePath}\"";
+        try
+        {
+            var p = Process.Start(new ProcessStartInfo("pkexec", args)
+            {
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+            });
+            if (p == null) return (false, "не удалось запросить права");
+            var err = await p.StandardError.ReadToEndAsync();
+            await p.WaitForExitAsync();
+
+            // 126 is polkit's own "the user said no", which is not a failure to report
+            // as one; everything else is the system's words.
+            if (p.ExitCode == 126 || p.ExitCode == 127) return (false, "отменено");
+            if (p.ExitCode != 0)
+            {
+                EngineLog.Add("--- права не выданы: " + Flatten(err));
+                return (false, err.Trim().Length > 0 ? Flatten(err) : $"код выхода {p.ExitCode}");
+            }
+            EngineLog.Add(revoke ? "--- права движка сняты" : "--- движку выданы права на TUN");
+            StateChanged?.Invoke(null, EventArgs.Empty);
+            return (true, revoke ? "права сняты" : "права выданы — пароль больше не понадобится");
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
     public enum ServiceState { NotSupported, NotInstalled, NeedsReinstall, CopyOnly, Stopped, Running, Unknown }
 
     /// <summary>
@@ -636,6 +708,9 @@ public static class EngineService
     /// </summary>
     public static async Task<ServiceState> PrivilegedService()
     {
+        // Linux has no service to ask: the rights live on the binary itself.
+        if (OperatingSystem.IsLinux())
+            return HasTunCapability ? ServiceState.Running : ServiceState.NotInstalled;
         if (!IsInstalled) return ServiceState.NotSupported;
         try
         {
@@ -678,6 +753,7 @@ public static class EngineService
     public static async Task<(bool Ok, string Message)> InstallService()
     {
         if (!IsInstalled) return (false, "движок не найден");
+        if (OperatingSystem.IsLinux()) return await GrantTunCapability(revoke: false);
         if (!OperatingSystem.IsMacOS())
             return (false, "установка службы отсюда поддерживается только на macOS");
 
@@ -763,14 +839,21 @@ public static class EngineService
     }
 
     /// <summary>What to tell the user about the service, in plain words.</summary>
-    public static string Explain(ServiceState s) => s switch
-    {
-        ServiceState.Running => "служба с правами работает",
-        ServiceState.Stopped => "служба установлена, но не запущена",
-        ServiceState.NeedsReinstall => "службу нужно переустановить",
-        ServiceState.CopyOnly => "есть копия движка, но служба не установлена",
-        ServiceState.NotInstalled => "служба не установлена — TUN работает, но пароль спросят при каждом запуске",
-        ServiceState.NotSupported => "движок не найден",
-        _ => "состояние службы неизвестно",
-    };
+    public static string Explain(ServiceState s) => OperatingSystem.IsLinux()
+        ? s switch
+        {
+            ServiceState.Running => "права выданы — TUN работает без пароля",
+            ServiceState.NotSupported => "движок не найден",
+            _ => "права не выданы — TUN попросит пароль при каждом запуске",
+        }
+        : s switch
+        {
+            ServiceState.Running => "служба с правами работает",
+            ServiceState.Stopped => "служба установлена, но не запущена",
+            ServiceState.NeedsReinstall => "службу нужно переустановить",
+            ServiceState.CopyOnly => "есть копия движка, но служба не установлена",
+            ServiceState.NotInstalled => "служба не установлена — TUN работает, но пароль спросят при каждом запуске",
+            ServiceState.NotSupported => "движок не найден",
+            _ => "состояние службы неизвестно",
+        };
 }

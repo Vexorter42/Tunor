@@ -24,9 +24,16 @@ public static class AutostartService
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         "Library", "LaunchAgents", Label + ".plist");
 
-    public static bool Supported => OperatingSystem.IsMacOS();
+    /// <summary>Where systemd --user looks for the units a login should start.</summary>
+    private static string UnitPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".config", "systemd", "user", Label + ".service");
 
-    public static bool Enabled => Supported && File.Exists(PlistPath);
+    public static bool Supported => OperatingSystem.IsMacOS() || OperatingSystem.IsLinux();
+
+    private static string File_ => OperatingSystem.IsLinux() ? UnitPath : PlistPath;
+
+    public static bool Enabled => Supported && File.Exists(File_);
 
     /// <summary>
     /// The app to launch. Inside a bundle the running file is Tunor.app/Contents/MacOS/Tunor;
@@ -39,8 +46,16 @@ public static class AutostartService
         if (!Supported) return (false, "автозапуск поддерживается только на macOS");
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(PlistPath)!);
-            File.WriteAllText(PlistPath, Plist());
+            Directory.CreateDirectory(Path.GetDirectoryName(File_)!);
+            File.WriteAllText(File_, OperatingSystem.IsLinux() ? Unit() : Plist());
+            if (OperatingSystem.IsLinux())
+            {
+                // systemd reads its units once; without this the file is there and
+                // nothing knows about it until the next login.
+                Run("systemctl", "--user daemon-reload");
+                Run("systemctl", $"--user enable {Label}.service");
+                return (true, "автозапуск включён");
+            }
             // launchctl picks the file up at next login on its own; loading it now means
             // the setting takes effect without one.
             Run("launchctl", $"load -w \"{PlistPath}\"");
@@ -54,15 +69,37 @@ public static class AutostartService
         if (!Supported) return (false, "автозапуск поддерживается только на macOS");
         try
         {
-            if (File.Exists(PlistPath))
+            if (File.Exists(File_))
             {
-                Run("launchctl", $"unload -w \"{PlistPath}\"");
-                File.Delete(PlistPath);
+                if (OperatingSystem.IsLinux()) Run("systemctl", $"--user disable {Label}.service");
+                else Run("launchctl", $"unload -w \"{PlistPath}\"");
+                File.Delete(File_);
+                if (OperatingSystem.IsLinux()) Run("systemctl", "--user daemon-reload");
             }
             return (true, "выключен");
         }
         catch (Exception ex) { return (false, ex.Message); }
     }
+
+    /// <summary>
+    /// The unit a login starts. Wanted by default.target rather than graphical-session,
+    /// because the app is useful on a machine with no desktop session at all — and
+    /// RestartSec keeps a failed start from spinning.
+    /// </summary>
+    private static string Unit() => $"""
+        [Unit]
+        Description=Tunor
+        After=network.target
+
+        [Service]
+        Type=simple
+        ExecStart="{AppPath}"
+        Restart=on-failure
+        RestartSec=5
+
+        [Install]
+        WantedBy=default.target
+        """;
 
     private static string Plist() => $"""
         <?xml version="1.0" encoding="UTF-8"?>

@@ -1,3 +1,4 @@
+using Tunor.Services;
 using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -15,7 +16,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         PageHost.Content = new HomeView();
-        VersionText.Text = "v" + (GetType().Assembly.GetName().Version?.ToString(3) ?? "?");
+        VersionText.Text = "v" + UpdateService.CurrentVersionString;
 
         // The engine can be started or stopped from outside the app, so the badge follows
         // what is actually running rather than what this window last did.

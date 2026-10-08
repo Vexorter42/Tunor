@@ -105,10 +105,11 @@ public static class UpdateService
         get
         {
             var v = CurrentVersion;
-            var three = $"{v.Major}.{v.Minor}.{v.Build}";
-            // A macOS preview is re-cut between releases, and only the fourth number
-            // moves; hiding it would make two different builds look like one.
-            return v.Revision > 0 ? $"{three} (сборка {v.Revision})" : three;
+            // Three numbers, and the same three on every system. macOS builds once
+            // carried a fourth that counted re-cuts of a preview while Windows stood
+            // still, which left two builds of identical code wearing different
+            // numbers and nobody able to say which one they were running.
+            return $"{v.Major}.{v.Minor}.{v.Build}";
         }
     }
 
