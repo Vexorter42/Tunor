@@ -307,8 +307,9 @@ public static class DiagnosticsReport
     private static string FileState(string? relative)
     {
         if (string.IsNullOrEmpty(relative)) return "путь не задан";
-        var full = Path.Combine(Paths.AppRoot, relative);
-        if (!File.Exists(full)) return $"{relative} — ФАЙЛ ОТСУТСТВУЕТ (нужно обновить списки)";
+        var full = ConfigGenerator.LocalRuleSetPath(relative);
+        if (full == null || !File.Exists(full))
+            return $"{relative} — ФАЙЛ ОТСУТСТВУЕТ (нужно обновить списки)";
         var fi = new FileInfo(full);
         return $"{relative} — {fi.Length:N0} байт, обновлён {fi.LastWriteTime:yyyy-MM-dd}";
     }

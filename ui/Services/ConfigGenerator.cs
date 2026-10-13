@@ -122,7 +122,7 @@ public static class ConfigGenerator
     /// macOS, where the generator lives in Tunor.Core — which carries no version, so the
     /// stamp read "1.0.0.0" for ever and no fix ever reached a config already on disk.
     /// </summary>
-    private const string GeneratorVersion = "cache-file";
+    private const string GeneratorVersion = "nested-mtu";
 
     /// <summary>True when warp.conf holds a usable tunnel. Re-read on each access.</summary>
     public static bool WarpConfigured => IsUsableConf(Paths.WarpConf);
@@ -153,6 +153,9 @@ public static class ConfigGenerator
             // A link-based tunnel is an ordinary outbound, not an endpoint.
             foreach (var o in BuildProxy(t, detour)) outbounds.Add(o);
         }
+
+        // After they all exist, because fitting one inside another needs both.
+        FitNested(endpoints);
 
         var root = new JsonObject
         {
@@ -656,18 +659,76 @@ public static class ConfigGenerator
     /// it from the root looks one level too high and reports every downloaded list as
     /// missing. Public because three places need this answer and only one had it right.
     /// </summary>
-    public static bool LocalRuleSetExists(string relativePath)
+    public static bool LocalRuleSetExists(string relativePath) =>
+        LocalRuleSetPath(relativePath) is { } full && File.Exists(full);
+
+    /// <summary>
+    /// Where that file actually is. Shared, because the answer was being worked out
+    /// separately in each place that wanted it and one of them got it wrong — the
+    /// diagnostics report looked a level too high and told people to re-download lists
+    /// that were sitting right there.
+    /// </summary>
+    public static string? LocalRuleSetPath(string relativePath)
     {
-        if (string.IsNullOrWhiteSpace(relativePath)) return false;
-        try
-        {
-            var full = Path.GetFullPath(Path.Combine(Paths.BuildDir, relativePath));
-            return File.Exists(full);
-        }
-        catch { return false; }
+        if (string.IsNullOrWhiteSpace(relativePath)) return null;
+        try { return Path.GetFullPath(Path.Combine(Paths.BuildDir, relativePath)); }
+        catch { return null; }
     }
 
     // --- .conf parsing -> wireguard endpoint (with AmneziaWG fields) ---
+
+    /// <summary>What the engine uses when a config names no MTU of its own.</summary>
+    private const int DefaultMtu = 1408;
+
+    /// <summary>
+    /// What one layer of WireGuard costs: its own header, the nonce and the tag. Eighty
+    /// is WireGuard's own figure and covers IPv6, which is the worse case.
+    /// </summary>
+    private const int WireguardOverhead = 80;
+
+    /// <summary>Below this a tunnel is not worth having; something is wrong instead.</summary>
+    private const int MinMtu = 1000;
+
+    /// <summary>
+    /// Shrinks every tunnel that rides inside another so its packets fit in the one
+    /// carrying them.
+    ///
+    /// A nested tunnel left at the default 1408 inside a 1280 carrier looks perfectly
+    /// healthy — the handshake is small enough to pass, so the tunnel comes up and the
+    /// connection check is green — and then silently drops anything full-sized. Which
+    /// reads, from the outside, as "it worked and then just stopped for a few minutes".
+    ///
+    /// An MTU the user wrote in their own .conf is left alone: they may know something
+    /// about their path that this does not.
+    /// </summary>
+    private static void FitNested(JsonArray endpoints)
+    {
+        var byTag = new Dictionary<string, JsonObject>(StringComparer.OrdinalIgnoreCase);
+        foreach (var node in endpoints)
+            if (node is JsonObject e && e["tag"]?.GetValue<string>() is { } tag)
+                byTag[tag] = e;
+
+        // What this tunnel's own packets may be, resolving outwards: a carrier with no
+        // MTU of its own is itself measured against whatever carries it.
+        int MtuOf(JsonObject e, int depth)
+        {
+            if (e["mtu"] is JsonValue v && v.TryGetValue<int>(out var set)) return set;
+            var via = e["detour"]?.GetValue<string>();
+            return via != null && depth < 8 && byTag.TryGetValue(via, out var outer)
+                ? Math.Max(MinMtu, MtuOf(outer, depth + 1) - WireguardOverhead)
+                : DefaultMtu;
+        }
+
+        foreach (var node in endpoints)
+        {
+            if (node is not JsonObject e || e["mtu"] != null) continue;
+            if (e["detour"]?.GetValue<string>() is not { } via) continue;
+            if (!byTag.TryGetValue(via, out var carrier)) continue;
+
+            var fits = Math.Max(MinMtu, MtuOf(carrier, 0) - WireguardOverhead);
+            if (fits < DefaultMtu) e["mtu"] = fits;
+        }
+    }
 
     private static JsonObject BuildWireguard(string tag, string confPath, string? detour)
     {
@@ -727,6 +788,12 @@ public static class ConfigGenerator
             ["allowed_ips"] = allowed,
         };
         if (peer.TryGetValue("PresharedKey", out var psk)) p["pre_shared_key"] = psk;
+
+        // Without it the session goes quiet, the far side forgets the way back, and the
+        // next packet waits on a fresh handshake. Providers write it into the config for
+        // exactly that reason, and it was being read by nobody.
+        if (peer.TryGetValue("PersistentKeepalive", out var ka) && int.TryParse(ka, out var kaI) && kaI > 0)
+            p["persistent_keepalive_interval"] = kaI;
         ep["peers"] = new JsonArray(p);
 
         if (detour != null) ep["detour"] = detour;
