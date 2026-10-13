@@ -81,9 +81,30 @@ public partial class App : Application
 
         TaskScheduler.UnobservedTaskException += (_, args) =>
         {
-            WriteCrash("task", args.Exception);
+            // Marked observed either way: an unobserved exception from a background
+            // poller must never be allowed to end the process.
             args.SetObserved();
+            if (!IsRoutineNetworkFailure(args.Exception)) WriteCrash("task", args.Exception);
         };
+    }
+
+    /// <summary>
+    /// Whether this is just the network, rather than something gone wrong.
+    ///
+    /// The statistics poller talks to the engine every second and a half. When the engine
+    /// stops, or answers slower than its three seconds, the call is cancelled and handled
+    /// — and the socket underneath fails afterwards with nobody left to hear it. Writing
+    /// those into crash.log buries the entries that matter among dozens that do not, in
+    /// the very file people are asked to send when something is wrong.
+    /// </summary>
+    private static bool IsRoutineNetworkFailure(AggregateException? ex)
+    {
+        if (ex == null) return false;
+        var inner = ex.Flatten().InnerExceptions;
+        return inner.Count > 0 && inner.All(e => e is System.Net.Sockets.SocketException
+                                                   or System.IO.IOException
+                                                   or System.Net.Http.HttpRequestException
+                                                   or OperationCanceledException);
     }
 
     private static void WriteCrash(string source, Exception? ex)
