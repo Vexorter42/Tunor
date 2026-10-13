@@ -57,7 +57,15 @@ public static class TrafficRecorder
 
     public static void Start()
     {
-        _timer ??= new Timer(_ => _ = SampleAsync(), null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(1.5));
+        // The result is waited on rather than dropped: a discarded task takes its
+        // failure with it, and the runtime then reports it as an unobserved exception
+        // from nowhere in particular. A sample that fails is of no interest — the next
+        // one is a second and a half away.
+        _timer ??= new Timer(async _ =>
+        {
+            try { await SampleAsync(); }
+            catch { /* the engine went away mid-sample; the next one will find out */ }
+        }, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(1.5));
     }
 
     private static async System.Threading.Tasks.Task SampleAsync()
