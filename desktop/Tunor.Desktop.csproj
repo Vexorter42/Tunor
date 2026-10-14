@@ -27,7 +27,21 @@
     <!-- The same number every system uses. All three are built from one tree, so
          giving them different versions only made it harder to say what someone is
          running; a build that needs re-cutting bumps this for everyone. -->
-    <Version>2.0.0</Version>
+    <Version>2.0.1</Version>
+    <!-- What the compiler records for each source file, and for the symbol file next
+         to the binary, is otherwise the full path it was built from — which names the
+         builder's home directory in a file published to everyone. Relative to the
+         repository root, a build made anywhere records the same thing. -->
+    <PathMap>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))=.</PathMap>
+    <!-- SourceLink otherwise records the full path of the tree it was built from,
+         so that symbols can be matched to sources on GitHub. Normalising it keeps that
+         working and keeps the builder's home directory out of the shipped file. -->
+    <DeterministicSourcePaths>true</DeterministicSourcePaths>
+    <!-- Symbols go inside the assembly rather than in a .pdb beside it. Avalonia's
+         XAML compiler rewrites the assembly after the C# compiler is done and stamps
+         the real path of that .pdb back into it, undoing PathMap above; embedded there
+         is nothing to point at. Stack traces keep their line numbers either way. -->
+    <DebugType>embedded</DebugType>
   </PropertyGroup>
 
   <ItemGroup>

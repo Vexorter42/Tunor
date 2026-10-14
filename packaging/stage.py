@@ -16,6 +16,7 @@ per-machine state are replaced or stripped below, because the result is publishe
     ISCC packaging/tunor.iss
 """
 import base64
+import glob
 import hashlib
 import json
 import os
@@ -97,6 +98,26 @@ if _want and _got and not _got.startswith(_want.group(1)):
              + ", tunor.iss says " + _want.group(1)
              + ". Publish the UI first: cd ui && dotnet publish -c Release -r win-x64 --self-contained true")
 
+# Every window has to say what colour its text is. Foreground is inherited and starts
+# out black, so a plain <TextBlock> in a window that sets none comes out black on the
+# dark background — 1.4:1, which is not dim but unreadable. An implicit style cannot
+# cover this: WPF matches those on the exact runtime type, so one keyed to Window never
+# reaches MainWindow. Two labels and a tunnel name shipped that way in 2.0.0.
+_windows, _mute = 0, []
+for _p in sorted(glob.glob(REPO + "/ui/**/*.xaml", recursive=True)):
+    _n = _p.replace("\\", "/")
+    if "/bin/" in _n or "/obj/" in _n:
+        continue
+    _t = open(_p, encoding="utf-8-sig").read()
+    if not _t.lstrip().startswith("<Window"):
+        continue
+    _windows += 1
+    if "Foreground=" not in _t[:_t.index(">")]:
+        _mute.append(_n[len(REPO) + 1:])
+if _mute:
+    sys.exit("windows that set no text colour (it defaults to black): " + ", ".join(_mute))
+print(f"text colour set in all {_windows} windows")
+
 # 2. settings.json + update.json
 _st = json.load(open(APP + "/settings.json", encoding="utf-8"))
 _st["accept"] = False          # show the licence + tutorial on first launch
@@ -137,6 +158,13 @@ print("copied licences:", os.listdir(STAGE + "/licenses"))
 
 # 5. rules.json — SANITIZED (strip personal inline lists, keep structure)
 rules = json.load(open(APP + "/data/rules.json", encoding="utf-8"))
+# A group's tag begins with the id of the tunnel it sends traffic into, and a staged
+# install has only the two tunnels whose templates are written further down. A group
+# for any other tunnel is the builder's own: it points at something the new machine
+# does not have, and its name says which VPN the builder pays for.
+_shipped = tuple(t + "-" for t in ("warp", "geo"))
+_mine = [g.get("tag") for g in rules if not str(g.get("tag", "")).startswith(_shipped)]
+rules = [g for g in rules if str(g.get("tag", "")).startswith(_shipped)]
 for g in rules:
     for rule in g.get("rules", []):
         # Every list in an inline rule is personal (domain, domain_suffix, ip_cidr,
@@ -147,7 +175,8 @@ for g in rules:
                            else ["example.com"] if k.startswith("domain")
                            else [])
 json.dump(rules, open(STAGE + "/data/rules.json", "w", encoding="utf-8"), indent=2, ensure_ascii=False)
-print("sanitized rules.json")
+print(f"sanitized rules.json: {len(rules)} groups kept"
+      + (f", {len(_mine)} dropped for tunnels that do not ship" if _mine else ""))
 
 # 6. warp.conf / geo.conf templates (valid placeholders, no real keys)
 warp_tmpl = "\n".join([

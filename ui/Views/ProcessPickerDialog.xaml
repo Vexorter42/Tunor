@@ -6,6 +6,7 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize" MinWidth="420" MinHeight="400"
         Background="{StaticResource BgBrush}"
+        Foreground="{StaticResource TextBrush}"
         Icon="../Assets/app.ico">
     <Grid Margin="24">
         <Grid.RowDefinitions>
