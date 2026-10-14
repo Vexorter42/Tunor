@@ -5,6 +5,7 @@
         Title="Tunor" Height="640" Width="940"
         MinHeight="500" MinWidth="780"
         Background="{StaticResource BgBrush}"
+        Foreground="{StaticResource TextBrush}"
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="True"
         Visibility="Visible"

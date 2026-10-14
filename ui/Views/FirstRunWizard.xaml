@@ -6,6 +6,7 @@
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         Background="{StaticResource BgBrush}"
+        Foreground="{StaticResource TextBrush}"
         Icon="../Assets/app.ico">
     <Grid Margin="30,26,30,26">
         <Grid.RowDefinitions>

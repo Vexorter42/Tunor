@@ -5,6 +5,7 @@
         Width="560" Height="360"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource BgBrush}"
+        Foreground="{StaticResource TextBrush}"
         Icon="../Assets/app.ico">
     <Grid Margin="24">
         <Grid.RowDefinitions>
