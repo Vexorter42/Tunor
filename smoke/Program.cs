@@ -59,11 +59,20 @@ internal static class Program
             })
             .SetupWithoutStarting();
 
-        Programs();
-        Swap(failures);
-        Autostart(failures);
+        // TUNOR_SMOKE_ONLY=service runs just the link to the privileged service. The rest
+        // changes things on this machine — autostart is switched on and back off — which
+        // is the wrong thing to do to a Mac only to look at one connection.
+        var only = Environment.GetEnvironmentVariable("TUNOR_SMOKE_ONLY") == "service";
+        if (!only)
+        {
+            Programs();
+            Swap(failures);
+            Autostart(failures);
+        }
+        ServiceLink(failures);
+        Credentials(failures);
         Live();
-        ConfigCheck(failures);
+        if (!only) ConfigCheck(failures);
 
         Console.WriteLine();
         if (failures.Count == 0)
@@ -269,6 +278,127 @@ internal static class Program
             return outp.Length > 0 ? outp : err.Length > 0 ? err : "(пусто)";
         }
         catch (Exception ex) { return ex.Message; }
+    }
+
+    /// <summary>
+    /// The certificate and key pairing makes, and the PFX that 1.x stored: each must come
+    /// back out of the new reader as exactly what went in. A certificate that parses but
+    /// carries somebody else's key would be accepted by nothing and explain nothing.
+    /// </summary>
+    private static void Credentials(List<string> failures)
+    {
+        Console.WriteLine();
+
+        void Verify(string what, MutualTls.Identity? found, byte[] cert, byte[] modulus)
+        {
+            var key = found?.Key as Org.BouncyCastle.Crypto.Parameters.RsaKeyParameters;
+            var sameCert = found != null && found.Certificate.GetEncoded().SequenceEqual(cert);
+            var sameKey = key != null && key.Modulus.ToByteArrayUnsigned().SequenceEqual(modulus);
+            if (sameCert && sameKey)
+                Console.WriteLine($"  ✓ {what}: сертификат и ключ вернулись теми же");
+            else
+            {
+                Console.WriteLine($"  ✗ {what}: сертификат {(sameCert ? "тот" : "НЕ тот")}, ключ {(sameKey ? "тот" : "НЕ тот")}");
+                failures.Add($"{what}: не то, что записали");
+            }
+        }
+
+        var file = Path.Combine(Path.GetTempPath(), "tunor-smoke-" + Guid.NewGuid().ToString("N") + ".pem");
+        try
+        {
+            // What pairing makes now: a certificate as bytes, a key as text, never together.
+            var (der, keyPem) = ServiceClient.MakeCertificate();
+            using var key = System.Security.Cryptography.RSA.Create();
+            key.ImportFromPem(keyPem);
+            File.WriteAllText(file,
+                System.Security.Cryptography.PemEncoding.WriteString("CERTIFICATE", der) + "\n" + keyPem + "\n");
+            Verify("сопряжение: новая пара", MutualTls.ReadPem(file), der, key.ExportParameters(false).Modulus!);
+
+            // What 1.x stored, made the way it made it.
+            using var rsa = System.Security.Cryptography.RSA.Create(2048);
+            var request = new System.Security.Cryptography.X509Certificates.CertificateRequest(
+                "CN=Tunor", rsa, System.Security.Cryptography.HashAlgorithmName.SHA256,
+                System.Security.Cryptography.RSASignaturePadding.Pkcs1);
+            using var old = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
+            var pfx = old.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx);
+            var read = MutualTls.ReadPfx(pfx);
+            Verify("старый PFX из 1.x", read, old.RawData, rsa.ExportParameters(false).Modulus!);
+
+            // And what the migration writes from it must be readable again.
+            if (read != null)
+            {
+                File.WriteAllText(file, read.ToPem());
+                Verify("старый PFX, переписанный как PEM", MutualTls.ReadPem(file), old.RawData, rsa.ExportParameters(false).Modulus!);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("  ✗ ключи: " + ex.Message);
+            failures.Add("ключи — " + ex.Message);
+        }
+        finally { try { File.Delete(file); } catch { } }
+    }
+
+    /// <summary>How many temporary keychains .NET has left in this user's temp folder.</summary>
+    private static int Keychains() =>
+        OperatingSystem.IsMacOS() ? Directory.GetFiles(Path.GetTempPath(), "*.keychain").Length : 0;
+
+    /// <summary>
+    /// The link to the privileged service: it must not touch the keychain, and it must
+    /// refuse a server that is not the one it was paired with. Counts keychains rather
+    /// than waiting for a dialog — over ssh there is nobody to ask, so the old behaviour
+    /// looked like success and left a keychain behind.
+    /// </summary>
+    private static void ServiceLink(List<string> failures)
+    {
+        Console.WriteLine();
+        if (!ServiceClient.Paired || ServiceClient.PinnedFingerprint is not { } pin)
+        {
+            Console.WriteLine("  · связь со службой: приложение с ней не сопряжено — проверять нечего");
+            return;
+        }
+
+        try
+        {
+            var before = Keychains();
+            var answered = 0;
+            Task.Run(async () =>
+            {
+                for (var i = 0; i < 5; i++)
+                    if (await ServiceClient.StatusAsync() != null) answered++;
+            }).Wait(TimeSpan.FromSeconds(60));
+            var after = Keychains();
+
+            if (after == before)
+                Console.WriteLine($"  ✓ связь со службой: пять запросов, связок ключей не прибавилось ({after})");
+            else
+            {
+                Console.WriteLine($"  ✗ связь со службой: было связок {before}, стало {after}");
+                failures.Add($"связь со службой оставляет связки ключей: {before} → {after}");
+            }
+
+            if (answered == 0)
+            {
+                Console.WriteLine("  · служба не отвечает — отпечаток проверить не на чем");
+                return;
+            }
+
+            // One character wrong. A client that answers anyway is trusting nobody.
+            var wrong = (pin[0] == '0' ? "1" : "0") + pin[1..];
+            var taken = Task.Run(() => ServiceClient.AnswersTo(wrong)).GetAwaiter().GetResult();
+            if (!taken)
+                Console.WriteLine("  ✓ связь со службой: сервер с чужим отпечатком отвергнут");
+            else
+            {
+                Console.WriteLine("  ✗ связь со службой: ответила служба, которой клиент не должен был верить");
+                failures.Add("связь со службой принимает сервер с неверным отпечатком");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("  ✗ связь со службой: " + ex.Message);
+            failures.Add("связь со службой — " + ex.Message);
+        }
     }
 
     private static void Live()

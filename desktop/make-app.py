@@ -29,7 +29,7 @@ APP = os.path.join(OUT, "Tunor.app")
 EXE = "TunorDesktop"                       # what the publish produced
 ICON_SRC = os.path.join(os.path.dirname(HERE), "ui", "Assets", "app.png")
 
-VERSION = "2.0.1"
+VERSION = "2.0.2"
 BUNDLE_ID = "com.vexorter.tunor"
 
 
@@ -83,6 +83,16 @@ def main():
         s = os.path.join(PUB, name)
         shutil.copy2(s, os.path.join(macos, name)) if os.path.isfile(s) \
             else shutil.copytree(s, os.path.join(macos, name))
+
+    # The licence of everything shipped inside, beside the app: MIT asks for its notice
+    # to travel with every copy, and the bundle holds Avalonia and BouncyCastle.
+    root = os.path.dirname(HERE)
+    for what in ("THIRD-PARTY-NOTICES.md", "licenses"):
+        src = os.path.join(root, what)
+        if not os.path.exists(src):
+            sys.exit(f"нет {what} рядом с проектом — сборка ушла бы без лицензий")
+        dst = os.path.join(res, what)
+        shutil.copytree(src, dst) if os.path.isdir(src) else shutil.copy2(src, dst)
 
     has_icon = icns(ICON_SRC, os.path.join(res, "AppIcon.icns"))
 
