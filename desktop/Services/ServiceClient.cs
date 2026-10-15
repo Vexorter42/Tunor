@@ -32,10 +32,10 @@ public static class ServiceClient
     private const string ClientName = "Tunor";
 
     /// <summary>
-    /// Certificate and key together, as PEM. Not a PFX: loading one on macOS imports
-    /// it into a keychain, and every call then has to ask for the keychain password —
-    /// granted to an application identity that changes with every unsigned build, so
-    /// the question returns after each update.
+    /// Certificate and key together, as PEM, read straight into memory by MutualTls.
+    /// Not through X509Certificate2: on macOS that puts the key into a temporary keychain
+    /// whatever it was loaded from, and the first signature then asks for that keychain's
+    /// password — which is random, and which nobody was ever told.
     /// </summary>
     private static string PemFile => Path.Combine(Paths.DataDir, "service-client.pem");
 
@@ -70,20 +70,20 @@ public static class ServiceClient
 
         try
         {
-            var cert = MakeCertificate();
+            var (certificate, keyPem) = MakeCertificate();
             using var http = Http(fingerprint, null);
-            var resp = await http.PostAsJsonAsync($"https://{address}/admin/enroll", new
+            var resp = await http.PostAsJsonAsync(MutualTls.Url(address, "enroll"), new
             {
                 code,
                 name = ClientName,
-                cert_pem = Pem(cert),
+                cert_pem = Pem(certificate),
             });
 
             var text = await resp.Content.ReadAsStringAsync();
             if (!resp.IsSuccessStatusCode) return (false, Error(text, resp.StatusCode.ToString()));
 
             Directory.CreateDirectory(Paths.DataDir);
-            Store(cert);
+            Store(Pem(certificate) + "\n" + keyPem + "\n");
             File.WriteAllText(PinFile, JsonSerializer.Serialize(new Pin(address, fingerprint)));
             try { File.Delete(invitePath); } catch { }
             return (true, "приложение сопряжено со службой");
@@ -100,31 +100,62 @@ public static class ServiceClient
     /// <summary>
     /// Writes the pair out, readable by nobody else. This key is the whole of the
     /// authority over the privileged service — anything that can read it can apply a
-    /// config and bring the tunnel up or down — and it was being left world-readable.
+    /// config and bring the tunnel up or down. The file is created with its permissions
+    /// already restricted rather than restricted afterwards, so there is no moment at
+    /// which it can be read.
     /// </summary>
-    private static void Store(X509Certificate2 cert)
+    private static void Store(string pem)
     {
-        var key = cert.GetRSAPrivateKey() ?? throw new InvalidOperationException("нет закрытого ключа");
-        File.WriteAllText(PemFile,
-            cert.ExportCertificatePem() + "\n" + key.ExportPkcs8PrivateKeyPem() + "\n");
-        if (!OperatingSystem.IsWindows())
-            File.SetUnixFileMode(PemFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        if (OperatingSystem.IsWindows())
+        {
+            File.WriteAllText(PemFile, pem);
+            return;
+        }
+
+        var mode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        using (var file = new FileStream(PemFile, new FileStreamOptions
+        {
+            Mode = FileMode.Create,
+            Access = FileAccess.Write,
+            UnixCreateMode = mode,
+        }))
+        using (var writer = new StreamWriter(file))
+            writer.Write(pem);
+        File.SetUnixFileMode(PemFile, mode);    // a file that already existed keeps its old mode
     }
 
     /// <summary>
-    /// This app's certificate, from PEM — and from memory, which is the point. A key
-    /// still in the old PFX is converted on the way past: that costs one last trip to
-    /// the keychain and saves every one after it.
+    /// This app's certificate and key, from PEM and into memory. A key still in the old
+    /// PFX is read without going through the keychain — loading it with X509Certificate2
+    /// would be the one thing that does — and rewritten as PEM on the way past.
+    /// Null when there is nothing usable, which the caller treats as "not connected".
     /// </summary>
-    private static X509Certificate2 Load()
+    private static MutualTls.Identity? Load()
     {
-        if (File.Exists(PemFile)) return X509Certificate2.CreateFromPemFile(PemFile);
+        try
+        {
+            if (File.Exists(PemFile)) return MutualTls.ReadPem(PemFile);
 
-        var old = new X509Certificate2(File.ReadAllBytes(PfxFile));
-        Store(old);
-        try { File.Delete(PfxFile); } catch { }
-        EngineLog.Add("--- ключ службы переписан без связки ключей");
-        return X509Certificate2.CreateFromPemFile(PemFile);
+            var old = MutualTls.ReadPfx(File.ReadAllBytes(PfxFile));
+            if (old == null)
+            {
+                // Not worth keeping: it cannot be used, and leaving it would have the app
+                // report itself connected to a service it can never reach.
+                try { File.Delete(PfxFile); } catch { }
+                EngineLog.Add("--- старый ключ службы не прочитался — подключи приложение заново");
+                return null;
+            }
+
+            Store(old.ToPem());
+            try { File.Delete(PfxFile); } catch { }
+            EngineLog.Add("--- ключ службы переписан без связки ключей");
+            return old;
+        }
+        catch (Exception ex)
+        {
+            EngineLog.Add("--- ключ службы не прочитался: " + ex.Message);
+            return null;
+        }
     }
 
     // ---------------------------------------------------------------- control
@@ -174,18 +205,38 @@ public static class ServiceClient
         return sent.Value.Ok ? (true, "готово") : (false, Error(sent.Value.Body, "служба отказала"));
     }
 
+    /// <summary>The fingerprint this app trusts, so a test can corrupt it.</summary>
+    internal static string? PinnedFingerprint
+    {
+        get
+        {
+            try { return JsonSerializer.Deserialize<Pin>(File.ReadAllText(PinFile))?.Fingerprint; }
+            catch { return null; }
+        }
+    }
+
+    /// <summary>
+    /// Whether the service answers a status request from a client that trusts
+    /// <paramref name="fingerprint"/> instead of the recorded one. For the smoke test,
+    /// to show that a server which is not the paired one is turned away.
+    /// </summary>
+    internal static async Task<bool> AnswersTo(string fingerprint) =>
+        await Send(HttpMethod.Get, "status", null, fingerprint) is { Ok: true };
+
     private static async Task<(bool Ok, string Body)?> Send(HttpMethod method, string route,
-                                                           string? body = null)
+                                                           string? body = null,
+                                                           string? trust = null)
     {
         if (!Paired) return null;
         try
         {
             var pin = JsonSerializer.Deserialize<Pin>(File.ReadAllText(PinFile));
             if (pin == null) return null;
-            var cert = Load();
+            var identity = Load();
+            if (identity == null) return null;
 
-            using var http = Http(pin.Fingerprint, cert);
-            using var req = new HttpRequestMessage(method, $"https://{pin.Address}/admin/{route}");
+            using var http = Http(trust ?? pin.Fingerprint, identity);
+            using var req = new HttpRequestMessage(method, MutualTls.Url(pin.Address, route));
             // apply takes the config as the body itself, not wrapped in anything.
             if (body != null)
                 req.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
@@ -239,39 +290,38 @@ public static class ServiceClient
     /// fingerprint from the invite. The daemon signs its own certificate, so the usual
     /// chain of authorities says nothing about it; the fingerprint is the whole trust.
     /// </summary>
-    private static HttpClient Http(string fingerprint, X509Certificate2? client)
-    {
-        var handler = new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback = (_, cert, _, _) =>
-                cert != null && Fingerprint(cert).Equals(fingerprint.Replace(":", ""),
-                    StringComparison.OrdinalIgnoreCase),
-        };
-        if (client != null) handler.ClientCertificates.Add(client);
-        return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
-    }
+    private static HttpClient Http(string fingerprint, MutualTls.Identity? identity) =>
+        MutualTls.Client(fingerprint, identity);
 
-    private static string Fingerprint(X509Certificate2 cert) =>
-        Convert.ToHexString(SHA256.HashData(cert.RawData));
-
-    /// <summary>This app's own certificate. Self-signed: the daemon pins it, nothing else
-    /// has to believe it.</summary>
-    private static X509Certificate2 MakeCertificate()
+    /// <summary>
+    /// This app's own certificate, and the key that goes with it as PEM. Self-signed: the
+    /// daemon pins it, nothing else has to believe it.
+    ///
+    /// Made as bytes and never as a certificate object with its key attached, because
+    /// attaching is the step at which macOS would take the key into a keychain. The key
+    /// stays a plain RSA object, which is only ever written out as text.
+    /// </summary>
+    internal static (byte[] Certificate, string KeyPem) MakeCertificate()
     {
         using var rsa = RSA.Create(2048);
-        var req = new CertificateRequest($"CN={ClientName}", rsa,
+        var request = new CertificateRequest($"CN={ClientName}", rsa,
             HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        req.CertificateExtensions.Add(
+        request.CertificateExtensions.Add(
             new X509EnhancedKeyUsageExtension(
                 new OidCollection { new("1.3.6.1.5.5.7.3.2") }, true));   // client auth
-        return req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1),
-                                    DateTimeOffset.UtcNow.AddYears(10));
+
+        var serial = RandomNumberGenerator.GetBytes(16);
+        serial[0] &= 0x7F;                                    // a serial number is positive
+
+        using var made = request.Create(
+            request.SubjectName,
+            X509SignatureGenerator.CreateForRSA(rsa, RSASignaturePadding.Pkcs1),
+            DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(10), serial);
+        return (made.RawData, rsa.ExportPkcs8PrivateKeyPem());
     }
 
-    private static string Pem(X509Certificate2 cert) =>
-        "-----BEGIN CERTIFICATE-----\n"
-        + Convert.ToBase64String(cert.RawData, Base64FormattingOptions.InsertLineBreaks)
-        + "\n-----END CERTIFICATE-----\n";
+    private static string Pem(byte[] certificate) =>
+        PemEncoding.WriteString("CERTIFICATE", certificate);
 
     /// <summary>The daemon answers failures as {"error": "..."}; anything else is shown raw.</summary>
     private static string Error(string body, string fallback)

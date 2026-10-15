@@ -42,6 +42,18 @@ mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" \
 cp -r "$PUB/." "$APPDIR/usr/bin/"
 chmod +x "$APPDIR/usr/bin/TunorDesktop"
 
+# The licences of what is inside. MIT asks for its notice to go with every copy, and the
+# image holds Avalonia and BouncyCastle; a build without them is not one to publish.
+ROOT="$(cd "$HERE/.." 2>/dev/null && pwd)"
+if [ -f "$ROOT/THIRD-PARTY-NOTICES.md" ] && [ -d "$ROOT/licenses" ]; then
+  mkdir -p "$APPDIR/usr/share/doc/tunor"
+  cp "$ROOT/THIRD-PARTY-NOTICES.md" "$APPDIR/usr/share/doc/tunor/"
+  cp -r "$ROOT/licenses" "$APPDIR/usr/share/doc/tunor/"
+else
+  bad "нет THIRD-PARTY-NOTICES.md и licenses/ в $ROOT — образ ушёл бы без лицензий"
+  exit 1
+fi
+
 # The desktop entry, which is what a menu reads. Network;Utility; because that is where
 # people look for a VPN, and StartupWMClass so the running window is matched to it.
 cat > "$APPDIR/tunor.desktop" <<'DESKTOP'
