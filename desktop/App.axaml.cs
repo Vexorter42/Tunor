@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 
 namespace Tunor.Desktop;
 
@@ -31,11 +32,27 @@ public partial class App : Application
                 desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 desktop.MainWindow.Closing += (sender, e) =>
                 {
-                    if (Tray.Quitting) return;
+                    // Only the close button means "out of the way". Quit from the Dock,
+                    // Command-Q and the system shutting down all mean "end", and a window
+                    // that hides itself in answer to those leaves a Tunor nobody can quit.
+                    if (Tray.Quitting
+                        || e.CloseReason is WindowCloseReason.ApplicationShutdown
+                                         or WindowCloseReason.OSShutdown) return;
                     e.Cancel = true;
                     ((Window)sender!).Hide();
                 };
                 desktop.ShutdownRequested += (_, _) => Tray.Dispose();
+
+                // The way back. A click on the Dock icon, or opening the app again from
+                // Finder, is not a second launch: macOS tells the running copy it was
+                // "reopened" and expects a window. Nothing answered, so a hidden Tunor
+                // could not be opened by anything but the menu-bar icon.
+                if (this.TryGetFeature<IActivatableLifetime>() is { } activatable)
+                    activatable.Activated += (_, e) =>
+                    {
+                        if (e.Kind == ActivationKind.Reopen)
+                            Dispatcher.UIThread.Post(Services.Tray.ShowWindow);
+                    };
             }
         }
         base.OnFrameworkInitializationCompleted();

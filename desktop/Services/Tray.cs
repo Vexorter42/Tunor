@@ -1,7 +1,9 @@
 using System;
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Platform;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
@@ -32,6 +34,12 @@ public sealed class Tray : IDisposable
     /// <summary>True once Quit was chosen, so closing the window may really close it.</summary>
     public bool Quitting { get; private set; }
 
+    /// <summary>
+    /// Whether there is an icon on the desktop to find the app by. Hiding the window on
+    /// close is only kind if so; with no icon it is a way of losing the app.
+    /// </summary>
+    public bool Shown { get; }
+
     public Tray()
     {
         _start.Click += async (_, _) => await Do(() => EngineService.StartAsync());
@@ -57,6 +65,14 @@ public sealed class Tray : IDisposable
         _icon.ToolTipText = "Tunor";
         _icon.IsVisible = true;
 
+        // Nothing is drawn until the application owns the icon: a TrayIcon that is only
+        // constructed has no native half. Set last, because attaching pushes the icon, the
+        // menu and the tooltip as they are at that moment.
+        if (Application.Current is { } app)
+            TrayIcon.SetIcons(app, new TrayIcons { _icon });
+
+        Shown = HasNativeIcon();
+
         EngineService.StateChanged += (_, _) => Dispatcher.UIThread.Post(Refresh);
         Refresh();
     }
@@ -67,12 +83,55 @@ public sealed class Tray : IDisposable
     /// </summary>
     public static Tray? TryCreate()
     {
-        try { return new Tray(); }
+        try
+        {
+            var tray = new Tray();
+            if (tray.Shown) return tray;
+
+            tray.Dispose();
+            EngineLog.Add("--- значка в трее не будет: на этом рабочем столе его негде показать");
+            return null;
+        }
         catch (Exception ex)
         {
             EngineLog.Add("--- значок в трее не создался: " + ex.Message);
             return null;
         }
+    }
+
+    /// <summary>
+    /// Whether the icon has a native side, and — on Linux — a panel to draw it on. The
+    /// first is "was it registered and did the platform make one"; the second is the part
+    /// a native icon cannot tell: on a desktop without a StatusNotifier host (stock GNOME)
+    /// the icon is created and shown to nobody.
+    /// </summary>
+    private bool HasNativeIcon()
+    {
+        if (_icon.NativeMenuExporter == null) return false;
+        return !OperatingSystem.IsLinux() || StatusNotifierHostPresent();
+    }
+
+    /// <summary>
+    /// Asks the session bus whether anything on this desktop is listening for tray icons.
+    /// Answers no when it cannot ask — an app that quits when its window closes is a
+    /// smaller problem than one that hides itself for an icon nobody can see.
+    /// </summary>
+    private static bool StatusNotifierHostPresent()
+    {
+        try
+        {
+            using var bus = Process.Start(new ProcessStartInfo("busctl", "--user list --no-legend")
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+            if (bus == null) return false;
+            var list = bus.StandardOutput.ReadToEnd();
+            if (!bus.WaitForExit(3000)) { try { bus.Kill(); } catch { } return false; }
+            return list.Contains("org.kde.StatusNotifierWatcher", StringComparison.Ordinal);
+        }
+        catch { return false; }
     }
 
     private static WindowIcon? Load()
