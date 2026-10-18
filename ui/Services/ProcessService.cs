@@ -149,6 +149,12 @@ public static class ProcessService
                     CreateNoWindow = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
+                    // The engine writes UTF-8. Unless told so, .NET reads a child's output in
+                    // the system's ANSI code page, and every Cyrillic word the engine printed
+                    // — the name of the Administrators group in its own warnings, a path with
+                    // Russian letters — showed up in the log as mojibake.
+                    StandardOutputEncoding = new System.Text.UTF8Encoding(false),
+                    StandardErrorEncoding = new System.Text.UTF8Encoding(false),
                 };
                 _liveProcess = Process.Start(psi);
                 if (_liveProcess != null)

@@ -27,7 +27,7 @@
     <!-- The same number every system uses. All three are built from one tree, so
          giving them different versions only made it harder to say what someone is
          running; a build that needs re-cutting bumps this for everyone. -->
-    <Version>2.0.3</Version>
+    <Version>2.0.4</Version>
     <!-- What the compiler records for each source file, and for the symbol file next
          to the binary, is otherwise the full path it was built from — which names the
          builder's home directory in a file published to everyone. Relative to the
