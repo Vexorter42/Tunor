@@ -37,6 +37,7 @@ public class AppSettings : INotifyPropertyChanged
 
     private bool _watchdog = true;
     private bool _autoUpdateLists = true;
+    private bool _autoCheckUpdates = true;
     private DateTime? _listsUpdatedAt;
 
     /// <summary>Restart the engine if it dies on its own. On by default.</summary>
@@ -46,6 +47,13 @@ public class AppSettings : INotifyPropertyChanged
     /// <summary>Refresh downloaded rule lists in the background once they are a week old.</summary>
     [JsonPropertyName("autoUpdateLists")]
     public bool AutoUpdateLists { get => _autoUpdateLists; set => Set(ref _autoUpdateLists, value); }
+
+    /// <summary>
+    /// Look for a new version of the program by itself, shortly after it starts and then every
+    /// few hours, and say so on the Home page. On by default.
+    /// </summary>
+    [JsonPropertyName("autoCheckUpdates")]
+    public bool AutoCheckUpdates { get => _autoCheckUpdates; set => Set(ref _autoCheckUpdates, value); }
 
     [JsonPropertyName("listsUpdatedAt")]
     public DateTime? ListsUpdatedAt { get => _listsUpdatedAt; set => Set(ref _listsUpdatedAt, value); }

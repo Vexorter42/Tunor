@@ -74,6 +74,7 @@ public partial class MainWindow : Window
             else ShowFirstRunIfNeeded();
 
             _ = ListsUpdater.RunIfDueAsync();
+            UpdateWatcher.Start();
         };
 
         Closing += OnClosing;

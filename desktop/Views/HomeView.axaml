@@ -9,6 +9,21 @@
             <TextBlock Text="Управление движком" Classes="dim" Margin="0,4,0,0"/>
         </StackPanel>
 
+        <!-- Appears when the background check finds a newer version. -->
+        <Border x:Name="UpdateBanner" Classes="card" IsVisible="False"
+                Background="{StaticResource AccentSoftBrush}"
+                BorderBrush="{StaticResource AccentBrush}">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Spacing="4" Margin="0,0,16,0">
+                    <TextBlock x:Name="UpdateBannerTitle" Classes="h2" Text="Доступна новая версия"/>
+                    <TextBlock x:Name="UpdateBannerText" Classes="dim" TextWrapping="Wrap"/>
+                </StackPanel>
+                <Button x:Name="BtnUpdateNow" Grid.Column="1" Classes="primary"
+                        Content="⭳  Обновиться" MinWidth="170" VerticalAlignment="Center"
+                        Click="UpdateNow_Click"/>
+            </Grid>
+        </Border>
+
         <Border Classes="card">
             <StackPanel Spacing="14">
                 <TextBlock Text="Состояние" Classes="h2"/>

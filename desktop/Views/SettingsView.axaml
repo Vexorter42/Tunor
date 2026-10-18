@@ -26,6 +26,10 @@
                 <CheckBox x:Name="ChkAutoLists" Content="Обновлять списки правил раз в неделю"
                           IsCheckedChanged="Toggle_Changed"/>
                 <TextBlock x:Name="ListsAgeText" Classes="dim" Margin="24,-6,0,0" TextWrapping="Wrap"/>
+                <CheckBox x:Name="ChkAutoUpdate" Content="Искать обновления программы"
+                          IsCheckedChanged="Toggle_Changed"/>
+                <TextBlock Classes="dim" Margin="24,-6,0,0" TextWrapping="Wrap"
+                           Text="При запуске и дальше раз в несколько часов. Нашлась новая версия — на главной появится зелёная кнопка «Обновиться»."/>
             </StackPanel>
         </Border>
         <Border Classes="card">

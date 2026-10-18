@@ -56,6 +56,7 @@ internal static class Program
             {
                 foreach (var (name, make) in Pages) Check(name, () => Host(make()), failures);
                 foreach (var (name, make) in Dialogs) Check(name, () => Show(make()), failures);
+                Check("Главная: зелёный баннер «Обновиться»", Banner, failures);
             })
             .SetupWithoutStarting();
 
@@ -71,6 +72,7 @@ internal static class Program
         }
         ServiceLink(failures);
         Credentials(failures);
+        UpdateWatch(failures);
         Live();
         if (!only) ConfigCheck(failures);
 
@@ -337,6 +339,144 @@ internal static class Program
             failures.Add("ключи — " + ex.Message);
         }
         finally { try { File.Delete(file); } catch { } }
+    }
+
+    private static UpdateInfo Fake(string latest) => new()
+    {
+        Available = true, Latest = latest, Current = "2.0.4", Kind = UpdateKind.Patch,
+        Notes = "Исправления.\nВторая строка, которую баннер не показывает.",
+    };
+
+    /// <summary>
+    /// The Home page with an update on offer: the banner is there, says which version, and
+    /// its button is the accent one; and with nothing on offer it is gone again.
+    /// </summary>
+    private static void Banner()
+    {
+        try
+        {
+            UpdateWatcher.Set(Fake("9.9.9"));
+            var view = new HomeView();
+            var w = new Window { Width = 1100, Height = 760, Content = view };
+            w.Show();
+            w.Measure(new Size(1100, 760));
+            w.Arrange(new Rect(0, 0, 1100, 760));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            var banner = view.FindControl<Border>("UpdateBanner")!;
+            var title = view.FindControl<TextBlock>("UpdateBannerTitle")!;
+            var text = view.FindControl<TextBlock>("UpdateBannerText")!;
+            var button = view.FindControl<Button>("BtnUpdateNow")!;
+            if (!banner.IsVisible) throw new Exception("обновление найдено, а баннера нет");
+            if (title.Text?.Contains("9.9.9") != true) throw new Exception("в баннере не та версия: " + title.Text);
+            if (text.Text?.Contains("Вторая") == true) throw new Exception("в баннер попали все строки описания, а нужна первая");
+            if (!button.Classes.Contains("primary")) throw new Exception("кнопка не зелёная (нет класса primary)");
+
+            UpdateWatcher.Set(null);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            if (banner.IsVisible) throw new Exception("обновлений нет, а баннер остался");
+            w.Close();
+        }
+        finally { UpdateWatcher.Set(null); }
+    }
+
+    /// <summary>
+    /// The background search, with the network replaced by a function and the hours by tens of
+    /// milliseconds: it says "found" once and not on every repeat, keeps its answer through a
+    /// failed check, clears it when the update is gone, and does not ask while the switch is off.
+    /// </summary>
+    private static void UpdateWatch(List<string> failures)
+    {
+        Console.WriteLine();
+        var saved = (UpdateWatcher.Source, UpdateWatcher.Enabled, UpdateWatcher.FirstDelay,
+                     UpdateWatcher.Every, UpdateWatcher.AfterFailure);
+        var calls = 0;
+        var events = 0;
+        var mode = "found";
+        var on = true;
+        void Count(object? s, EventArgs e) => System.Threading.Interlocked.Increment(ref events);
+
+        bool Until(Func<bool> done, int ms = 4000)
+        {
+            var end = DateTime.UtcNow.AddMilliseconds(ms);
+            while (DateTime.UtcNow < end && !done()) System.Threading.Thread.Sleep(10);
+            return done();
+        }
+
+        string? problem = null;
+        try
+        {
+            UpdateWatcher.Changed += Count;
+            UpdateWatcher.Source = () =>
+            {
+                System.Threading.Interlocked.Increment(ref calls);
+                return Task.FromResult(mode switch
+                {
+                    "found" => Fake("9.9.9"),
+                    "gone" => new UpdateInfo { Available = false, Current = "2.0.4", Latest = "2.0.4" },
+                    _ => new UpdateInfo { Error = "нет сети" },
+                });
+            };
+            UpdateWatcher.Enabled = () => on;
+            UpdateWatcher.FirstDelay = TimeSpan.FromMilliseconds(40);
+            UpdateWatcher.Every = TimeSpan.FromMilliseconds(100);
+            UpdateWatcher.AfterFailure = TimeSpan.FromMilliseconds(100);
+            UpdateWatcher.Set(null);
+            events = 0;
+
+            UpdateWatcher.Start();
+            if (!Until(() => UpdateWatcher.Available != null)) problem = "за четыре секунды обновление не нашлось";
+            else if (UpdateWatcher.Available!.Latest != "9.9.9") problem = "нашлась не та версия";
+            else
+            {
+                var seen = calls;
+                System.Threading.Thread.Sleep(450);
+                if (calls <= seen + 1) problem = "проверки не повторяются сами";
+                else if (events != 1) problem = $"о той же находке сказано {events} раз, а нужен один";
+            }
+
+            if (problem == null)
+            {
+                mode = "error";
+                System.Threading.Thread.Sleep(350);
+                if (UpdateWatcher.Available?.Latest != "9.9.9") problem = "неудачная проверка стёрла найденное обновление";
+                else if (events != 1) problem = "неудачная проверка подняла тревогу";
+            }
+
+            if (problem == null)
+            {
+                mode = "gone";
+                if (!Until(() => UpdateWatcher.Available == null)) problem = "обновление вышло из списка, а баннер остался";
+                else if (events != 2) problem = $"событий {events}, а должно быть 2 (нашлось и исчезло)";
+            }
+
+            if (problem == null)
+            {
+                on = false;
+                mode = "found";
+                System.Threading.Thread.Sleep(200);      // a check already under way may land
+                var frozen = calls;
+                System.Threading.Thread.Sleep(450);
+                if (calls != frozen) problem = "переключатель выключен, а проверки идут";
+                else if (UpdateWatcher.Available != null) problem = "переключатель выключен, а обновление появилось";
+            }
+        }
+        finally
+        {
+            UpdateWatcher.Stop();
+            UpdateWatcher.Changed -= Count;
+            (UpdateWatcher.Source, UpdateWatcher.Enabled, UpdateWatcher.FirstDelay,
+             UpdateWatcher.Every, UpdateWatcher.AfterFailure) = saved;
+            UpdateWatcher.Set(null);
+        }
+
+        if (problem == null)
+            Console.WriteLine("  ✓ автопоиск обновлений: находит, не повторяется, переживает сбой, слушается переключателя");
+        else
+        {
+            Console.WriteLine("  ✗ автопоиск обновлений: " + problem);
+            failures.Add("автопоиск обновлений — " + problem);
+        }
     }
 
     /// <summary>How many temporary keychains .NET has left in this user's temp folder.</summary>

@@ -75,29 +75,74 @@ namespace Tunor
         }
 
         /// <summary>
-        /// A list scrolls by row unless it is told to scroll by pixel, and every number here
-        /// is pixels: asked to move 75 of them, a row-scrolling list moves 75 rows. Lists are
-        /// switched to pixels, which keeps their virtualisation and just changes the unit.
+        /// The panel that scrolls this viewer's content when CanContentScroll hands it over: the
+        /// content itself, or — for a list — the panel its ItemsPresenter made. Null when it is
+        /// not there yet.
         /// </summary>
-        private static void OnLoaded(object sender, RoutedEventArgs? e)
+        private static Panel? ContentHost(ScrollViewer sv)
         {
-            var sv = (ScrollViewer)sender;
-            if (sv.CanContentScroll && sv.TemplatedParent is ItemsControl list
-                && VirtualizingPanel.GetScrollUnit(list) == ScrollUnit.Item)
-                VirtualizingPanel.SetScrollUnit(list, ScrollUnit.Pixel);
+            if (sv.Content is ItemsPresenter presenter)
+                return VisualTreeHelper.GetChildrenCount(presenter) > 0
+                    ? VisualTreeHelper.GetChild(presenter, 0) as Panel
+                    : null;
+            return sv.Content as Panel;
         }
 
+        /// <summary>
+        /// With CanContentScroll on, the content scrolls itself and by its own unit — a row, a
+        /// child — and every number here is pixels: asked to move 75 of them, a list moves 75
+        /// rows. A virtualising list can be told to count in pixels, which keeps its
+        /// virtualisation. A plain panel, such as the one a dropdown puts its items in, cannot:
+        /// the viewer takes the scrolling back and moves it as one piece.
+        /// Returns whether it changed anything, so the caller can lay out again before reading
+        /// the new extent.
+        /// </summary>
+        private static bool Adapt(ScrollViewer sv)
+        {
+            if (!sv.CanContentScroll) return false;
+            var host = ContentHost(sv);
+            if (host == null) return false;                      // not built yet; asked again on the next wheel
+
+            if (host is VirtualizingPanel)
+            {
+                if (sv.TemplatedParent is ItemsControl list && VirtualizingPanel.GetScrollUnit(list) == ScrollUnit.Item)
+                {
+                    VirtualizingPanel.SetScrollUnit(list, ScrollUnit.Pixel);
+                    return true;
+                }
+                return false;
+            }
+
+            sv.CanContentScroll = false;
+            return true;
+        }
+
+        private static void OnLoaded(object sender, RoutedEventArgs? e) => Adapt((ScrollViewer)sender);
+
         /// <summary>Whether offsets of this viewer are pixels. If not, WPF's own scrolling is left alone.</summary>
-        private static bool ScrollsInPixels(ScrollViewer sv) =>
-            !sv.CanContentScroll
-            || (sv.TemplatedParent is ItemsControl list && VirtualizingPanel.GetScrollUnit(list) == ScrollUnit.Pixel);
+        private static bool ScrollsInPixels(ScrollViewer sv)
+        {
+            if (!sv.CanContentScroll) return true;
+
+            // A list, or a panel: pixels only for a virtualising one that was told to count them.
+            if (sv.Content is ItemsPresenter || sv.Content is Panel)
+                return sv.TemplatedParent is ItemsControl list
+                    && VirtualizingPanel.GetScrollUnit(list) == ScrollUnit.Pixel
+                    && ContentHost(sv) is VirtualizingPanel;
+
+            // Anything else that scrolls itself is a text view — a TextBox's — and counts in pixels.
+            return true;
+        }
 
         private static void OnWheel(object sender, MouseWheelEventArgs e)
         {
             var sv = (ScrollViewer)sender;
 
+            if (e.Delta == 0) return;
+            if (Adapt(sv)) sv.UpdateLayout();        // the extent changes unit; read it afterwards
+
             // Nothing to scroll here — let the event bubble to a parent scroller.
-            if (sv.ScrollableHeight <= 0 || e.Delta == 0) return;
+            if (sv.ScrollableHeight <= 0) return;
             if (!ScrollsInPixels(sv)) return;
 
             var g = (Glide?)sv.GetValue(GlideProperty);

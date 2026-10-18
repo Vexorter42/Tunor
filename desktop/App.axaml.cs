@@ -23,6 +23,9 @@ public partial class App : Application
         {
             desktop.MainWindow = new MainWindow();
 
+            // Looks for a new version in the background; the Home page shows what it finds.
+            Tunor.Services.UpdateWatcher.Start();
+
             // The tunnel outlives the window. Closing it puts Tunor in the menu bar
             // instead of ending it, which only works if the app is not wired to quit
             // when its last window goes — and quitting is then the tray's own command.
