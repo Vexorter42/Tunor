@@ -8,6 +8,27 @@
             <TextBlock Text="Главная" Style="{StaticResource H1}"/>
             <TextBlock Text="Управление прокси-сервисом" Style="{StaticResource Dim}" Margin="0,4,0,24"/>
 
+            <!-- Appears when the background check finds a newer version. -->
+            <Border x:Name="UpdateBanner" Style="{StaticResource Card}" Visibility="Collapsed"
+                    Margin="0,0,0,16" Background="{StaticResource AccentSoftBrush}"
+                    BorderBrush="{StaticResource AccentBrush}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock x:Name="UpdateBannerTitle" Style="{StaticResource H2}"
+                                   Text="Доступна новая версия"/>
+                        <TextBlock x:Name="UpdateBannerText" Style="{StaticResource Dim}"
+                                   TextWrapping="Wrap" Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <Button x:Name="BtnUpdateNow" Grid.Column="1" Content="⭳  Обновиться"
+                            Style="{StaticResource PrimaryButton}" VerticalAlignment="Center"
+                            MinWidth="170" Click="BtnUpdateNow_Click"/>
+                </Grid>
+            </Border>
+
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="Состояние" Style="{StaticResource H2}"/>

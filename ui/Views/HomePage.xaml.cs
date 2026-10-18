@@ -15,9 +15,11 @@ public partial class HomePage : UserControl
     {
         InitializeComponent();
         ProcessService.StatusChanged += (_, _) => Dispatcher.Invoke(UpdateState);
+        UpdateWatcher.Changed += (_, _) => Dispatcher.BeginInvoke(new Action(ShowUpdate));
         Loaded += (_, _) =>
         {
             UpdateState();
+            ShowUpdate();
             VersionText.Text = "Текущая версия: " + Services.UpdateService.CurrentVersionString;
             RefreshVpnList();
         };
@@ -317,6 +319,49 @@ public partial class HomePage : UserControl
         dlg.ShowDialog();
     }
 
+    // ------------------------------------------------------------ a new version
+
+    /// <summary>Shows or hides the green banner, from what the background check has found.</summary>
+    private void ShowUpdate()
+    {
+        var found = UpdateWatcher.Available;
+        UpdateBanner.Visibility = found == null ? Visibility.Collapsed : Visibility.Visible;
+        if (found == null) return;
+
+        UpdateBannerTitle.Text = $"Доступна версия {found.Latest}";
+        var headline = FirstLine(found.Notes);
+        UpdateBannerText.Text = $"Сейчас {found.Current}" + (headline.Length > 0 ? " · " + headline : "");
+    }
+
+    /// <summary>The first line of the release notes, which is the headline — and no more than a line or two.</summary>
+    private static string FirstLine(string text)
+    {
+        var at = text.IndexOfAny(new[] { '\r', '\n' });
+        var line = (at < 0 ? text : text[..at]).Trim();
+        if (line.Length <= 140) return line;
+        var cut = line.LastIndexOf(' ', 140);
+        return line[..(cut > 60 ? cut : 140)].TrimEnd(',', ';', ':', ' ') + "…";
+    }
+
+    private void BtnUpdateNow_Click(object sender, RoutedEventArgs e)
+    {
+        if (UpdateWatcher.Available is { } found) ShowUpdateDialog(found);
+    }
+
+    /// <summary>The dialog with the release notes and the install button, shared by both ways in.</summary>
+    private void ShowUpdateDialog(UpdateInfo info)
+    {
+        UpdateStatus.Text = $"Доступна версия {info.Latest}";
+
+        var dlg = new UpdateDialog(info) { Owner = Window.GetWindow(this) };
+        dlg.ShowDialog();
+
+        if (dlg.InstallStarted)
+            (Window.GetWindow(this) as MainWindow)?.ShutdownForUpdate();
+        else
+            UpdateStatus.Text = $"Доступна версия {info.Latest} — обновление отложено";
+    }
+
     private async void BtnCheckUpdate_Click(object sender, RoutedEventArgs e)
     {
         BtnCheckUpdate.IsEnabled = false;
@@ -330,21 +375,16 @@ public partial class HomePage : UserControl
                 MessageBox.Show(info.Error, "Обновление", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
+            // What was found here is what the banner shows too.
+            UpdateWatcher.Set(info.Available ? info : null);
+
             if (!info.Available)
             {
                 UpdateStatus.Text = $"Установлена последняя версия ({info.Current})";
                 return;
             }
 
-            UpdateStatus.Text = $"Доступна версия {info.Latest}";
-
-            var dlg = new UpdateDialog(info) { Owner = Window.GetWindow(this) };
-            dlg.ShowDialog();
-
-            if (dlg.InstallStarted)
-                (Window.GetWindow(this) as MainWindow)?.ShutdownForUpdate();
-            else
-                UpdateStatus.Text = $"Доступна версия {info.Latest} — обновление отложено";
+            ShowUpdateDialog(info);
         }
         catch (Exception ex)
         {

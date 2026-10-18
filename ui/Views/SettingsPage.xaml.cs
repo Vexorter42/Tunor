@@ -29,6 +29,7 @@ public partial class SettingsPage : UserControl
             BuildFinalChoices();
             ChkWatchdog.IsChecked = _settings.Watchdog;
             ChkAutoLists.IsChecked = _settings.AutoUpdateLists;
+            ChkAutoUpdate.IsChecked = _settings.AutoCheckUpdates;
             ListsAgeText.Text = _settings.ListsUpdatedAt is { } at
                 ? $"Последнее обновление: {at.ToLocalTime():d MMMM, HH:mm}"
                 : "Скачиваются в фоне через зеркало";
@@ -44,6 +45,7 @@ public partial class SettingsPage : UserControl
         _settings.Logging = ChkLogging.IsChecked == true;
         _settings.Watchdog = ChkWatchdog.IsChecked == true;
         _settings.AutoUpdateLists = ChkAutoLists.IsChecked == true;
+        _settings.AutoCheckUpdates = ChkAutoUpdate.IsChecked == true;
         Persist();
     }
 

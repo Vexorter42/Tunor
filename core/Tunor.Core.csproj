@@ -63,6 +63,12 @@
     <Compile Include="..\ui\Services\TrafficRecorder.cs" Link="Services\TrafficRecorder.cs" />
     <Compile Include="..\ui\Services\TunnelService.cs" Link="Services\TunnelService.cs" />
     <Compile Include="..\ui\Services\UpdateService.cs" Link="Services\UpdateService.cs" />
+    <Compile Include="..\ui\Services\UpdateWatcher.cs" Link="Services\UpdateWatcher.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The smoke test checks the watcher's timing and its answers through its internal hooks. -->
+    <InternalsVisibleTo Include="Tunor.Smoke" />
   </ItemGroup>
 
 </Project>

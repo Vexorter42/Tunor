@@ -29,6 +29,7 @@ public partial class SettingsView : UserControl
             ChkLogging.IsChecked = _settings.Logging;
             ChkWatchdog.IsChecked = _settings.Watchdog;
             ChkAutoLists.IsChecked = _settings.AutoUpdateLists;
+            ChkAutoUpdate.IsChecked = _settings.AutoCheckUpdates;
             ListsAgeText.Text = _settings.ListsUpdatedAt is { } at
                 ? $"Последнее обновление: {at.ToLocalTime():d MMMM, HH:mm}"
                 : "Ещё не обновлялись — можно скачать на странице «Правила».";
@@ -73,6 +74,7 @@ public partial class SettingsView : UserControl
         _settings.Logging = ChkLogging.IsChecked == true;
         _settings.Watchdog = ChkWatchdog.IsChecked == true;
         _settings.AutoUpdateLists = ChkAutoLists.IsChecked == true;
+        _settings.AutoCheckUpdates = ChkAutoUpdate.IsChecked == true;
         Persist();
     }
 

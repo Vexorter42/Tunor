@@ -37,6 +37,27 @@ public partial class HomeView : UserControl
             _tick.Start();
         };
         DetachedFromVisualTree += (_, _) => _tick.Stop();
+
+        UpdateWatcher.Changed += (_, _) => Dispatcher.UIThread.Post(ShowUpdate);
+        AttachedToVisualTree += (_, _) => ShowUpdate();
+    }
+
+    /// <summary>Shows or hides the green banner, from what the background check has found.</summary>
+    private void ShowUpdate()
+    {
+        var found = UpdateWatcher.Available;
+        UpdateBanner.IsVisible = found != null;
+        if (found == null) return;
+
+        UpdateBannerTitle.Text = $"Доступна версия {found.Latest}";
+        var headline = FirstLine(found.Notes);
+        UpdateBannerText.Text = $"Сейчас {found.Current}" + (headline.Length > 0 ? " · " + headline : "");
+    }
+
+    private async void UpdateNow_Click(object? sender, RoutedEventArgs e)
+    {
+        if (UpdateWatcher.Available is { } found)
+            await Install(found, UpdateBannerText, BtnUpdateNow);
     }
 
     private void Refresh()
@@ -207,6 +228,8 @@ public partial class HomeView : UserControl
         {
             var info = await UpdateService.CheckAsync();
             _update = info.Available ? info : null;
+            // What was found here is what the banner shows too.
+            if (info.Error is not { Length: > 0 }) UpdateWatcher.Set(_update);
             UpdateStatus.Text = info.Error is { Length: > 0 } err ? err
                 : info.Kind == UpdateKind.None ? "Установлена последняя версия."
                 : $"Доступна {info.Latest}"
@@ -217,11 +240,14 @@ public partial class HomeView : UserControl
         finally { BtnUpdate.IsEnabled = true; }
     }
 
-    /// <summary>The first line of the release notes, which is the headline.</summary>
+    /// <summary>The first line of the release notes, which is the headline — and no more than a line or two.</summary>
     private static string FirstLine(string text)
     {
         var at = text.IndexOfAny(new[] { '\r', '\n' });
-        return at < 0 ? text.Trim() : text[..at].Trim();
+        var line = (at < 0 ? text : text[..at]).Trim();
+        if (line.Length <= 140) return line;
+        var cut = line.LastIndexOf(' ', 140);
+        return line[..(cut > 60 ? cut : 140)].TrimEnd(',', ';', ':', ' ') + "…";
     }
 
     /// <summary>
@@ -230,16 +256,25 @@ public partial class HomeView : UserControl
     /// </summary>
     private async void InstallUpdate_Click(object? sender, RoutedEventArgs e)
     {
-        if (_update == null) return;
-        BtnInstallUpdate.IsEnabled = false;
-        UpdateStatus.Text = "скачиваю…";
+        if (_update != null) await Install(_update, UpdateStatus, BtnInstallUpdate);
+    }
+
+    /// <summary>
+    /// The download and the swap, with progress written into <paramref name="status"/> and
+    /// <paramref name="button"/> held off while it runs — one place for the banner and the
+    /// Updates card.
+    /// </summary>
+    private async System.Threading.Tasks.Task Install(UpdateInfo info, TextBlock status, Button button)
+    {
+        button.IsEnabled = false;
+        status.Text = "скачиваю…";
         try
         {
             var progress = new Progress<double>(p => Dispatcher.UIThread.Post(
-                () => UpdateStatus.Text = $"скачиваю… {p * 100:0}%"));
-            var (ok, message) = await UpdateService.DownloadAndApplyAsync(_update, progress);
-            UpdateStatus.Text = message;
-            if (!ok) { BtnInstallUpdate.IsEnabled = true; return; }
+                () => status.Text = $"скачиваю… {p * 100:0}%"));
+            var (ok, message) = await UpdateService.DownloadAndApplyAsync(info, progress);
+            status.Text = message;
+            if (!ok) { button.IsEnabled = true; return; }
 
             // A moment for the message to be read, then out of the way of the swap.
             await System.Threading.Tasks.Task.Delay(1500);
@@ -247,8 +282,8 @@ public partial class HomeView : UserControl
         }
         catch (Exception ex)
         {
-            UpdateStatus.Text = "Не удалось обновить: " + ex.Message;
-            BtnInstallUpdate.IsEnabled = true;
+            status.Text = "Не удалось обновить: " + ex.Message;
+            button.IsEnabled = true;
         }
     }
 
