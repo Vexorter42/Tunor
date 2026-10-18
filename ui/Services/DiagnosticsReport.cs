@@ -319,7 +319,10 @@ public static class DiagnosticsReport
         Head(sb, "СЕТЕВОЙ АДАПТЕР ТУННЕЛЯ");
         try
         {
+            // UTF-8 on both sides: adapter names are often Russian, and PowerShell's own
+            // default is the console code page, which is not the one this side reads in.
             var script =
+                "[Console]::OutputEncoding = [Text.Encoding]::UTF8; " +
                 "Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue | " +
                 "Where-Object { $_.InterfaceDescription -like '*sing-tun*' -or $_.InterfaceDescription -like '*wintun*' } | " +
                 "ForEach-Object { \"$($_.Name) | $($_.InterfaceDescription) | $($_.Status)\" }";
@@ -329,6 +332,8 @@ public static class DiagnosticsReport
                 FileName = "powershell.exe",
                 UseShellExecute = false, CreateNoWindow = true,
                 RedirectStandardOutput = true, RedirectStandardError = true,
+                StandardOutputEncoding = new System.Text.UTF8Encoding(false),
+                StandardErrorEncoding = new System.Text.UTF8Encoding(false),
             };
             foreach (var a in new[] { "-NoProfile", "-NonInteractive", "-Command", script })
                 psi.ArgumentList.Add(a);
