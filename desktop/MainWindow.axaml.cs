@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        DialogHost.Attach(this, AppRoot, DialogLayers);
         PageHost.Content = new HomeView();
         VersionText.Text = "v" + UpdateService.CurrentVersionString;
 

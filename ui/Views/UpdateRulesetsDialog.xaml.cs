@@ -5,7 +5,7 @@ using Tunor.Services;
 
 namespace Tunor.Views;
 
-public partial class UpdateRulesetsDialog : Window
+public partial class UpdateRulesetsDialog : DialogPanel
 {
     private readonly List<RuleGroup> _groups;
     public bool AnyDownloaded { get; private set; }

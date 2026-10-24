@@ -15,7 +15,7 @@ namespace Tunor.Desktop.Views;
 /// remember; here the tunnel is a picker beside it and the consequence is spelled out
 /// under it, because a name that matches no tunnel silently routes nowhere.
 /// </summary>
-public partial class GroupWindow : Window
+public partial class GroupWindow : DialogPanel
 {
     private readonly List<RuleGroup> _all;
     private readonly RuleGroup? _editing;

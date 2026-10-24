@@ -51,7 +51,7 @@ public partial class ConfigsPage : UserControl
 
     private bool ConfirmDiscard()
     {
-        var r = MessageBox.Show("Есть несохранённые изменения. Отбросить?",
+        var r = Msg.Show("Есть несохранённые изменения. Отбросить?",
             "Несохранённые изменения", MessageBoxButton.YesNo, MessageBoxImage.Question);
         return r == MessageBoxResult.Yes;
     }
@@ -104,7 +104,7 @@ public partial class ConfigsPage : UserControl
         catch (Exception ex)
         {
             StatusText.Text = "Ошибка сохранения: " + ex.Message;
-            MessageBox.Show(ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            Msg.Show(ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
         }
     }
@@ -195,7 +195,7 @@ public partial class ConfigsPage : UserControl
     private void DeleteProfile_Click(object sender, RoutedEventArgs e)
     {
         if (ProfileBox.SelectedItem is not string name) return;
-        var ok = MessageBox.Show(
+        var ok = Msg.Show(
             $"Удалить профиль «{name}»?\nАктивный {_currentTab}.conf останется как есть.",
             "Удаление профиля", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (ok != MessageBoxResult.Yes) return;

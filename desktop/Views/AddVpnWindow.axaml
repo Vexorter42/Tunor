@@ -1,12 +1,9 @@
-<Window xmlns="https://github.com/avaloniaui"
+<v:DialogPanel xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:v="using:Tunor.Desktop.Views"
         x:Class="Tunor.Desktop.Views.AddVpnWindow"
-        Title="Свой VPN" Width="580" SizeToContent="Height"
-        MinHeight="420" MaxHeight="900"
-        Background="{StaticResource BgBrush}"
-        WindowStartupLocation="CenterOwner"
-        CanResize="False">
+        Title="Свой VPN" Width="580" MinHeight="420" MaxHeight="900"
+        Background="{StaticResource BgBrush}">
 
     <ScrollViewer>
         <StackPanel Margin="24" Spacing="14">
@@ -80,4 +77,4 @@
 
         </StackPanel>
     </ScrollViewer>
-</Window>
+</v:DialogPanel>

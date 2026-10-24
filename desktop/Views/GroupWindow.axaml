@@ -1,9 +1,9 @@
-<Window xmlns="https://github.com/avaloniaui"
+<v:DialogPanel xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:Tunor.Desktop.Views"
         x:Class="Tunor.Desktop.Views.GroupWindow"
-        Title="Группа правил" Width="560" SizeToContent="Height"
-        Background="{StaticResource BgBrush}"
-        WindowStartupLocation="CenterOwner" CanResize="False">
+        Title="Группа правил" Width="560"
+        Background="{StaticResource BgBrush}">
     <StackPanel Margin="24" Spacing="14">
 
         <TextBlock x:Name="HeadText" Classes="h2"/>
@@ -78,4 +78,4 @@
             <Button Classes="primary" Content="Сохранить" MinWidth="130" Click="Save_Click"/>
         </StackPanel>
     </StackPanel>
-</Window>
+</v:DialogPanel>

@@ -6,7 +6,7 @@ using Tunor.Services;
 
 namespace Tunor.Views;
 
-public partial class ImportConfDialog : Window
+public partial class ImportConfDialog : DialogPanel
 {
     private readonly string _path;
 
@@ -56,7 +56,7 @@ public partial class ImportConfDialog : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Не удалось применить конфиг:\n\n" + ex.Message,
+            Msg.Show("Не удалось применить конфиг:\n\n" + ex.Message,
                 "Импорт", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }

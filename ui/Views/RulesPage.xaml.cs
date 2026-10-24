@@ -166,7 +166,7 @@ public partial class RulesPage : UserControl
                     ? $"Готово · {DateTime.Now:HH:mm:ss}"
                     : "Ошибка генерации конфига";
                 if (!ok)
-                    MessageBox.Show(output, "Генерация config.json", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Msg.Show(output, "Генерация config.json", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             catch (Exception ex)
             {
@@ -229,7 +229,7 @@ public partial class RulesPage : UserControl
                 ? $"Готово · {DateTime.Now:HH:mm:ss}"
                 : "Ошибка генерации конфига";
             if (!ok)
-                MessageBox.Show(output, "Генерация config.json", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Msg.Show(output, "Генерация config.json", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch (Exception ex)
         {

@@ -5,7 +5,7 @@ using Tunor.Services;
 
 namespace Tunor.Views;
 
-public partial class UpdateDialog : Window
+public partial class UpdateDialog : DialogPanel
 {
     private readonly UpdateInfo _info;
 
@@ -65,7 +65,7 @@ public partial class UpdateDialog : Window
             else
             {
                 ProgressText.Text = "Не удалось обновить";
-                MessageBox.Show(message, "Обновление", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Msg.Show(message, "Обновление", MessageBoxButton.OK, MessageBoxImage.Warning);
                 BtnUpdate.IsEnabled = true;
                 BtnLater.IsEnabled = true;
             }
@@ -73,7 +73,7 @@ public partial class UpdateDialog : Window
         catch (Exception ex)
         {
             ProgressText.Text = "Ошибка";
-            MessageBox.Show(ex.Message, "Обновление", MessageBoxButton.OK, MessageBoxImage.Error);
+            Msg.Show(ex.Message, "Обновление", MessageBoxButton.OK, MessageBoxImage.Error);
             BtnUpdate.IsEnabled = true;
             BtnLater.IsEnabled = true;
         }

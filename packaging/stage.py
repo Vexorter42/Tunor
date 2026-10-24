@@ -98,7 +98,8 @@ if _want and _got and not _got.startswith(_want.group(1)):
              + ", tunor.iss says " + _want.group(1)
              + ". Publish the UI first: cd ui && dotnet publish -c Release -r win-x64 --self-contained true")
 
-# Every window has to say what colour its text is. Foreground is inherited and starts
+# Every window — and every dialog, which is drawn inside the main window now — has to say
+# what colour its text is. Foreground is inherited and starts
 # out black, so a plain <TextBlock> in a window that sets none comes out black on the
 # dark background — 1.4:1, which is not dim but unreadable. An implicit style cannot
 # cover this: WPF matches those on the exact runtime type, so one keyed to Window never
@@ -109,14 +110,14 @@ for _p in sorted(glob.glob(REPO + "/ui/**/*.xaml", recursive=True)):
     if "/bin/" in _n or "/obj/" in _n:
         continue
     _t = open(_p, encoding="utf-8-sig").read()
-    if not _t.lstrip().startswith("<Window"):
+    if not _t.lstrip().startswith(("<Window", "<v:DialogPanel")):
         continue
     _windows += 1
     if "Foreground=" not in _t[:_t.index(">")]:
         _mute.append(_n[len(REPO) + 1:])
 if _mute:
     sys.exit("windows that set no text colour (it defaults to black): " + ", ".join(_mute))
-print(f"text colour set in all {_windows} windows")
+print(f"text colour set in all {_windows} windows and dialogs")
 
 # 2. settings.json + update.json
 _st = json.load(open(APP + "/settings.json", encoding="utf-8"))

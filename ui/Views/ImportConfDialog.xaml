@@ -1,14 +1,11 @@
-<Window x:Class="Tunor.Views.ImportConfDialog"
+<v:DialogPanel x:Class="Tunor.Views.ImportConfDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="clr-namespace:Tunor.Views"
         Title="Импорт конфига"
-        Width="520" MinHeight="470"
-        WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
-        SizeToContent="Height"
+        Width="504" MinHeight="431"
         Background="{StaticResource BgBrush}"
-        Foreground="{StaticResource TextBrush}"
-        Icon="../Assets/app.ico">
+        Foreground="{StaticResource TextBrush}">
     <Grid Margin="26">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -88,4 +85,4 @@
                     Click="Apply_Click" MinWidth="150"/>
         </StackPanel>
     </Grid>
-</Window>
+</v:DialogPanel>
