@@ -75,7 +75,7 @@ public partial class HomePage : UserControl
         var t = tunnels.FirstOrDefault(x => x.Id == id);
         if (t == null) return;
 
-        if (MessageBox.Show(
+        if (Msg.Show(
                 $"Удалить «{t.Title}»?\n\nПравила, которые отправляли трафик в этот туннель, " +
                 "останутся на месте, но перестанут действовать — трафик пойдёт напрямую.",
                 "Удаление туннеля", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
@@ -92,7 +92,7 @@ public partial class HomePage : UserControl
         RefreshVpnList();
         UpdateState();
         if (ProcessService.IsRunning)
-            MessageBox.Show("Список туннелей изменён. Перезапусти движок, чтобы это подействовало.",
+            Msg.Show("Список туннелей изменён. Перезапусти движок, чтобы это подействовало.",
                 "Свой VPN", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
@@ -295,7 +295,7 @@ public partial class HomePage : UserControl
 
         if (good.Count == 0)
         {
-            MessageBox.Show(
+            Msg.Show(
                 "Это не похоже на конфиг WireGuard.\n\nВнутри файла должна быть секция [Interface] " +
                 "и строка PrivateKey. Расширение при этом любое.",
                 "Конфиг не распознан", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -372,7 +372,7 @@ public partial class HomePage : UserControl
             if (!string.IsNullOrEmpty(info.Error))
             {
                 UpdateStatus.Text = "Ошибка проверки";
-                MessageBox.Show(info.Error, "Обновление", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Msg.Show(info.Error, "Обновление", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             // What was found here is what the banner shows too.
@@ -389,7 +389,7 @@ public partial class HomePage : UserControl
         catch (Exception ex)
         {
             UpdateStatus.Text = "Ошибка";
-            MessageBox.Show(ex.Message, "Обновление", MessageBoxButton.OK, MessageBoxImage.Error);
+            Msg.Show(ex.Message, "Обновление", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {

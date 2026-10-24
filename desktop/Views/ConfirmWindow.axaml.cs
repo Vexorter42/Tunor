@@ -4,7 +4,7 @@ using Avalonia.Interactivity;
 namespace Tunor.Desktop.Views;
 
 /// <summary>A yes/no box in the app's own colours — Avalonia has no MessageBox.</summary>
-public partial class ConfirmWindow : Window
+public partial class ConfirmWindow : DialogPanel
 {
     public bool Confirmed { get; private set; }
 

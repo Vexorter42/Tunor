@@ -792,12 +792,33 @@ public static class ConfigGenerator
         // Without it the session goes quiet, the far side forgets the way back, and the
         // next packet waits on a fresh handshake. Providers write it into the config for
         // exactly that reason, and it was being read by nobody.
-        if (peer.TryGetValue("PersistentKeepalive", out var ka) && int.TryParse(ka, out var kaI) && kaI > 0)
-            p["persistent_keepalive_interval"] = kaI;
+        if (peer.TryGetValue("PersistentKeepalive", out var ka) && KeepaliveOf(ka) is { } keepalive)
+            p["persistent_keepalive_interval"] = keepalive;
         ep["peers"] = new JsonArray(p);
 
         if (detour != null) ep["detour"] = detour;
         return ep;
+    }
+
+    /// <summary>
+    /// The keepalive as the engine takes it: seconds, or — in an AmneziaWG 3.x config — a range
+    /// such as "25-35", which it picks from again every time. A range used to be dropped for not
+    /// being a number, which left a tunnel that was meant to hold its session with no keepalive
+    /// at all. Anything else, and 0, means none.
+    /// </summary>
+    private static JsonNode? KeepaliveOf(string value)
+    {
+        value = value.Trim();
+        if (int.TryParse(value, out var seconds)) return seconds > 0 ? JsonValue.Create(seconds) : null;
+
+        var dash = value.IndexOf('-');
+        if (dash > 0
+            && int.TryParse(value[..dash].Trim(), out var lo)
+            && int.TryParse(value[(dash + 1)..].Trim(), out var hi)
+            && lo >= 0 && hi >= lo && hi > 0)
+            return JsonValue.Create($"{lo}-{hi}");
+
+        return null;
     }
 
     /// <summary>

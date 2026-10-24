@@ -124,12 +124,12 @@ public partial class LogsPage : UserControl
                 ? $"{_head}{nl}... середина лога пропущена ...{nl}{nl}{Log.Text}"
                 : Log.Text;
             System.IO.File.WriteAllText(dlg.FileName, header + body, Encoding.UTF8);
-            MessageBox.Show("Лог сохранён:\n" + dlg.FileName, "Tunor",
+            Msg.Show("Лог сохранён:\n" + dlg.FileName, "Tunor",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Не удалось сохранить: " + ex.Message, "Tunor",
+            Msg.Show("Не удалось сохранить: " + ex.Message, "Tunor",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -143,7 +143,7 @@ public partial class LogsPage : UserControl
     {
         Flush();
 
-        var check = MessageBox.Show(
+        var check = Msg.Show(
             "Прогнать заодно проверку соединения?\n\n" +
             "Она отправляет по одному запросу напрямую, через WARP и через geo — это точнее " +
             "показывает, что сломано, но занимает до полуминуты.",
@@ -169,7 +169,7 @@ public partial class LogsPage : UserControl
             var text = await DiagnosticsReport.BuildAsync(log, check);
             System.IO.File.WriteAllText(dlg.FileName, text, Encoding.UTF8);
 
-            if (MessageBox.Show(
+            if (Msg.Show(
                     $"Отчёт сохранён:\n{dlg.FileName}\n\nОткрыть папку с ним?",
                     "Отчёт готов", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
                 try
@@ -181,7 +181,7 @@ public partial class LogsPage : UserControl
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Не удалось собрать отчёт: " + ex.Message, "Tunor",
+            Msg.Show("Не удалось собрать отчёт: " + ex.Message, "Tunor",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally

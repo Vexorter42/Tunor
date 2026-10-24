@@ -15,7 +15,7 @@
         DragLeave="Window_DragLeave" Drop="Window_Drop"
         KeyDown="Window_KeyDown">
 
-    <Grid>
+    <Grid x:Name="AppRoot">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="218"/>
             <ColumnDefinition Width="*"/>
@@ -91,5 +91,8 @@
                 </StackPanel>
             </Border>
         </Border>
+
+        <!-- Dialogs are drawn here, over everything: see DialogHost -->
+        <Grid x:Name="DialogLayers" Grid.ColumnSpan="2"/>
     </Grid>
 </Window>

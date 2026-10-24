@@ -11,7 +11,7 @@ namespace Tunor.Views;
 /// box: a vless:// link is read as it is typed, an http(s) address is fetched on request,
 /// and the user sees what was recognised before anything is saved.
 /// </summary>
-public partial class AddVpnDialog : Window
+public partial class AddVpnDialog : DialogPanel
 {
     private readonly List<Tunnel> _tunnels;
     private readonly Tunnel? _editing;
@@ -238,7 +238,7 @@ public partial class AddVpnDialog : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Не удалось сохранить:\n\n" + ex.Message,
+            Msg.Show("Не удалось сохранить:\n\n" + ex.Message,
                 "Свой VPN", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }

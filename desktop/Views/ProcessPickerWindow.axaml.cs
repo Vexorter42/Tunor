@@ -12,7 +12,7 @@ namespace Tunor.Desktop.Views;
 /// Picks a running program, so the rule carries the name the engine will actually match
 /// rather than one typed from memory.
 /// </summary>
-public partial class ProcessPickerWindow : Window
+public partial class ProcessPickerWindow : DialogPanel
 {
     /// <summary>A row, flattened for binding.</summary>
     public sealed record Row(string Title, string Path, string Extra, ProcessEntry Entry);
@@ -25,7 +25,7 @@ public partial class ProcessPickerWindow : Window
     public ProcessPickerWindow()
     {
         InitializeComponent();
-        Opened += async (_, _) =>
+        Loaded += async (_, _) =>
         {
             _all = await ProcessList.CollectAsync();
             LoadingText.IsVisible = false;

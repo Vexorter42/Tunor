@@ -14,7 +14,7 @@ namespace Tunor.Desktop.Views;
 /// Windows app has, in Avalonia. One box takes both: a vless:// link is read as it is
 /// typed, an http(s) address is fetched on request.
 /// </summary>
-public partial class AddVpnWindow : Window
+public partial class AddVpnWindow : DialogPanel
 {
     private readonly List<Tunnel> _tunnels;
     private readonly Tunnel? _editing;
@@ -160,7 +160,7 @@ public partial class AddVpnWindow : Window
 
     private async void Paste_Click(object? sender, RoutedEventArgs e)
     {
-        var clip = GetTopLevel(this)?.Clipboard;
+        var clip = TopLevel.GetTopLevel(this)?.Clipboard;
         if (clip == null) return;
         try
         {

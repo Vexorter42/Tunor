@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        DialogHost.Attach(this, AppRoot, DialogLayers);
         PageHost.Content = _home;
         VersionLabel.Text = "v" + Services.UpdateService.CurrentVersionString;
 
@@ -255,6 +256,9 @@ public partial class MainWindow : Window
 
     private void UpdateDropState(DragEventArgs e)
     {
+        // A dialog is waiting for an answer: nothing is dropped on the window behind it.
+        if (DialogHost.IsOpen) { e.Effects = DragDropEffects.None; e.Handled = true; return; }
+
         var kind = Classify(e.Data, out var configs, out _);
         var ok = kind is DropKind.Configs or DropKind.Text;
 
@@ -336,6 +340,7 @@ public partial class MainWindow : Window
     {
         DropOverlay.Visibility = Visibility.Collapsed;
         e.Handled = true;
+        if (DialogHost.IsOpen) return;
         await AcceptAsync(e.Data, "перетаскивание");
     }
 
@@ -347,6 +352,8 @@ public partial class MainWindow : Window
     private async void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Handled || e.Key != System.Windows.Input.Key.V) return;
+        // Ctrl+V inside a dialog belongs to the dialog, not to the window it is drawn on.
+        if (DialogHost.IsOpen) return;
         if (System.Windows.Input.Keyboard.Modifiers != System.Windows.Input.ModifierKeys.Control) return;
         // Pasting into a text field is the field's own business.
         if (System.Windows.Input.Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase) return;

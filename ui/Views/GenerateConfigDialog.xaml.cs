@@ -6,7 +6,7 @@ using System.Windows.Media;
 
 namespace Tunor.Views;
 
-public partial class GenerateConfigDialog : Window
+public partial class GenerateConfigDialog : DialogPanel
 {
     private string _url = "";
 
@@ -34,7 +34,8 @@ public partial class GenerateConfigDialog : Window
             "Скопируй выданный текст конфига (начинается с [Interface]).",
             "В приложении: раздел Конфиги → warp.conf → вставь конфиг → «Сохранить и применить».",
         },
-        note: null,
+        note: "Если через WARP не открывается часть сайтов — например, YouTube, — сгенерируй конфиг заново и выбери в поле «Конечная точка» вариант «Альтернативный». "
+            + "От точки зависит, из какого дата-центра Cloudflare выходит WARP, и у части провайдеров с точкой по умолчанию нужные сайты оттуда не открываются.",
         linkLabel: "Открыть @warp_generator_bot",
         url: "https://t.me/warp_generator_bot");
 
@@ -156,7 +157,7 @@ public partial class GenerateConfigDialog : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Не удалось открыть ссылку: " + ex.Message, "Ошибка",
+            Msg.Show("Не удалось открыть ссылку: " + ex.Message, "Ошибка",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }

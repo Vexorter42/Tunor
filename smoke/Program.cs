@@ -4,6 +4,8 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Threading;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -37,7 +39,7 @@ internal static class Program
         ("Автозапуск", () => new AutostartView()),
     };
 
-    private static readonly (string Name, Func<Window> Make)[] Dialogs =
+    private static readonly (string Name, Func<Control> Make)[] Dialogs =
     {
         ("Окно: группа правил", () => new GroupWindow()),
         ("Окно: запущенные программы", () => new ProcessPickerWindow()),
@@ -57,24 +59,30 @@ internal static class Program
                 foreach (var (name, make) in Pages) Check(name, () => Host(make()), failures);
                 foreach (var (name, make) in Dialogs) Check(name, () => Show(make()), failures);
                 Check("Главная: зелёный баннер «Обновиться»", Banner, failures);
+                Check("Диалоги внутри окна: поверх приложения, ждут, закрываются, стопкой, без главного окна",
+                      InWindowDialogs, failures);
             })
             .SetupWithoutStarting();
 
         // TUNOR_SMOKE_ONLY=service runs just the link to the privileged service. The rest
         // changes things on this machine — autostart is switched on and back off — which
         // is the wrong thing to do to a Mac only to look at one connection.
-        var only = Environment.GetEnvironmentVariable("TUNOR_SMOKE_ONLY") == "service";
-        if (!only)
+        var which = Environment.GetEnvironmentVariable("TUNOR_SMOKE_ONLY");
+        var only = which == "service";
+        if (which != "screens")
         {
-            Programs();
-            Swap(failures);
-            Autostart(failures);
+            if (!only)
+            {
+                Programs();
+                Swap(failures);
+                Autostart(failures);
+            }
+            ServiceLink(failures);
+            Credentials(failures);
+            UpdateWatch(failures);
+            Live();
+            if (!only) ConfigCheck(failures);
         }
-        ServiceLink(failures);
-        Credentials(failures);
-        UpdateWatch(failures);
-        Live();
-        if (!only) ConfigCheck(failures);
 
         Console.WriteLine();
         if (failures.Count == 0)
@@ -351,6 +359,79 @@ internal static class Program
     /// The Home page with an update on offer: the banner is there, says which version, and
     /// its button is the accent one; and with nothing on offer it is gone again.
     /// </summary>
+    /// <summary>
+    /// What a dialog inside the window promises, on a stand-in for the main window: it opens
+    /// over the app and switches it off; ShowDialog waits until it is closed; Esc closes it;
+    /// a second dialog goes on top of the first and the app stays off until both are gone;
+    /// and with the window hidden it opens in a window of its own instead of nowhere.
+    /// </summary>
+    private static void InWindowDialogs()
+    {
+        var page = new Button { Content = "страница" };
+        var root = new Grid();
+        root.Children.Add(page);
+        var layers = new Grid();
+        root.Children.Add(layers);
+        var w = new Window { Width = 900, Height = 600, Content = root };
+        w.Show();
+        DialogHost.Attach(w, root, layers);
+        Dispatcher.UIThread.RunJobs();
+
+        void Jobs() => Dispatcher.UIThread.RunJobs();
+        void Esc() => layers.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+
+        // opens over the app, waits, closes
+        var one = new ConfirmWindow("Удалить?", "Точно?");
+        var t1 = one.ShowDialog(w);
+        Jobs();
+        if (layers.Children.Count != 1) throw new Exception("диалога нет на слое окна");
+        if (!DialogHost.IsOpen) throw new Exception("IsOpen говорит, что диалога нет");
+        if (page.IsEnabled) throw new Exception("страница позади осталась включённой");
+        if (t1.IsCompleted) throw new Exception("ShowDialog вернулся, не дождавшись закрытия");
+        one.Close();
+        Jobs();
+        if (!t1.IsCompleted) throw new Exception("после Close() ShowDialog не завершился");
+        if (!page.IsEnabled || layers.Children.Count != 0 || DialogHost.IsOpen)
+            throw new Exception("после закрытия страница не включилась или слой не опустел");
+
+        // Esc closes it, and a confirmation closed that way is not a yes
+        var two = new ConfirmWindow("Удалить?", "Точно?");
+        var t2 = two.ShowDialog(w);
+        Jobs();
+        Esc();
+        Jobs();
+        if (!t2.IsCompleted) throw new Exception("Esc не закрыл диалог");
+        if (two.Confirmed) throw new Exception("закрытие по Esc сошло за «да»");
+
+        // stacked: the app stays off until both are gone
+        var lower = new ConfirmWindow("Первый", "…");
+        var tl = lower.ShowDialog(w);
+        var upper = new ConfirmWindow("Второй", "…");
+        var tu = upper.ShowDialog(w);
+        Jobs();
+        if (layers.Children.Count != 2) throw new Exception("два диалога — должно быть два слоя");
+        upper.Close();
+        Jobs();
+        if (!tu.IsCompleted || tl.IsCompleted) throw new Exception("закрылся не тот диалог");
+        if (page.IsEnabled) throw new Exception("страница включилась, пока нижний диалог ещё открыт");
+        lower.Close();
+        Jobs();
+        if (!tl.IsCompleted || !page.IsEnabled) throw new Exception("после обоих страница не включилась");
+
+        // with the window hidden there is nothing to draw on: a window of its own
+        w.Hide();
+        var three = new ConfirmWindow("Скрыто", "в трее");
+        var t3 = three.ShowDialog(w);
+        Jobs();
+        if (layers.Children.Count != 0) throw new Exception("окно скрыто, а диалог попал на его слой");
+        if (t3.IsCompleted) throw new Exception("отдельное окно закрылось само");
+        three.Close();
+        Jobs();
+        if (!t3.IsCompleted) throw new Exception("отдельное окно не закрылось по Close()");
+
+        w.Close();
+    }
+
     private static void Banner()
     {
         try
@@ -651,6 +732,13 @@ internal static class Program
     {
         var w = new Window { Width = 1100, Height = 760, Content = page };
         Show(w);
+    }
+
+    /// <summary>A dialog is a control now: laid out inside a window, like a page.</summary>
+    private static void Show(Control c)
+    {
+        if (c is Window w) Show(w);
+        else Host(c);
     }
 
     private static void Show(Window w)

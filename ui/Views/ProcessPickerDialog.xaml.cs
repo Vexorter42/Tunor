@@ -23,7 +23,7 @@ public sealed class ProcessEntry
 /// disk — the engine's process matching is case-sensitive, and typing the name by hand
 /// is how rules like "telegram.exe" ended up never matching "Telegram.exe".
 /// </summary>
-public partial class ProcessPickerDialog : Window
+public partial class ProcessPickerDialog : DialogPanel
 {
     private List<ProcessEntry> _all = new();
 

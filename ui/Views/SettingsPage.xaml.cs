@@ -68,7 +68,7 @@ public partial class SettingsPage : UserControl
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Tunor", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Msg.Show(ex.Message, "Tunor", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 

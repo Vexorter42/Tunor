@@ -1,10 +1,9 @@
-<Window xmlns="https://github.com/avaloniaui"
+<v:DialogPanel xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:v="using:Tunor.Desktop.Views"
         x:Class="Tunor.Desktop.Views.ProcessPickerWindow"
         Title="Запущенные программы" Width="620" Height="560"
-        Background="{StaticResource BgBrush}"
-        WindowStartupLocation="CenterOwner">
+        Background="{StaticResource BgBrush}">
     <DockPanel Margin="24">
 
         <StackPanel DockPanel.Dock="Top" Spacing="10" Margin="0,0,0,14">
@@ -48,4 +47,4 @@
             </Grid>
         </Border>
     </DockPanel>
-</Window>
+</v:DialogPanel>

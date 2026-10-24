@@ -34,7 +34,7 @@ public partial class AutostartPage : UserControl
         else
         {
             StatusText.Text = "Не удалось создать задачу";
-            MessageBox.Show(string.IsNullOrWhiteSpace(output) ? "schtasks вернул ошибку" : output,
+            Msg.Show(string.IsNullOrWhiteSpace(output) ? "schtasks вернул ошибку" : output,
                 "schtasks /create", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         Refresh();
@@ -51,7 +51,7 @@ public partial class AutostartPage : UserControl
         else
         {
             StatusText.Text = "Не удалось удалить задачу";
-            MessageBox.Show(string.IsNullOrWhiteSpace(output) ? "schtasks вернул ошибку" : output,
+            Msg.Show(string.IsNullOrWhiteSpace(output) ? "schtasks вернул ошибку" : output,
                 "schtasks /delete", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         Refresh();

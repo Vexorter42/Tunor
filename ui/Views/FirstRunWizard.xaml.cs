@@ -9,8 +9,11 @@ using Tunor.Services;
 
 namespace Tunor.Views;
 
-public partial class FirstRunWizard : Window
+public partial class FirstRunWizard : DialogPanel
 {
+    /// <summary>The wizard gates the app: Esc is not an answer to it, the buttons are.</summary>
+    public override bool DismissOnEscape => false;
+
     private int _step;
     private bool _listsStarted;
     private Border[] _panels = Array.Empty<Border>();

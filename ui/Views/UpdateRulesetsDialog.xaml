@@ -1,12 +1,11 @@
-<Window x:Class="Tunor.Views.UpdateRulesetsDialog"
+<v:DialogPanel x:Class="Tunor.Views.UpdateRulesetsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="clr-namespace:Tunor.Views"
         Title="Обновить списки правил"
-        Width="560" Height="360"
-        WindowStartupLocation="CenterOwner"
+        Width="544" Height="420"
         Background="{StaticResource BgBrush}"
-        Foreground="{StaticResource TextBrush}"
-        Icon="../Assets/app.ico">
+        Foreground="{StaticResource TextBrush}">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -48,4 +47,4 @@
                     Click="Close_Click" MinWidth="100"/>
         </StackPanel>
     </Grid>
-</Window>
+</v:DialogPanel>

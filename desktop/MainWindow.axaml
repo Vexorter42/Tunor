@@ -7,7 +7,7 @@
         Background="{StaticResource BgBrush}"
         WindowStartupLocation="CenterScreen">
 
-    <Grid ColumnDefinitions="218,*">
+    <Grid x:Name="AppRoot" ColumnDefinitions="218,*">
 
         <!-- sidebar -->
         <Border Grid.Column="0" Background="{StaticResource BgPanelBrush}"
@@ -61,5 +61,8 @@
         <ScrollViewer Grid.Column="1" Padding="28,24">
             <ContentControl x:Name="PageHost"/>
         </ScrollViewer>
+
+        <!-- Dialogs are drawn here, over everything: see DialogHost -->
+        <Grid x:Name="DialogLayers" Grid.ColumnSpan="2"/>
     </Grid>
 </Window>
