@@ -14,6 +14,7 @@ public partial class UpdateRulesetsDialog : DialogPanel
     {
         InitializeComponent();
         _groups = groups;
+        MirrorBox.Text = UpdateConfig.Load().Mirror;     // the one the updater uses, not a copy of an old default
 
         // Count how many groups have a source URL
         var candidates = 0;

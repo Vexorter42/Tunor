@@ -17,15 +17,15 @@
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
             <TextBlock Text="Обновление списков правил" Style="{StaticResource H2}"/>
             <TextBlock TextWrapping="Wrap" Style="{StaticResource Dim}" Margin="0,4,0,0"
-                       Text="Скачивает .srs файлы во внутреннюю папку data/rulesets и конвертирует remote-группы в local. Если GitHub у тебя заблокирован — укажи зеркало (например https://ghproxy.net/)."/>
+                       Text="Скачивает .srs файлы во внутреннюю папку data/rulesets и конвертирует remote-группы в local. Сначала качает напрямую с GitHub, а если он не отвечает — через зеркало ниже."/>
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="0,0,0,12">
-            <TextBlock Text="Mirror prefix (опционально)" Style="{StaticResource Dim}"/>
+            <TextBlock Text="Запасное зеркало (необязательно)" Style="{StaticResource Dim}"/>
             <TextBox x:Name="MirrorBox" Margin="0,4,0,0"
-                     Text="https://ghproxy.net/"/>
+                     Text="https://gh-proxy.com/"/>
             <TextBlock Style="{StaticResource Dim}" Margin="0,4,0,0"
-                       Text="Оставь пустым, чтобы качать напрямую с GitHub"/>
+                       Text="Пустое поле — только напрямую с GitHub, без зеркал"/>
         </StackPanel>
 
         <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0">

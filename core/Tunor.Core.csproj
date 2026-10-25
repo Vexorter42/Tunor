@@ -58,6 +58,7 @@
     <Compile Include="..\ui\Services\RouteLookup.cs" Link="Services\RouteLookup.cs" />
     <Compile Include="..\ui\Services\RulesService.cs" Link="Services\RulesService.cs" />
     <Compile Include="..\ui\Services\RulesetDownloader.cs" Link="Services\RulesetDownloader.cs" />
+    <Compile Include="..\ui\Services\GitHubFetch.cs" Link="Services\GitHubFetch.cs" />
     <Compile Include="..\ui\Services\SettingsService.cs" Link="Services\SettingsService.cs" />
     <Compile Include="..\ui\Services\Subscription.cs" Link="Services\Subscription.cs" />
     <Compile Include="..\ui\Services\TrafficRecorder.cs" Link="Services\TrafficRecorder.cs" />

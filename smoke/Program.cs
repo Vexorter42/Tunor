@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using Tunor.Desktop;
 using Tunor.Desktop.Services;
@@ -61,6 +62,8 @@ internal static class Program
                 Check("Главная: зелёный баннер «Обновиться»", Banner, failures);
                 Check("Диалоги внутри окна: поверх приложения, ждут, закрываются, стопкой, без главного окна",
                       InWindowDialogs, failures);
+                Check("Скачивание: сначала GitHub, потом зеркала, короткие таймауты, списки не ждут молчащую сеть",
+                      FetchWays, failures);
             })
             .SetupWithoutStarting();
 
@@ -557,6 +560,228 @@ internal static class Program
         {
             Console.WriteLine("  ✗ автопоиск обновлений: " + problem);
             failures.Add("автопоиск обновлений — " + problem);
+        }
+    }
+
+    /// <summary>
+    /// Stand-in for GitHub and for a mirror, on one local port. What a path ends in says how it
+    /// behaves: "…direct404" is a 404 from GitHub only, "…mirrorhang" never answers from the mirror,
+    /// "both…" does it from both, "…stall" starts a body from GitHub and stops, "…big" is 300 KB.
+    /// </summary>
+    private sealed class FakeGitHub : IDisposable
+    {
+        public const int BigSize = 300_000;
+        private readonly System.Net.HttpListener _l = new();
+        private readonly List<string> _order = new();
+
+        public int Port { get; }
+
+        public FakeGitHub()
+        {
+            var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            probe.Start();
+            Port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port;
+            probe.Stop();
+            _l.Prefixes.Add($"http://127.0.0.1:{Port}/");
+            _l.Start();
+            _ = Task.Run(async () =>
+            {
+                while (_l.IsListening)
+                {
+                    System.Net.HttpListenerContext c;
+                    try { c = await _l.GetContextAsync(); } catch { break; }
+                    _ = Task.Run(() => Handle(c));
+                }
+            });
+        }
+
+        public string Direct(string name) => $"http://127.0.0.1:{Port}/direct/{name}";
+        public string MirrorPrefix => $"http://127.0.0.1:{Port}/mirror/";
+        public string[] Seen() { lock (_order) return _order.ToArray(); }
+        public void Reset() { lock (_order) _order.Clear(); }
+
+        private void Handle(System.Net.HttpListenerContext c)
+        {
+            var raw = c.Request.RawUrl ?? "";
+            var mirror = raw.StartsWith("/mirror/");
+            var me = mirror ? "mirror" : "direct";
+            var name = raw[(raw.LastIndexOf('/') + 1)..];
+            lock (_order) _order.Add(me);
+            try
+            {
+                if (name.Contains("both404") || name.Contains(me + "404")) { c.Response.StatusCode = 404; c.Response.Close(); return; }
+                if (name.Contains("bothhang") || name.Contains(me + "hang")) { Thread.Sleep(2500); c.Response.Abort(); return; }
+
+                var payload = name.Contains("big")
+                    ? Enumerable.Repeat((byte)(mirror ? 'M' : 'D'), BigSize).ToArray()
+                    : System.Text.Encoding.UTF8.GetBytes((mirror ? "MIRROR:" : "DIRECT:") + name);
+                c.Response.ContentLength64 = payload.Length;
+                if (name.Contains("stall") && !mirror)
+                {
+                    c.Response.OutputStream.Write(payload, 0, payload.Length / 3);
+                    c.Response.OutputStream.Flush();
+                    Thread.Sleep(2500);
+                    c.Response.Abort();
+                    return;
+                }
+                c.Response.OutputStream.Write(payload, 0, payload.Length);
+                c.Response.Close();
+            }
+            catch { try { c.Response.Abort(); } catch { } }
+        }
+
+        public void Dispose() { try { _l.Stop(); _l.Close(); } catch { } }
+    }
+
+    private sealed class LastValue : IProgress<double>
+    {
+        public double Last = -1;
+        public void Report(double value) => Last = value;
+    }
+
+    private static T Run<T>(Func<Task<T>> f) => Task.Run(f).GetAwaiter().GetResult();
+    private static void Run(Func<Task> f) => Task.Run(f).GetAwaiter().GetResult();
+
+    /// <summary>
+    /// Fetching from GitHub, and through a mirror when GitHub does not answer. This is what stood
+    /// between a dead mirror and every update: the program went through one mirror and nothing else,
+    /// and waited half a minute for it each time.
+    /// </summary>
+    private static void FetchWays()
+    {
+        var mirrors = GitHubFetch.BackupMirrors;
+        var header = GitHubFetch.HeaderTimeout;
+        var stall = GitHubFetch.StallTimeout;
+        var files = new List<string>();
+        using var gh = new FakeGitHub();
+        try
+        {
+            GitHubFetch.BackupMirrors = Array.Empty<string>();
+            GitHubFetch.HeaderTimeout = TimeSpan.FromMilliseconds(300);
+            GitHubFetch.StallTimeout = TimeSpan.FromMilliseconds(300);
+            GitHubFetch.Forget();
+
+            string Get(string name, string? mirror = "") => Run(() => GitHubFetch.GetStringAsync(gh.Direct(name), mirror == "" ? gh.MirrorPrefix : mirror));
+            void Expect(string what, string got, string want)
+            {
+                if (got != want) throw new Exception($"{what}: получено «{got}», нужно «{want}»");
+            }
+            void Order(string what, params string[] want)
+            {
+                var seen = gh.Seen();
+                gh.Reset();
+                if (!seen.SequenceEqual(want))
+                    throw new Exception($"{what}: обращения {string.Join(",", seen)}, нужны {string.Join(",", want)}");
+            }
+
+            // GitHub answers: the mirror is not touched
+            Expect("GitHub отвечает", Get("a-ok"), "DIRECT:a-ok");
+            Order("GitHub отвечает", "direct");
+
+            // GitHub says no: the mirror's turn
+            Expect("GitHub вернул 404", Get("b-direct404"), "MIRROR:b-direct404");
+            Order("GitHub вернул 404", "direct", "mirror");
+
+            // what worked is tried first next time, so a blocked GitHub is waited for once
+            Expect("после зеркала", Get("c-ok"), "MIRROR:c-ok");
+            Order("после зеркала — идёт к зеркалу первым", "mirror");
+
+            // and when the one that worked stops working, it goes back
+            Expect("зеркало отказало", Get("d-mirror404"), "DIRECT:d-mirror404");
+            Order("зеркало отказало", "mirror", "direct");
+            Expect("после возврата", Get("e-ok"), "DIRECT:e-ok");
+            Order("после возврата — GitHub первым", "direct");
+
+            // GitHub never answers: not half a minute, the header timeout
+            GitHubFetch.Forget();
+            var t0 = DateTime.UtcNow;
+            Expect("GitHub молчит", Get("f-directhang"), "MIRROR:f-directhang");
+            var took = DateTime.UtcNow - t0;
+            if (took > TimeSpan.FromSeconds(2)) throw new Exception($"ждали молчащий GitHub {took.TotalSeconds:0.0} с");
+            gh.Reset();
+
+            // nothing works: the message says where it was tried, and whether anyone answered at all
+            GitHubFetch.Forget();
+            try { Get("g-both404"); throw new Exception("все 404, а исключения нет"); }
+            catch (GitHubFetch.FetchFailedException f)
+            {
+                if (!f.Message.Contains("GitHub") || !f.Message.Contains("зеркало")) throw new Exception("в сообщении не названы оба места: " + f.Message);
+                if (f.Unreachable) throw new Exception("оба ответили «нет», а считается, что не отвечают");
+            }
+            try { Get("h-bothhang"); throw new Exception("все молчат, а исключения нет"); }
+            catch (GitHubFetch.FetchFailedException f)
+            {
+                if (!f.Unreachable) throw new Exception("никто не ответил, а считается, что ответили");
+            }
+            gh.Reset();
+
+            // an empty mirror is "no go-between": GitHub only, whatever else is configured
+            GitHubFetch.BackupMirrors = new[] { gh.MirrorPrefix };
+            GitHubFetch.Forget();
+            try { Get("i-direct404", mirror: null); throw new Exception("зеркало пусто, а файл нашёлся"); }
+            catch (GitHubFetch.FetchFailedException f)
+            {
+                if (f.Message.Contains("зеркало")) throw new Exception("при пустом зеркале ходили к зеркалу: " + f.Message);
+            }
+            Order("пустое зеркало", "direct");
+            GitHubFetch.BackupMirrors = Array.Empty<string>();
+
+            // the list of ways: the configured mirror once, however many times it is also a backup
+            GitHubFetch.BackupMirrors = new[] { "https://a.example/", "https://B.example" };
+            GitHubFetch.Forget();
+            var ways = GitHubFetch.Ways("https://github.com/x/y", "https://a.example");
+            if (ways.Count != 3 || ways[0].Name != "GitHub" || ways[1].Url != "https://a.example/https://github.com/x/y")
+                throw new Exception("порядок мест: " + string.Join(" | ", ways.Select(w => w.Url)));
+            GitHubFetch.BackupMirrors = Array.Empty<string>();
+
+            // a large file: to disk, with progress
+            var path = Path.Combine(Path.GetTempPath(), "tunor-fetch-" + Guid.NewGuid().ToString("N") + ".bin");
+            files.Add(path);
+            GitHubFetch.Forget();
+            var progress = new LastValue();
+            Run(() => GitHubFetch.DownloadAsync(gh.Direct("j-big"), gh.MirrorPrefix, path, progress));
+            var got = File.ReadAllBytes(path);
+            if (got.Length != FakeGitHub.BigSize || !got.All(b => b == (byte)'D')) throw new Exception("скачанный файл не тот");
+            if (progress.Last < 0.999) throw new Exception($"прогресс остановился на {progress.Last:0.00}");
+            gh.Reset();
+
+            // GitHub starts a body and stops: the half is thrown away, the mirror gives the whole
+            Run(() => GitHubFetch.DownloadAsync(gh.Direct("k-stall-big"), gh.MirrorPrefix, path, null));
+            got = File.ReadAllBytes(path);
+            if (got.Length != FakeGitHub.BigSize || !got.All(b => b == (byte)'M'))
+                throw new Exception($"после обрыва на полпути в файле {got.Length} байт, и это не целый файл от зеркала");
+            gh.Reset();
+
+            // rule lists: two in a row that nobody answers for, and the rest are skipped, not waited for
+            var down = new List<RuleGroup>();
+            for (var i = 0; i < 5; i++)
+                down.Add(new RuleGroup { Tag = "warp-d" + i, Type = "remote", SourceUrl = gh.Direct($"list{i}-bothhang.srs") });
+            GitHubFetch.Forget();
+            t0 = DateTime.UtcNow;
+            var r1 = Run(() => RulesetDownloader.DownloadAllAsync(down, gh.MirrorPrefix));
+            took = DateTime.UtcNow - t0;
+            if (r1.Count != 5 || r1.Any(r => r.Ok)) throw new Exception("списки при молчащей сети: результатов " + r1.Count);
+            if (!r1.Skip(2).All(r => r.Message.StartsWith("пропущено"))) throw new Exception("после двух неудач подряд остальные не пропущены");
+            if (took > TimeSpan.FromSeconds(4)) throw new Exception($"молчащую сеть ждали {took.TotalSeconds:0.0} с");
+            gh.Reset();
+
+            // …but lists that are simply gone do not stop the one that is there
+            var mixed = new List<RuleGroup>();
+            for (var i = 0; i < 4; i++)
+                mixed.Add(new RuleGroup { Tag = "warp-m" + i, Type = "remote", SourceUrl = gh.Direct($"gone{i}-both404.srs") });
+            mixed.Add(new RuleGroup { Tag = "warp-ok", Type = "remote", SourceUrl = gh.Direct("fetch-smoke-ok.srs") });
+            GitHubFetch.Forget();
+            var r2 = Run(() => RulesetDownloader.DownloadAllAsync(mixed, gh.MirrorPrefix));
+            files.Add(Path.Combine(Paths.RulesetsDir, "fetch-smoke-ok.srs"));
+            if (!r2[^1].Ok) throw new Exception("после четырёх отсутствующих списков живой не скачался: " + r2[^1].Message);
+        }
+        finally
+        {
+            GitHubFetch.BackupMirrors = mirrors;
+            GitHubFetch.HeaderTimeout = header;
+            GitHubFetch.StallTimeout = stall;
+            GitHubFetch.Forget();
+            foreach (var f in files) { try { File.Delete(f); } catch { } }
         }
     }
 
