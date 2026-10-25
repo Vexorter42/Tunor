@@ -174,7 +174,8 @@ public sealed class Tray : IDisposable
         window.Activate();
     }
 
-    private void Quit()
+    /// <summary>Ends the app for real. The menu's "Quit", and the updater, which has to.</summary>
+    public void Quit()
     {
         Quitting = true;
         if (Application.Current?.ApplicationLifetime
