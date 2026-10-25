@@ -171,7 +171,7 @@ internal static class Program
             if (make == null) { Console.WriteLine("  ✗ подмена: SwapScript не найден"); failures.Add("SwapScript не найден"); return; }
 
             // A pid that has certainly exited, so the script does not wait for anything.
-            var text = (string)make.Invoke(null, new object[] { 999999, newApp, oldApp })!;
+            var text = (string)make.Invoke(null, new object[] { 999999, newApp, oldApp, 30, 10 })!;
             var script = Path.Combine(root, "swap.sh");
             File.WriteAllText(script, text);
 
@@ -233,7 +233,7 @@ internal static class Program
                 return;
             }
 
-            var text = (string)make.Invoke(null, new object[] { 999999, fresh, target })!;
+            var text = (string)make.Invoke(null, new object[] { 999999, fresh, target, 30, 10 })!;
             var script = Path.Combine(root, "swap.sh");
             File.WriteAllText(script, text);
 
@@ -682,6 +682,10 @@ internal static class Program
         try
         {
             GitHubFetch.BackupMirrors = Array.Empty<string>();
+            // The first request of a process is slow — the HTTP stack starts, the code is compiled — and on a loaded
+            // machine that is longer than the 300 ms the checks below allow an answer: one throwaway request first.
+            Run(() => GitHubFetch.GetStringAsync(gh.Direct("warm-ok"), gh.MirrorPrefix));
+            gh.Reset();
             GitHubFetch.HeaderTimeout = TimeSpan.FromMilliseconds(300);
             GitHubFetch.StallTimeout = TimeSpan.FromMilliseconds(300);
             GitHubFetch.Forget();
