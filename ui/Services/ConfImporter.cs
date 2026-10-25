@@ -150,6 +150,19 @@ public static class ConfImporter
         ConfigGenerator.Generate();
     }
 
+    /// <summary>The same for a config that is text already (one made by the program itself): warp.conf / geo.conf, a .bak of what was there, config.json rebuilt.</summary>
+    public static void ApplyText(string text, ConfKind kind)
+    {
+        var target = kind == ConfKind.Warp ? Paths.WarpConf : Paths.GeoConf;
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        if (File.Exists(target))
+        {
+            try { File.Copy(target, target + ".bak", overwrite: true); } catch { }
+        }
+        File.WriteAllText(target, text);
+        ConfigGenerator.Generate();
+    }
+
     private static bool IsWarpIp(string endpoint)
     {
         var host = endpoint.Contains(':') ? endpoint[..endpoint.LastIndexOf(':')] : endpoint;

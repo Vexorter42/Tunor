@@ -87,6 +87,8 @@ internal static class Program
                       () => Task.Run(HealthChecks).GetAwaiter().GetResult(), failures);
                 Check("Каталог списков: только годные записи, встроенный, свежий и сохранённый, добавление без повторов",
                       () => Task.Run(CatalogChecks).GetAwaiter().GetResult(), failures);
+                Check("Свой WARP-конфиг: арифметика ключей по RFC 7748, запрос, разбор ответа, запись конфига, смена пути",
+                      () => Task.Run(WarpRegistrationChecks).GetAwaiter().GetResult(), failures);
             })
             .SetupWithoutStarting();
 
@@ -1481,6 +1483,161 @@ internal static class Program
             (Catalog.FetchRemote, Catalog.CacheFile, Catalog.LoadGroups, Catalog.SaveGroups, Catalog.Download, Catalog.Rebuild) = (fetch, cache, loadG, saveG, download, rebuild);
             try { Directory.Delete(dir, true); } catch { }
         }
+    }
+
+    private sealed class FakeHttp : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, Task<HttpResponseMessage>> _f;
+        public FakeHttp(Func<HttpRequestMessage, Task<HttpResponseMessage>> f) => _f = f;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => _f(request);
+    }
+
+    private static HttpResponseMessage Json(int code, string body)
+        => new((System.Net.HttpStatusCode)code) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
+
+    /// <summary>
+    /// A WARP config made without a bot: the curve arithmetic against the RFC's own vectors, the request exactly as it
+    /// is meant to leave, Cloudflare's answer read in each shape it comes in, the config written the way the program
+    /// keeps it (and the obfuscation of the one it replaces carried over), and the way out changed when one is shut.
+    /// </summary>
+    private static void WarpRegistrationChecks()
+    {
+        static byte[] Hex(string h) => Convert.FromHexString(h);
+        static string Hx(byte[] b) => Convert.ToHexString(b).ToLowerInvariant();
+
+        // ---- the arithmetic: RFC 7748 §5.2 and §6.1, and openssl's agreement with the latter
+        foreach (var (k, u, want) in new[]
+        {
+            ("a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4", "e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c",
+             "c3da55379de9c6908e94ea4df28d084f32eccf03491c71f754b4075577a28552"),
+            ("4b66e9d4d1b4673c5ad22691957d6af5c11b6421e0ea01d42ca4169e7918ba0d", "e5210f12786811d3f4b7959d0538ae2c31dbe7106fc03c3efc4cd549c715a493",
+             "95cbde9476e8907d7aade45cb4b873f88b595a68799fa152e6f8f7647aac7957"),
+            ("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a", "0900000000000000000000000000000000000000000000000000000000000000",
+             "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"),
+            ("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb", "0900000000000000000000000000000000000000000000000000000000000000",
+             "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f"),
+            ("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a", "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f",
+             "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742"),
+            ("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb", "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a",
+             "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742"),
+        })
+            if (Hx(WarpRegistration.X25519(Hex(k), Hex(u))) != want) throw new Exception("X25519 расходится с RFC 7748 на векторе " + k[..8]);
+
+        var alice = Convert.ToBase64String(Hex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"));
+        if (WarpRegistration.PublicKey(alice) != Convert.ToBase64String(Hex("8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a")))
+            throw new Exception("публичный ключ Alice");
+
+        var k1 = WarpRegistration.NewPrivateKey(); var k2 = WarpRegistration.NewPrivateKey();
+        if (k1.Length != 32 || (k1[0] & 7) != 0 || (k1[31] & 0x80) != 0 || (k1[31] & 0x40) == 0) throw new Exception("закрытый ключ не приведён к виду WireGuard");
+        if (k1.SequenceEqual(k2)) throw new Exception("два ключа одинаковы");
+        if (Convert.ToBase64String(k1).Length != 44) throw new Exception("ключ в Base64 должен быть из 44 знаков");
+
+        // ---- the request
+        var pub = WarpRegistration.PublicKey(Convert.ToBase64String(k1));
+        var body = System.Text.Json.Nodes.JsonNode.Parse(WarpRegistration.RequestBody(pub, new DateTimeOffset(2026, 10, 25, 18, 30, 0, 123, TimeSpan.FromHours(3))))!.AsObject();
+        if (body["key"]!.GetValue<string>() != pub || body["tunnel_type"]!.GetValue<string>() != "wireguard" || body["key_type"]!.GetValue<string>() != "curve25519"
+            || body["install_id"]!.GetValue<string>() != "" || body["fcm_token"]!.GetValue<string>() != "" || body["model"]!.GetValue<string>() != "PC")
+            throw new Exception("тело запроса: " + body.ToJsonString());
+        if (body["tos"]!.GetValue<string>() != "2026-10-25T18:30:00.123+03:00") throw new Exception("дата принятия условий: " + body["tos"]);
+
+        // ---- the answers
+        const string peerKey = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=";
+        string Answer(string endpoint = "\"host\":\"engage.cloudflareclient.com:2408\"", string v6 = ", \"v6\":\"2606:4700:110:8a36:df92:102a:9602:fa2f\"")
+            => "{\"id\":\"6b1f0000-0000-4000-8000-000000000001\",\"token\":\"SECRET-TOKEN-123\",\"account\":{\"license\":\"LICENSE-XYZ\"},\"config\":{\"client_id\":\"AbCd\","
+               + "\"peers\":[{\"public_key\":\"" + peerKey + "\",\"endpoint\":{" + endpoint + "}}],\"interface\":{\"addresses\":{\"v4\":\"172.16.0.2/32\"" + v6 + "}}}}";
+
+        var a = WarpRegistration.Parse(Answer(), alice, "напрямую")!;
+        if (a.PeerPublicKey != peerKey || a.Endpoint != "engage.cloudflareclient.com:2408" || a.AddressV4 != "172.16.0.2" || !a.AddressV6.StartsWith("2606:4700:110") || a.PrivateKey != alice)
+            throw new Exception("разбор ответа: " + a.Endpoint + " " + a.AddressV4);
+        var viaIp = WarpRegistration.Parse(Answer("\"v4\":\"162.159.192.1:0\",\"ports\":[500,2408]"), alice, "x")!;
+        if (viaIp.Endpoint != "162.159.192.1:500") throw new Exception("адрес без host: " + viaIp.Endpoint);
+        if (WarpRegistration.Parse(Answer("\"v4\":\"162.159.192.1:0\""), alice, "x")!.Endpoint != "162.159.192.1:2408") throw new Exception("порт по умолчанию");
+        if (WarpRegistration.Parse("{\"id\":\"1\",\"token\":\"t\"}", alice, "x") != null) throw new Exception("ответ без настроек принят за готовый");
+        try { WarpRegistration.Parse("<html>Attention Required</html>", alice, "x"); throw new Exception("страница-заглушка принята"); }
+        catch (WarpRegistrationException) { }
+        try { WarpRegistration.Parse(Answer("\"host\":\"evil host\\nPrivateKey = x:1\""), alice, "x"); throw new Exception("странный адрес принят"); }
+        catch (WarpRegistrationException) { }
+        try { WarpRegistration.Parse(Answer().Replace(peerKey, "not-a-key"), alice, "x"); throw new Exception("странный ключ принят"); }
+        catch (WarpRegistrationException) { }
+        var shown = WarpRegistration.Excerpt("{\"token\":\"SECRET-TOKEN-123\",\n \"x\":1}");
+        if (shown.Contains("SECRET") || shown.Contains('\n')) throw new Exception("в сообщении об ошибке остался токен: " + shown);
+
+        // ---- the config
+        var plain = WarpRegistration.BuildConf(a, awg: false);
+        if (plain != "[Interface]\nPrivateKey = " + alice + "\nAddress = 172.16.0.2, 2606:4700:110:8a36:df92:102a:9602:fa2f\nDNS = 1.1.1.1, 1.0.0.1, 2606:4700:4700::1111, 2606:4700:4700::1001\nMTU = 1280\n"
+                     + "\n[Peer]\nPublicKey = " + peerKey + "\nAllowedIPs = 0.0.0.0/0, ::/0\nEndpoint = engage.cloudflareclient.com:2408\n")
+            throw new Exception("конфиг без AWG:\n" + plain);
+
+        var fresh = WarpRegistration.BuildConf(a, awg: true);
+        foreach (var line in new[] { "Jc = 4", "Jmin = 40", "Jmax = 70", "S1 = 0", "S4 = 0", "H1 = 1", "H4 = 4" })
+            if (!fresh.Contains(line + "\n")) throw new Exception("в конфиге с AWG нет " + line);
+        if (fresh.Contains("I1")) throw new Exception("откуда-то взялась строка I1");
+
+        const string old = "[Interface]\nPrivateKey = OLDKEY\nAddress = 1.1.1.1\nMTU = 1280\nJc = 7\nJmin = 10\nJmax = 20\nS1 = 3\nH1 = 5\nI1 = <b 0xce00ff>\nI2 = <r 16>\n\n[Peer]\nPublicKey = X\nJc = 99\nEndpoint = old:1\n";
+        var carried = WarpRegistration.BuildConf(a, awg: true, previousConf: old);
+        foreach (var line in new[] { "Jc = 7", "Jmin = 10", "S1 = 3", "H1 = 5", "I1 = <b 0xce00ff>", "I2 = <r 16>" })
+            if (!carried.Contains(line + "\n")) throw new Exception("обфускация прежнего конфига не перенесена: " + line);
+        if (carried.Contains("OLDKEY") || carried.Contains("Jc = 99") || carried.Contains("old:1") || carried.Contains("Jc = 4")) throw new Exception("из прежнего конфига перенеслось лишнее");
+
+        if (!WarpRegistration.BuildConf(a, false, null, "162.159.193.1:2408").EndsWith("Endpoint = 162.159.193.1:2408\n")) throw new Exception("выбранная точка не записана");
+        if (!WarpRegistration.BuildConf(a, false, null, "bad\nx").EndsWith("Endpoint = engage.cloudflareclient.com:2408\n")) throw new Exception("неверная точка записана");
+        // what is written is a config the program reads back as its own
+        var back = WarpEndpoint.Read(carried);
+        if (back != "engage.cloudflareclient.com:2408") throw new Exception("записанный конфиг не читается: " + back);
+
+        // ---- the whole thing, against a stand-in for Cloudflare
+        var (handler, timeout) = (WarpRegistration.Handler, WarpRegistration.Timeout);
+        try
+        {
+            var seen = new List<(int? Port, HttpRequestMessage Req, string Body)>();
+            WarpRegistration.Timeout = TimeSpan.FromSeconds(5);
+            WarpRegistration.Handler = port => new FakeHttp(async req =>
+            {
+                var text = req.Content == null ? "" : await req.Content.ReadAsStringAsync();
+                seen.Add((port, req, text));
+                if (port == null) throw new HttpRequestException("handshake failed", new System.IO.IOException("Connection reset by peer"));
+                return Json(200, Answer());
+            });
+
+            var done = WarpRegistration.RegisterAsync(new (string, int?)[] { ("напрямую", null), ("через WARP", 1082), ("через geo", 1083) }).GetAwaiter().GetResult();
+            if (done.Way != "через WARP" || done.Endpoint != "engage.cloudflareclient.com:2408") throw new Exception("путь: " + done.Way);
+            if (seen.Count != 2 || seen[0].Port != null || seen[1].Port != 1082) throw new Exception("порядок путей: " + string.Join(",", seen.Select(x => x.Port)));
+            var (_, req, sent) = seen[1];
+            if (req.Method != HttpMethod.Post || req.RequestUri!.ToString() != "https://api.cloudflareclient.com/v0a5641/reg") throw new Exception("адрес запроса: " + req.RequestUri);
+            if (req.Headers.UserAgent.ToString().Length == 0 || !req.Headers.Contains("CF-Client-Version")) throw new Exception("нет заголовков приложения");
+            if (!req.Content!.Headers.ContentType!.ToString().StartsWith("application/json")) throw new Exception("тип содержимого");
+            var sentKey = System.Text.Json.Nodes.JsonNode.Parse(sent)!["key"]!.GetValue<string>();
+            if (sentKey != WarpRegistration.PublicKey(done.PrivateKey)) throw new Exception("в Cloudflare ушёл не тот открытый ключ, что у выданного закрытого");
+            if (sent.Contains(done.PrivateKey)) throw new Exception("закрытый ключ ушёл в запросе!");
+
+            // the answer without a config: the device's record is asked for, with its token
+            seen.Clear();
+            WarpRegistration.Handler = port => new FakeHttp(async req =>
+            {
+                var text = req.Content == null ? "" : await req.Content.ReadAsStringAsync();
+                seen.Add((port, req, text));
+                return req.Method == HttpMethod.Post ? Json(200, "{\"id\":\"abc-1\",\"token\":\"T0K\"}") : Json(200, Answer());
+            });
+            var two = WarpRegistration.RegisterAsync(new (string, int?)[] { ("напрямую", null) }).GetAwaiter().GetResult();
+            if (seen.Count != 2 || seen[1].Req.Method != HttpMethod.Get || seen[1].Req.RequestUri!.AbsolutePath != "/v0a5641/reg/abc-1"
+                || seen[1].Req.Headers.Authorization?.ToString() != "Bearer T0K" || two.AddressV4 != "172.16.0.2")
+                throw new Exception("настройки не запрошены отдельно: " + string.Join(" | ", seen.Select(x => x.Req.Method + " " + x.Req.RequestUri)));
+
+            // every way is shut: the message says why for each
+            WarpRegistration.Handler = port => new FakeHttp(_ => throw new HttpRequestException("handshake failed", new System.IO.IOException("Connection reset by peer")));
+            try { WarpRegistration.RegisterAsync(new (string, int?)[] { ("напрямую", null), ("через WARP", 1082) }).GetAwaiter().GetResult(); throw new Exception("все пути закрыты, а получилось"); }
+            catch (WarpRegistrationException e) when (e.Message.Contains("напрямую:") && e.Message.Contains("через WARP:") && e.Message.Contains("блокировка")) { }
+
+            // a "no" from the server is told with its code, without the token, and the next way is tried
+            var asked = 0;
+            WarpRegistration.Handler = port => new FakeHttp(_ => { asked++; return Task.FromResult(Json(403, "{\"error\":\"forbidden\",\"token\":\"SECRET-TOKEN-123\"}")); });
+            try { WarpRegistration.RegisterAsync(new (string, int?)[] { ("напрямую", null), ("через WARP", 1082) }).GetAwaiter().GetResult(); throw new Exception("403 принят за успех"); }
+            catch (WarpRegistrationException e) when (e.Message.Contains("403") && !e.Message.Contains("SECRET") && asked == 2) { }
+
+            try { WarpRegistration.RegisterAsync(Array.Empty<(string, int?)>()).GetAwaiter().GetResult(); throw new Exception("без путей получилось"); }
+            catch (WarpRegistrationException) { }
+        }
+        finally { (WarpRegistration.Handler, WarpRegistration.Timeout) = (handler, timeout); }
     }
 
     /// <summary>
