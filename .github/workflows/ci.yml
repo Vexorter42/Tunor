@@ -1,0 +1,78 @@
+name: CI
+
+# What this is for: every change is built and its checks run on each system the program
+# is made for — Windows, Linux, a Mac with Apple Silicon and, on a machine of its own, a
+# Mac with an Intel processor. Until now the Intel build was only ever tried under
+# Rosetta on an Apple Silicon Mac.
+#
+# It publishes nothing and needs no secrets.
+
+on:
+  push:
+    branches: [main, "features-*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Checks · ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Windows,     os: windows-latest }
+          - { name: Linux,       os: ubuntu-latest }
+          - { name: macOS arm64, os: macos-15 }
+          - { name: macOS Intel, os: macos-15-intel }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build the checks (and the shared code and the macOS/Linux app with them)
+        run: dotnet build smoke -c Release --nologo
+
+      - name: Which processor this is
+        run: uname -m
+        if: runner.os != 'Windows'
+
+      # Opens every page without a screen and runs the checks of the shared services:
+      # the files on disk, the downloads, the update swap scripts, the manifest, the
+      # backup, the catalog, the monitor. Exits 1 if any fails.
+      - name: Run the checks
+        run: dotnet run --project smoke -c Release --no-build
+        timeout-minutes: 10
+
+  windows-app:
+    name: Windows app builds
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build the WPF app
+        run: dotnet build ui -c Release --nologo
+
+      - name: The version in the project and in the installer agree
+        shell: bash
+        run: |
+          proj=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' ui/Tunor.csproj | head -1)
+          iss=$(sed -n 's:.*#define MyAppVersion "\(.*\)".*:\1:p' packaging/tunor.iss | head -1)
+          mac=$(sed -n 's:^VERSION = "\(.*\)".*:\1:p' desktop/make-app.py | head -1)
+          echo "project $proj | installer $iss | mac bundle $mac"
+          [ "$proj" = "$iss" ] && [ "$proj" = "$mac" ]

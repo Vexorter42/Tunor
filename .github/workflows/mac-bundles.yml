@@ -1,0 +1,76 @@
+name: macOS bundles (for trying)
+
+# Builds Tunor.app for both kinds of Mac, each on a machine of its own kind, and checks that
+# what came out is a binary of the right processor — the Intel one on an Intel machine,
+# not on an Apple Silicon Mac under Rosetta.
+#
+# What it makes is NOT what is shipped. A downloaded bundle has to be signed (ad-hoc, by
+# make-dmg.sh) and wrapped into a .dmg, and that is done by hand on a Mac. This is for
+# trying a change before that: the artifacts are kept for a week and nothing is published.
+#
+# Run it from the Actions tab.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    name: Tunor.app · ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: arm64, rid: osx-arm64, os: macos-15,       want: arm64,  out: build-mac }
+          - { arch: x64,   rid: osx-x64,   os: macos-15-intel, want: x86_64, out: build-mac-x64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: This machine
+        run: |
+          uname -m
+          sw_vers
+
+      - name: Publish
+        working-directory: desktop
+        run: dotnet publish -c Release -r ${{ matrix.rid }} --self-contained true --nologo
+
+      - name: Assemble the bundle
+        working-directory: desktop
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 make-app.py ${{ matrix.arch == 'x64' && 'x64' || '' }}
+
+      - name: The executable is for this processor
+        working-directory: desktop
+        run: |
+          exe=$(ls ${{ matrix.out }}/Tunor.app/Contents/MacOS/* | head -1)
+          file "$exe"
+          file "$exe" | grep -q "${{ matrix.want }}"
+
+      - name: Sign it ad-hoc and let the system look at it
+        # information, not a gate: what is shipped is signed by make-dmg.sh on a Mac
+        continue-on-error: true
+        working-directory: desktop
+        run: |
+          codesign --force --deep --sign - ${{ matrix.out }}/Tunor.app
+          codesign --verify --deep --strict --verbose=2 ${{ matrix.out }}/Tunor.app
+
+      - name: Run the checks on this processor too
+        run: dotnet run --project smoke -c Release --nologo
+        timeout-minutes: 10
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tunor-mac-${{ matrix.arch }}-for-trying
+          path: desktop/${{ matrix.out }}/Tunor-mac-${{ matrix.arch }}.tar.gz
+          retention-days: 7
+          if-no-files-found: error
