@@ -40,6 +40,7 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="Куда пойдёт:" Foreground="{StaticResource TextBrush}"
                                    VerticalAlignment="Center" Margin="0,0,10,0"/>
@@ -49,6 +50,10 @@
                         <Button x:Name="LookupBtn" Grid.Column="2" Content="Проверить" Padding="14,6"
                                 Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
                                 Click="Lookup_Click"/>
+                        <Button x:Name="LookupAllBtn" Grid.Column="3" Content="Через все пути" Padding="14,6"
+                                Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                                ToolTip="Откроет сайт напрямую и через каждый туннель и покажет, где он открывается (нужен работающий движок)"
+                                Click="LookupAll_Click"/>
                     </Grid>
                     <TextBlock x:Name="LookupResult" Margin="0,8,0,0" TextWrapping="Wrap"
                                Foreground="{StaticResource TextBrush}" Visibility="Collapsed"/>

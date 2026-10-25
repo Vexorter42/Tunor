@@ -94,12 +94,27 @@
                             <ColumnDefinition Width="130"/>
                             <ColumnDefinition Width="28"/>
                             <ColumnDefinition Width="150"/>
-                            <ColumnDefinition Width="60"/>
+                            <ColumnDefinition Width="100"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                     </Grid>
                     <TextBlock x:Name="CheckHint" Style="{StaticResource Dim}" TextWrapping="Wrap"
                                Margin="0,10,0,0" Visibility="Collapsed"/>
+                    <Button Content="Точка выхода WARP…" Style="{StaticResource SecondaryButton}"
+                            HorizontalAlignment="Left" Margin="0,12,0,0" MinWidth="200"
+                            ToolTip="Другой адрес WARP — другой дата-центр Cloudflare: помогает, когда сайт через WARP не открывается"
+                            Click="WarpPoint_Click"/>
+                </StackPanel>
+            </Border>
+
+            <!-- What the monitor has seen of each tunnel -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Стабильность туннелей" Style="{StaticResource H2}"/>
+                    <TextBlock Text="Пока движок работает, Tunor раз в несколько минут проверяет каждый туннель и помнит ответы неделю"
+                               Style="{StaticResource Dim}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                    <StackPanel x:Name="HealthList" Margin="0,12,0,0"/>
+                    <TextBlock x:Name="HealthNote" Style="{StaticResource Dim}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                 </StackPanel>
             </Border>
 

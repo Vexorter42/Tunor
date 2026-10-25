@@ -173,6 +173,30 @@ public partial class RulesView : UserControl
         if (e.Key == Key.Enter) { Lookup_Click(sender, e); e.Handled = true; }
     }
 
+    private async void LookupAll_Click(object? sender, RoutedEventArgs e)
+    {
+        var input = (LookupBox.Text ?? "").Trim();
+        if (input.Length == 0) return;
+
+        LookupResult.IsVisible = true;
+        LookupDetail.IsVisible = false;
+        var why = ConnectionCheck.Unavailable();
+        if (why != null) { LookupResult.Text = why; return; }
+
+        BtnLookup.IsEnabled = BtnLookupAll.IsEnabled = false;
+        LookupResult.Text = "Открываю сайт через каждый путь…";
+        try
+        {
+            var check = await RouteProbe.CheckSiteAsync(input);
+            LookupResult.Text = $"{check.Host}  →  по правилам: {(check.RuleRoute.Length > 0 ? check.RuleRoute : "не определено")}";
+            LookupDetail.Text = check.Report();
+            LookupDetail.IsVisible = true;
+        }
+        catch (ArgumentException ex) { LookupResult.Text = ex.Message; }
+        catch (Exception ex) { LookupResult.Text = "Не удалось проверить: " + ex.Message; }
+        finally { BtnLookup.IsEnabled = BtnLookupAll.IsEnabled = true; }
+    }
+
     private async void Lookup_Click(object? sender, RoutedEventArgs e)
     {
         var input = (LookupBox.Text ?? "").Trim();

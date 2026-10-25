@@ -30,6 +30,10 @@
                           IsCheckedChanged="Toggle_Changed"/>
                 <TextBlock Classes="dim" Margin="24,-6,0,0" TextWrapping="Wrap"
                            Text="При запуске и дальше раз в несколько часов. Нашлась новая версия — на главной появится зелёная кнопка «Обновиться»."/>
+                <CheckBox x:Name="ChkHealth" Content="Следить за туннелями и сообщать, если один перестал отвечать"
+                          IsCheckedChanged="Toggle_Changed"/>
+                <TextBlock Classes="dim" Margin="24,-6,0,0" TextWrapping="Wrap"
+                           Text="Раз в несколько минут Tunor запрашивает страницу Cloudflare через каждый туннель. Два промаха подряд — сообщение (на Linux — уведомление, на macOS — строка на главной); когда туннель вернётся — ещё одно, с длиной перерыва. История за неделю видна на главной."/>
                 <TextBlock Text="Уровень журнала"/>
                 <ComboBox x:Name="CmbLogLevel" Width="300" HorizontalAlignment="Left" SelectionChanged="LogLevel_Changed">
                     <ComboBoxItem Tag="error">Только ошибки</ComboBoxItem>

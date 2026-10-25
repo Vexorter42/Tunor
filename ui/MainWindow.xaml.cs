@@ -39,6 +39,10 @@ public partial class MainWindow : Window
         ProcessService.StatusChanged += OnStatusChanged;
         ProcessService.Alert += (_, reason) =>
             Dispatcher.BeginInvoke(new Action(() => _tray?.Notify("Tunor: туннель остановлен", reason)));
+        // A tunnel that stops answering is announced by the tray icon, and the one that comes back.
+        HealthMonitor.Changed += ev => Dispatcher.BeginInvoke(new Action(() =>
+            _tray?.Notify(ev.Down ? "Tunor: туннель не отвечает" : "Tunor: туннель снова отвечает", ev.Text)));
+        HealthMonitor.Start();
         ProcessService.StartStatusPolling();
         // Autostart was registered under the previous name; move it over if so.
         // The shared services ask EngineState whether the engine is up; on Windows the

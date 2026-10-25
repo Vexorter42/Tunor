@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Ellipse = System.Windows.Shapes.Ellipse;
 using Tunor.Services;
 
 namespace Tunor.Views;
@@ -16,8 +17,10 @@ public partial class HomePage : UserControl
         InitializeComponent();
         ProcessService.StatusChanged += (_, _) => Dispatcher.Invoke(UpdateState);
         UpdateWatcher.Changed += (_, _) => Dispatcher.BeginInvoke(new Action(ShowUpdate));
+        HealthMonitor.Updated += () => Dispatcher.BeginInvoke(new Action(RefreshHealth));
         Loaded += (_, _) =>
         {
+            RefreshHealth();
             UpdateState();
             ShowUpdate();
             VersionText.Text = "Текущая версия: " + Services.UpdateService.CurrentVersionString;
@@ -172,7 +175,7 @@ public partial class HomePage : UserControl
                  _ => dim,
              }, bold: true);
         Cell(2, ok ? r.Ip : "", Ui.Brush("TextBrush"));
-        Cell(3, ok ? r.Country : "", Ui.Brush("TextBrush"));
+        Cell(3, ok ? r.Country + (r.Colo.Length > 0 ? " · " + r.Colo : "") : "", Ui.Brush("TextBrush"));
         Cell(4, ok
                 ? $"{r.Ms} мс" + (r.ViaWarp ? " · Cloudflare видит WARP" : "")
                 : r.Note,
@@ -188,7 +191,8 @@ public partial class HomePage : UserControl
 
         if (warp?.Status == "fail")
             return "WARP не отвечает. Чаще всего конфиг устарел — сгенерируй новый в боте и перетащи .conf на окно. " +
-                   "Если и новый не отвечает, сеть может блокировать WireGuard: попробуй конфиг с AmneziaWG 2.0 или 3.x.";
+                   "Если и новый не отвечает, сеть может блокировать WireGuard: попробуй конфиг с AmneziaWG 2.0 или 3.x. " +
+                   "Либо другую точку выхода — кнопка «Точка выхода WARP» ниже.";
         if (geo?.Status == "fail")
             return "geo не отвечает — сервер geo недоступен или конфиг устарел. WARP при этом работает.";
         if (warp?.Status == "ok" && direct?.Status == "ok" && warp.Country == direct.Country)
@@ -197,6 +201,56 @@ public partial class HomePage : UserControl
         if (direct?.Status == "fail" && warp?.Status == "ok")
             return "Напрямую сервер проверки не открылся — похоже, провайдер его ограничивает. Туннель при этом работает.";
         return "Всё работает.";
+    }
+
+    private void WarpPoint_Click(object sender, RoutedEventArgs e)
+        => new WarpEndpointDialog { Owner = Window.GetWindow(this) }.ShowDialog();
+
+    // ------------------------------------------------------------ stability
+
+    private void RefreshHealth()
+    {
+        HealthList.Children.Clear();
+        System.Collections.Generic.List<RouteHealth> summary;
+        System.Collections.Generic.List<(DateTime At, bool Down, string Text)> events;
+        try
+        {
+            summary = HealthMonitor.Summary(TimeSpan.FromDays(1));
+            events = HealthMonitor.Events(TimeSpan.FromDays(7), 5);
+        }
+        catch { return; }
+
+        if (summary.Count == 0)
+        {
+            HealthNote.Text = SettingsService.Load().HealthNotify
+                ? "Данные появятся через несколько минут после запуска движка."
+                : "Слежение выключено — его можно включить в «Настройках».";
+            return;
+        }
+
+        foreach (var r in summary)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 3) };
+            row.Children.Add(new Ellipse
+            {
+                Width = 9, Height = 9, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center,
+                Fill = Ui.Solid(r.Up ? "SuccessBrush" : "DangerBrush"),
+            });
+            row.Children.Add(new TextBlock
+            {
+                Text = r.Route, Width = 120, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("TextBrush"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            });
+            row.Children.Add(new TextBlock
+            {
+                Text = $"{r.UptimePercent:0.#} % ответов за сутки · " + (r.Up ? $"сейчас отвечает, {r.LastMs} мс" : "сейчас не отвечает"),
+                Foreground = Ui.Brush(r.Up ? "TextDimBrush" : "DangerBrush"),
+            });
+            HealthList.Children.Add(row);
+        }
+        HealthNote.Text = events.Count == 0
+            ? "Перебоев за неделю не было."
+            : string.Join("\n", events.Select(x => $"{x.At:d MMM, HH:mm} — {x.Text}"));
     }
 
     private void ShowCheckHint(string text)

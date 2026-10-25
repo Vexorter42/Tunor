@@ -90,7 +90,7 @@
                 <ItemsControl x:Name="CheckList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="v:HomeView+CheckRow">
-                            <Grid ColumnDefinitions="130,24,*,60,Auto" Margin="0,3">
+                            <Grid ColumnDefinitions="130,24,*,100,Auto" Margin="0,3">
                                 <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold"/>
                                 <TextBlock Grid.Column="1" Text="{Binding Mark}"
                                            Foreground="{Binding MarkBrush}"/>
@@ -103,6 +103,19 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock x:Name="CheckNote" Classes="dim" TextWrapping="Wrap"/>
+                <Button Content="Точка выхода WARP…" HorizontalAlignment="Left" Click="WarpPoint_Click"
+                        ToolTip.Tip="Другой адрес WARP — другой дата-центр Cloudflare: помогает, когда сайт через WARP не открывается"/>
+            </StackPanel>
+        </Border>
+
+        <!-- What the monitor has seen of each tunnel -->
+        <Border Classes="card">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Стабильность туннелей" Classes="h2"/>
+                <TextBlock Classes="dim" TextWrapping="Wrap"
+                           Text="Пока движок работает, Tunor раз в несколько минут проверяет каждый туннель и помнит ответы неделю"/>
+                <StackPanel x:Name="HealthList" Spacing="4" Margin="0,4,0,0"/>
+                <TextBlock x:Name="HealthNote" Classes="dim" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
 

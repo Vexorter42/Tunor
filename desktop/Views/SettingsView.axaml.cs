@@ -34,6 +34,7 @@ public partial class SettingsView : UserControl
             ChkWatchdog.IsChecked = _settings.Watchdog;
             ChkAutoLists.IsChecked = _settings.AutoUpdateLists;
             ChkAutoUpdate.IsChecked = _settings.AutoCheckUpdates;
+            ChkHealth.IsChecked = _settings.HealthNotify;
             foreach (var item in CmbLogLevel.Items.OfType<ComboBoxItem>())
                 if ((string?)item.Tag == AppSettings.NormalizeLevel(_settings.LogLevel)) CmbLogLevel.SelectedItem = item;
             ListsAgeText.Text = _settings.ListsUpdatedAt is { } at
@@ -195,6 +196,7 @@ public partial class SettingsView : UserControl
         _settings.Watchdog = ChkWatchdog.IsChecked == true;
         _settings.AutoUpdateLists = ChkAutoLists.IsChecked == true;
         _settings.AutoCheckUpdates = ChkAutoUpdate.IsChecked == true;
+        _settings.HealthNotify = ChkHealth.IsChecked == true;
         Persist();
     }
 
