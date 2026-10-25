@@ -23,13 +23,16 @@ import sys
 import tarfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PUB = os.path.join(HERE, "bin", "Release", "net8.0", "osx-arm64", "publish")
-OUT = os.path.join(HERE, "build-mac")
+# One build per processor: `python make-app.py` is for Apple Silicon, `python make-app.py x64` for Intel.
+ARCH = "x64" if "x64" in sys.argv[1:] else "arm64"
+RID = "osx-x64" if ARCH == "x64" else "osx-arm64"
+PUB = os.path.join(HERE, "bin", "Release", "net8.0", RID, "publish")
+OUT = os.path.join(HERE, "build-mac" if ARCH == "arm64" else "build-mac-x64")
 APP = os.path.join(OUT, "Tunor.app")
 EXE = "TunorDesktop"                       # what the publish produced
 ICON_SRC = os.path.join(os.path.dirname(HERE), "ui", "Assets", "app.png")
 
-VERSION = "2.0.9"
+VERSION = "2.1.0"
 BUNDLE_ID = "com.vexorter.tunor"
 
 
@@ -70,7 +73,7 @@ def icns(png_path, dest):
 def main():
     if not os.path.isdir(PUB):
         sys.exit("нет сборки под macOS. Сначала:\n"
-                 "  dotnet publish -c Release -r osx-arm64 --self-contained true")
+                 f"  dotnet publish -c Release -r {RID} --self-contained true")
 
     if os.path.exists(OUT):
         shutil.rmtree(OUT)
@@ -105,7 +108,8 @@ def main():
         "CFBundlePackageType": "APPL",
         "CFBundleExecutable": EXE,
         "CFBundleInfoDictionaryVersion": "6.0",
-        "LSMinimumSystemVersion": "11.0",
+        # .NET 8 runs from macOS 12; Apple Silicon Macs start at 11, but an Intel one can be older still.
+        "LSMinimumSystemVersion": "12.0" if ARCH == "x64" else "11.0",
         # Without this the window opens behind everything and there is no Dock icon.
         "NSHighResolutionCapable": True,
         "LSApplicationCategoryType": "public.app-category.utilities",
@@ -117,7 +121,7 @@ def main():
         plistlib.dump(info, f)
 
     # The tar carries the mode bits macOS needs; a zip from Windows would not.
-    tar_path = os.path.join(OUT, "Tunor-mac-arm64.tar.gz")
+    tar_path = os.path.join(OUT, f"Tunor-mac-{ARCH}.tar.gz")
     with tarfile.open(tar_path, "w:gz") as tar:
         def fix(ti):
             name = os.path.basename(ti.name)

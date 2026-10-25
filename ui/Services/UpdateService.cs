@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -110,63 +111,82 @@ public static class UpdateService
             var manifestUrl = $"https://github.com/{cfg.Repo}/releases/latest/download/version.json";
 
             var text = await GitHubFetch.GetStringAsync(manifestUrl, cfg.Mirror);
-            var json = JsonNode.Parse(text) as JsonObject;
-            var latest = json?["version"]?.GetValue<string>() ?? "";
-            var url = json?["url"]?.GetValue<string>() ?? "";
-            var sha = json?["sha256"]?.GetValue<string>() ?? "";
-            var notes = json?["notes"]?.GetValue<string>() ?? "";
-
-            // One manifest for every system. Each gets its own file and checksum, and
-            // may carry its own notes; the version is shared, because all of them are
-            // built from one tree and saying otherwise only confused people.
-            var section = OperatingSystem.IsMacOS() ? "mac"
-                        : OperatingSystem.IsLinux() ? "linux"
-                        : null;
-            if (section != null)
-            {
-                if (json?[section] is not JsonObject part)
-                    return new UpdateInfo
-                    {
-                        Error = $"Для {(section == "mac" ? "macOS" : "Linux")} сборки "
-                                + "пока нет в этом релизе",
-                    };
-
-                latest = part["version"]?.GetValue<string>() ?? latest;
-                url = part["url"]?.GetValue<string>() ?? "";
-                sha = part["sha256"]?.GetValue<string>() ?? "";
-                notes = part["notes"]?.GetValue<string>() ?? notes;
-            }
-
-            if (string.IsNullOrWhiteSpace(latest) || string.IsNullOrWhiteSpace(url))
-                return new UpdateInfo { Error = "Некорректный version.json" };
-
-            var latestV = TryParse(latest);
-            var cur = CurrentVersion;
-            var newer = latestV > cur;
-
-            var kind = UpdateKind.None;
-            if (newer)
-            {
-                if (latestV.Major > cur.Major) kind = UpdateKind.Major;
-                else if (latestV.Minor > cur.Minor) kind = UpdateKind.Minor;
-                else kind = UpdateKind.Patch;
-            }
-
-            return new UpdateInfo
-            {
-                Available = newer,
-                Kind = kind,
-                Current = CurrentVersionString,
-                Latest = latest,
-                Notes = notes,
-                Url = url,
-                Sha256 = sha,
-            };
+            return FromManifest(text, ManifestSection(RuntimeInformation.ProcessArchitecture), CurrentVersion);
         }
         catch (Exception ex)
         {
             return new UpdateInfo { Error = ex.Message };
         }
+    }
+
+    /// <summary>
+    /// The part of the manifest that is for this machine: Windows reads the top level, Linux its own
+    /// part, and a Mac the one for its processor. An Intel Mac must not be offered the build for Apple
+    /// Silicon, nor the other way round. A copy running under Rosetta is an Intel one, and what it is
+    /// updated to has to be the same kind it is.
+    /// </summary>
+    internal static string? ManifestSection(Architecture arch)
+        => OperatingSystem.IsMacOS() ? MacSection(arch)
+         : OperatingSystem.IsLinux() ? "linux"
+         : null;
+
+    internal static string MacSection(Architecture arch) => arch == Architecture.X64 ? "mac-x64" : "mac";
+
+    /// <summary>
+    /// What a manifest says about this machine's build, set against the version that is running.
+    ///
+    /// One manifest for every system. Each gets its own file and checksum, and may carry its own
+    /// notes; the version is shared, because all of them are built from one tree and saying
+    /// otherwise only confused people — except that a part may carry a version of its own, for a
+    /// build that has not been made for the new release yet.
+    /// </summary>
+    internal static UpdateInfo FromManifest(string text, string? section, Version cur)
+    {
+        var json = JsonNode.Parse(text) as JsonObject;
+        var latest = json?["version"]?.GetValue<string>() ?? "";
+        var url = json?["url"]?.GetValue<string>() ?? "";
+        var sha = json?["sha256"]?.GetValue<string>() ?? "";
+        var notes = json?["notes"]?.GetValue<string>() ?? "";
+
+        if (section != null)
+        {
+            if (json?[section] is not JsonObject part)
+                return new UpdateInfo
+                {
+                    Error = $"Для {(section == "mac" ? "macOS (Apple Silicon)" : section == "mac-x64" ? "macOS (Intel)" : "Linux")} "
+                            + "сборки пока нет в этом релизе",
+                };
+
+            latest = part["version"]?.GetValue<string>() ?? latest;
+            url = part["url"]?.GetValue<string>() ?? "";
+            sha = part["sha256"]?.GetValue<string>() ?? "";
+            notes = part["notes"]?.GetValue<string>() ?? notes;
+        }
+
+        if (string.IsNullOrWhiteSpace(latest) || string.IsNullOrWhiteSpace(url))
+            return new UpdateInfo { Error = "Некорректный version.json" };
+
+        var latestV = TryParse(latest);
+        var newer = latestV > cur;
+
+        var kind = UpdateKind.None;
+        if (newer)
+        {
+            if (latestV.Major > cur.Major) kind = UpdateKind.Major;
+            else if (latestV.Minor > cur.Minor) kind = UpdateKind.Minor;
+            else kind = UpdateKind.Patch;
+        }
+
+        return new UpdateInfo
+        {
+            Available = newer,
+            Kind = kind,
+            Current = $"{cur.Major}.{cur.Minor}.{cur.Build}",
+            Latest = latest,
+            Notes = notes,
+            Url = url,
+            Sha256 = sha,
+        };
     }
 
     /// <summary>Downloads the installer (from GitHub, else through the mirror), verifies SHA256, runs it silently.</summary>

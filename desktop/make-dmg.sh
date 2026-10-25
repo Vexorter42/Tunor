@@ -79,7 +79,7 @@ ok "бандл подписан ad-hoc и проверку проходит"
 
 # The archive the in-app update downloads, from the signed bundle and nothing else:
 # the link and the backdrop below belong to the image, not to what gets installed.
-TARBALL="$OUT_DIR/Tunor-mac-arm64.tar.gz"
+TARBALL="$OUT_DIR/Tunor-mac-$ARCH.tar.gz"
 mkdir -p "$OUT_DIR"
 tar -czf "$TARBALL" -C "$STAGE" Tunor.app   && ok "$TARBALL  ($(du -h "$TARBALL" | cut -f1))"   || bad "архив не собрался"
 

@@ -22,9 +22,9 @@
     <Company>Vexorter42</Company>
     <Description>Графический интерфейс для sing-box с поддержкой AmneziaWG</Description>
     <Copyright>© 2026 Vexorter42 · MIT</Copyright>
-    <Version>2.0.9</Version>
-    <FileVersion>2.0.9</FileVersion>
-    <AssemblyVersion>2.0.9</AssemblyVersion>
+    <Version>2.1.0</Version>
+    <FileVersion>2.1.0</FileVersion>
+    <AssemblyVersion>2.1.0</AssemblyVersion>
     <!-- What the compiler records for each source file, and for the symbol file next
          to the binary, is otherwise the full path it was built from — which names the
          builder's home directory in a file published to everyone. Relative to the
