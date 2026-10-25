@@ -19,6 +19,11 @@ public static class Bootstrap
         // running commentary through it; here both are this app's own.
         EngineState.Provide(() => EngineService.IsRunning,
             (text, problem) => EngineLog.Add((problem ? "[!] " : "[i] ") + text));
+        EngineState.ProvideRestart(async () =>
+        {
+            if (EngineService.IsRunning) await EngineService.StopAsync();
+            await EngineService.StartAsync();
+        });
 
         // The Apps page is built from what this has seen; without it the page stays
         // empty however much traffic goes through.

@@ -76,6 +76,12 @@ internal static class Program
                       WhatsNewChecks, failures);
                 Check("Резервная копия: что входит, пароль, чужое остаётся своим, чужой файл не выйдет из папки",
                       BackupChecks, failures);
+                Check("Проверка сайта: адрес, совет по результатам, настоящий запрос через SOCKS5 (рабочий, обрывающий, молчащий, отсутствующий)",
+                      () => Task.Run(RouteChecks).GetAwaiter().GetResult(), failures);
+                Check("Точка WARP: чтение и замена Endpoint, только верные адреса, переключение с перезапуском и проверкой",
+                      () => Task.Run(WarpEndpointChecks).GetAwaiter().GetResult(), failures);
+                Check("Здоровье туннелей: два промаха подряд, возврат с перерывом, общий отчёт, история, очистка",
+                      () => Task.Run(HealthChecks).GetAwaiter().GetResult(), failures);
             })
             .SetupWithoutStarting();
 
@@ -980,6 +986,357 @@ internal static class Program
         {
             AppLog.Flush();
             (AppLog.DirectoryOf, AppLog.MaxBytes) = was;
+            try { Directory.Delete(dir, true); } catch { }
+        }
+    }
+
+    // ------------------------------------------------------------------ the route checks
+
+    private static (System.Net.Sockets.TcpListener Listener, int Port) Listen(Func<System.Net.Sockets.TcpClient, Task> serve)
+    {
+        var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        l.Start();
+        _ = Task.Run(async () =>
+        {
+            while (true)
+            {
+                System.Net.Sockets.TcpClient c;
+                try { c = await l.AcceptTcpClientAsync(); } catch { return; }
+                _ = Task.Run(async () => { try { await serve(c); } catch { } finally { c.Dispose(); } });
+            }
+        });
+        return (l, ((System.Net.IPEndPoint)l.LocalEndpoint).Port);
+    }
+
+    /// <summary>A site that answers every request with 403: reached, and not welcome — which still counts as reached.</summary>
+    private static Task Forbidden(System.Net.Sockets.TcpClient c)
+    {
+        var s = c.GetStream();
+        var buf = new byte[4096];
+        var got = 0;
+        while (got < buf.Length)
+        {
+            var n = s.Read(buf, got, buf.Length - got);
+            if (n == 0) return Task.CompletedTask;
+            got += n;
+            if (System.Text.Encoding.ASCII.GetString(buf, 0, got).Contains("\r\n\r\n")) break;
+        }
+        s.Write(System.Text.Encoding.ASCII.GetBytes("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"));
+        return Task.CompletedTask;
+    }
+
+    /// <summary>A SOCKS5 proxy that takes whatever is asked of it to the local site.</summary>
+    private static async Task Socks(System.Net.Sockets.TcpClient c, int sitePort)
+    {
+        var s = c.GetStream();
+        var b = new byte[300];
+        await s.ReadExactlyAsync(b, 0, 2);
+        var methods = b[1];
+        await s.ReadExactlyAsync(b, 0, methods);
+        await s.WriteAsync(new byte[] { 5, 0 });
+        await s.ReadExactlyAsync(b, 0, 4);
+        var kind = b[3];
+        if (kind == 1) await s.ReadExactlyAsync(b, 0, 4);
+        else if (kind == 4) await s.ReadExactlyAsync(b, 0, 16);
+        else { await s.ReadExactlyAsync(b, 0, 1); var len = b[0]; await s.ReadExactlyAsync(b, 0, len); }
+        await s.ReadExactlyAsync(b, 0, 2);
+
+        using var site = new System.Net.Sockets.TcpClient();
+        await site.ConnectAsync(System.Net.IPAddress.Loopback, sitePort);
+        await s.WriteAsync(new byte[] { 5, 0, 0, 1, 0, 0, 0, 0, 0, 0 });
+        var up = site.GetStream();
+        await Task.WhenAny(s.CopyToAsync(up), up.CopyToAsync(s));
+    }
+
+    /// <summary>
+    /// "Does this site open, and through which way": what the address is made into, what the results come
+    /// to in words, and the whole request through a real SOCKS5 proxy — one that works, one that drops the
+    /// connection, one that says nothing, and one that is not there.
+    /// </summary>
+    private static void RouteChecks()
+    {
+        foreach (var (input, want) in new (string, string?)[]
+                 { ("youtube.com", "https://youtube.com/"), ("  https://youtu.be/abc?x=1 ", "https://youtu.be/abc?x=1"),
+                   ("http://127.0.0.1:8080", "http://127.0.0.1:8080/"), ("Discord.exe", null), ("", null), ("ftp://x.example", null) })
+            if (RouteProbe.UrlOf(input) != want) throw new Exception($"UrlOf(«{input}») = «{RouteProbe.UrlOf(input)}», ожидалось «{want}»");
+
+        // ---- the words
+        SiteResult R(string name, bool ok, int status = 200) => new() { Name = name, Status = ok ? "ok" : "fail", HttpStatus = ok ? status : 0, Ms = 50, Note = ok ? "" : "нет ответа за 10 с" };
+        SiteResult Skip(string name) => new() { Name = name, Status = "skip", Note = "не настроен" };
+        foreach (var (name, routes, rule, must) in new (string, SiteResult[], string, string[])[]
+        {
+            ("всё открывается", new[] { R("Напрямую", true), R("WARP", true), R("geo", true) }, "", new[] { "всех путях" }),
+            ("провайдер закрыл, WARP открывает", new[] { R("Напрямую", false), R("WARP", true) }, "", new[] { "Напрямую не открывается", "«WARP»" }),
+            ("напрямую открывается, через WARP нет", new[] { R("Напрямую", true), R("WARP", false) }, "", new[] { "Через «WARP» не открывается", "точку выхода" }),
+            ("не открывается нигде", new[] { R("Напрямую", false), R("WARP", false) }, "", new[] { "ни одним путём" }),
+            ("правила шлют через WARP, а там закрыто", new[] { R("Напрямую", true), R("WARP", false) }, "через WARP", new[] { "Правила отправляют сайт «через WARP»", "Точка выхода WARP" }),
+            ("правила шлют напрямую, а там закрыто", new[] { R("Напрямую", false), R("WARP", true) }, "напрямую", new[] { "Правила отправляют сайт «напрямую»", "«WARP» его открывает" }),
+            ("403 тоже ответ", new[] { R("Напрямую", true, 403), R("WARP", true, 403) }, "через WARP", new[] { "всех путях" }),
+            ("проверять нечем", new[] { Skip("WARP") }, "", new[] { "Нечем проверить" }),
+            ("упавшие туннели названы", new[] { R("Напрямую", true), R("WARP", false), R("geo", false), R("VPN", true) }, "", new[] { "«WARP», «geo»" }),
+        })
+        {
+            var said = RouteProbe.Advise(routes, rule);
+            foreach (var piece in must)
+                if (!said.Contains(piece)) throw new Exception($"{name}: в совете нет «{piece}»: {said}");
+        }
+        foreach (var (route, name, want) in new (string, string, bool)[]
+                 { ("через WARP", "WARP", true), ("через WARP — geo не настроен", "WARP", true), ("напрямую — WARP не настроен", "Напрямую", true),
+                   ("через geo", "WARP", false), ("напрямую", "WARP", false), ("", "WARP", false), ("через WARP", "Напрямую", false) })
+            if (RouteProbe.RuleSends(route, name) != want) throw new Exception($"RuleSends(«{route}», «{name}») должно быть {want}");
+
+        var slow = RouteProbe.Explain(new TaskCanceledException(), TimeSpan.FromSeconds(10));
+        if (!slow.Contains("нет ответа за 10")) throw new Exception("таймаут: " + slow);
+        if (!RouteProbe.Explain(new System.Net.Http.HttpRequestException("x", new System.IO.IOException("Connection reset by peer")), TimeSpan.Zero).Contains("блокировка"))
+            throw new Exception("сброс соединения не назван блокировкой");
+        if (!RouteProbe.Explain(new System.Net.Http.HttpRequestException("Connection refused"), TimeSpan.Zero).Contains("отказ"))
+            throw new Exception("отказ в соединении не назван");
+
+        // ---- the real request, through real proxies
+        var site = Listen(Forbidden);
+        var good = Listen(c => Socks(c, site.Port));
+        var dropping = Listen(c => { c.Client.LingerState = new System.Net.Sockets.LingerOption(true, 0); c.Close(); return Task.CompletedTask; });
+        var silent = Listen(async c => await Task.Delay(8000));
+        int closed;
+        { var t = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0); t.Start(); closed = ((System.Net.IPEndPoint)t.LocalEndpoint).Port; t.Stop(); }
+        var url = $"http://tunor-test.invalid:{site.Port}/";   // a name, not an address: a request to a loopback address skips the proxy
+        var door = ConnectionCheck.DoorSource;
+        try
+        {
+            var ok = RouteProbe.FetchViaProxy(good.Port, url, TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+            if (!ok.Ok || ok.Status != 403) throw new Exception($"через рабочий прокси: ok={ok.Ok}, статус {ok.Status}, {ok.Note}");
+
+            var bad = RouteProbe.FetchViaProxy(dropping.Port, url, TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+            if (bad.Ok || bad.Note.Length == 0) throw new Exception("прокси, оборвавший соединение, посчитан рабочим");
+
+            var mute = RouteProbe.FetchViaProxy(silent.Port, url, TimeSpan.FromSeconds(1)).GetAwaiter().GetResult();
+            if (mute.Ok || !mute.Note.Contains("нет ответа за 1")) throw new Exception("молчащий прокси: " + mute.Note);
+
+            var none = RouteProbe.FetchViaProxy(closed, url, TimeSpan.FromSeconds(3)).GetAwaiter().GetResult();
+            if (none.Ok) throw new Exception("порт, где никого нет, посчитан рабочим");
+
+            // and the whole check: the way that works answers, the one that drops does not, the unconfigured one is not asked
+            ConnectionCheck.DoorSource = () => new List<Door>
+            {
+                new("Напрямую", dropping.Port, false, null),
+                new("WARP", good.Port, false, null),
+                new("geo", 0, false, new PathResult { Name = "geo", Status = "skip", Note = "не настроен" }),
+            };
+            var check = RouteProbe.CheckSiteAsync(url, lookup: false).GetAwaiter().GetResult();
+            if (check.Host != "tunor-test.invalid") throw new Exception("хост: " + check.Host);
+            string Status(string n) => check.Routes.First(r => r.Name == n).Status;
+            if (Status("Напрямую") != "fail" || Status("WARP") != "ok" || Status("geo") != "skip")
+                throw new Exception("пути: " + string.Join(", ", check.Routes.Select(r => r.Name + "=" + r.Status)));
+            if (check.Routes.First(r => r.Name == "WARP").HttpStatus != 403) throw new Exception("статус ответа сайта потерян");
+            var report = check.Report();
+            foreach (var piece in new[] { "WARP — открылся (HTTP 403", "Напрямую — не открылся: ", "geo — не проверялся: не настроен", "Напрямую не открывается" })
+                if (!report.Contains(piece)) throw new Exception($"в отчёте нет «{piece}»: {report}");
+            if (!check.Advice.Contains("Напрямую не открывается") || !check.Advice.Contains("«WARP»")) throw new Exception("совет: " + check.Advice);
+
+            try { RouteProbe.CheckSiteAsync("Discord.exe", lookup: false).GetAwaiter().GetResult(); throw new Exception("программу приняли за сайт"); }
+            catch (ArgumentException) { }
+        }
+        finally
+        {
+            ConnectionCheck.DoorSource = door;
+            foreach (var l in new[] { site.Listener, good.Listener, dropping.Listener, silent.Listener }) l.Stop();
+        }
+    }
+
+    /// <summary>
+    /// The WARP endpoint: read and rewritten in the config with nothing else touched, only valid addresses
+    /// accepted, the choices and the way round them, and the whole switch — write, restart, look — against
+    /// stand-ins for the engine and for Cloudflare.
+    /// </summary>
+    private static void WarpEndpointChecks()
+    {
+        const string conf = "[Interface]\r\nPrivateKey = KEY\r\nAddress = 172.16.0.2/32\r\nI1 = <b 0xce00>\r\n\r\n[Peer]\r\nPublicKey = PUB\r\nAllowedIPs = 0.0.0.0/0, ::/0\r\nEndpoint = engage.cloudflareclient.com:2408\r\nPersistentKeepalive = 25\r\n";
+        if (WarpEndpoint.Read(conf) != "engage.cloudflareclient.com:2408") throw new Exception("адрес не прочитан: " + WarpEndpoint.Read(conf));
+        var changed = WarpEndpoint.Replace(conf, "162.159.193.1:2408");
+        if (changed != conf.Replace("engage.cloudflareclient.com:2408", "162.159.193.1:2408")) throw new Exception("в конфиге изменилось не только то, что нужно");
+        if (WarpEndpoint.Read(WarpEndpoint.Replace("[Peer]\nendpoint=1.2.3.4:500\n", "5.6.7.8:1701")) != "5.6.7.8:1701") throw new Exception("строка без пробелов и с маленькой буквы не заменена");
+        if (WarpEndpoint.Replace("[Peer]\nendpoint=1.2.3.4:500\n", "5.6.7.8:1701") != "[Peer]\nendpoint=5.6.7.8:1701\n") throw new Exception("стиль строки не сохранён");
+        if (WarpEndpoint.Read("[Interface]\nEndpoint = decoy:1\n[Peer]\nEndpoint = real:2\n") != "real:2") throw new Exception("Endpoint вне [Peer] принят");
+        if (WarpEndpoint.Read("[Interface]\nPrivateKey = k\n") != null) throw new Exception("адрес из ничего");
+        try { WarpEndpoint.Replace("[Interface]\nPrivateKey = k\n", "1.2.3.4:5"); throw new Exception("заменили то, чего нет"); }
+        catch (InvalidOperationException) { }
+
+        foreach (var good in new[] { "162.159.192.1:2408", "engage.cloudflareclient.com:2408", "host-1.example:65535", "1.2.3.4:1" })
+            if (!WarpEndpoint.IsValid(good)) throw new Exception("не принят: " + good);
+        foreach (var bad in new[] { "", "host", "host:", ":2408", "host:0", "host:65536", "host:99999", "a b:2408", "evil\nPrivateKey = x:2408",
+                                    "host:2408\r\nEndpoint = z:1", "host:2408 # x", "-host:2408", "[::1]:2408", "ho/st:1" })
+            if (WarpEndpoint.IsValid(bad)) throw new Exception("принят: " + bad.Replace("\n", "\\n").Replace("\r", "\\r"));
+        foreach (var c in WarpEndpoint.Candidates)
+            if (!WarpEndpoint.IsValid(c)) throw new Exception("в списке неверный адрес: " + c);
+
+        var options = WarpEndpoint.Options("9.9.9.9:2408");
+        if (options[0] != "9.9.9.9:2408" || options.Count != WarpEndpoint.Candidates.Length + 1) throw new Exception("варианты: свой адрес первым");
+        var same = WarpEndpoint.Options(WarpEndpoint.Candidates[3]);
+        if (same[0] != WarpEndpoint.Candidates[3] || same.Count != WarpEndpoint.Candidates.Length || same.Distinct().Count() != same.Count) throw new Exception("адрес из списка задвоился");
+        if (WarpEndpoint.Next(options, options[^1]) != options[0] || WarpEndpoint.Next(options, options[0]) != options[1]) throw new Exception("перебор не идёт по кругу");
+
+        // ---- the whole switch
+        var dir = Path.Combine(Path.GetTempPath(), "tunor-endpoint-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "warp.conf");
+        var (conf0, rebuild, restart, running, check, pause, fetch) =
+            (WarpEndpoint.ConfFile, WarpEndpoint.Rebuild, WarpEndpoint.Restart, WarpEndpoint.Running, WarpEndpoint.Check, WarpEndpoint.Pause, RouteProbe.Fetch);
+        var doors = ConnectionCheck.DoorSource;
+        try
+        {
+            File.WriteAllText(path, conf);
+            var rebuilt = 0; var restarts = 0; var isUp = true; var warpAnswers = true; var asked = 0;
+            WarpEndpoint.ConfFile = () => path;
+            WarpEndpoint.Rebuild = () => rebuilt++;
+            WarpEndpoint.Restart = () => { restarts++; return Task.CompletedTask; };
+            WarpEndpoint.Running = () => isUp;
+            WarpEndpoint.Pause = TimeSpan.FromMilliseconds(5);
+            WarpEndpoint.Check = () =>
+            {
+                asked++;
+                return Task.FromResult(new List<PathResult>
+                {
+                    new() { Name = "Напрямую", Status = "ok" },
+                    new() { Name = "WARP", Status = warpAnswers ? "ok" : "fail", Colo = "ARN", Country = "SE", Ms = 80, Note = "нет ответа" },
+                });
+            };
+            ConnectionCheck.DoorSource = () => new List<Door> { new("Напрямую", 1081, false, null), new("WARP", 1082, false, null) };
+            RouteProbe.Fetch = (port, url, _) => Task.FromResult(new RouteProbe.Reply(true, port == 1082 ? 200 : 0, 120, ""));
+
+            var t = WarpEndpoint.TryAsync("162.159.193.1:2408", "youtube.com").GetAwaiter().GetResult();
+            if (!t.Started || t.Warp?.Colo != "ARN" || t.Site is not { Status: "ok", HttpStatus: 200 }) throw new Exception("переключение не прошло: " + t.Note);
+            if (restarts != 1 || rebuilt != 1) throw new Exception($"перезапусков {restarts}, пересборок конфига {rebuilt}");
+            var said = t.Report();
+            if (!said.Contains("162.159.193.1:2408") || !said.Contains("ARN") || !said.Contains("SE") || !said.Contains("youtube.com открылся (HTTP 200"))
+                throw new Exception("рассказ о переключении: " + said);
+            if (WarpEndpoint.Current() != "162.159.193.1:2408") throw new Exception("адрес в файле не поменялся");
+            if (File.ReadAllText(path + ".bak") != conf) throw new Exception("прежний файл не сохранён в .bak");
+            if (File.ReadAllText(path) != conf.Replace("engage.cloudflareclient.com:2408", "162.159.193.1:2408")) throw new Exception("изменилось лишнее");
+
+            // back to what it was: one more write
+            WarpEndpoint.Apply("engage.cloudflareclient.com:2408");
+            if (File.ReadAllText(path) != conf) throw new Exception("прежний адрес не вернулся целиком");
+
+            // a bad address touches nothing
+            var before = File.ReadAllText(path); restarts = 0;
+            var badTry = WarpEndpoint.TryAsync("evil\nx:1", null).GetAwaiter().GetResult();
+            if (badTry.Started || badTry.Note.Length == 0 || restarts != 0 || File.ReadAllText(path) != before) throw new Exception("неверный адрес принят");
+
+            // the engine does not come up
+            isUp = false;
+            var dead = WarpEndpoint.TryAsync("162.159.192.1:500", null).GetAwaiter().GetResult();
+            if (dead.Started || !dead.Note.Contains("не запустился")) throw new Exception("мёртвый движок не замечен: " + dead.Note);
+            isUp = true;
+
+            // the restart itself fails
+            WarpEndpoint.Restart = () => throw new InvalidOperationException("нет прав");
+            var broke = WarpEndpoint.TryAsync("162.159.192.1:1701", null).GetAwaiter().GetResult();
+            if (broke.Started || !broke.Note.Contains("не перезапустился") || !broke.Note.Contains("нет прав")) throw new Exception("сбой перезапуска: " + broke.Note);
+            WarpEndpoint.Restart = () => Task.CompletedTask;
+
+            // WARP never answers: asked a few times, reported as it is, no site asked
+            warpAnswers = false; asked = 0;
+            var silent = WarpEndpoint.TryAsync("162.159.195.1:2408", "youtube.com").GetAwaiter().GetResult();
+            if (!silent.Started || silent.Warp?.Status != "fail" || silent.Site != null || asked != 4) throw new Exception($"WARP молчит: спрашивали {asked} раз, сайт {silent.Site?.Status}");
+            if (!silent.Report().Contains("не отвечает") || !silent.Report().Contains("следующий")) throw new Exception("рассказ о молчащем WARP: " + silent.Report());
+            if (!dead.Report().Contains("не запустился")) throw new Exception("рассказ о не запустившемся движке: " + dead.Report());
+        }
+        finally
+        {
+            (WarpEndpoint.ConfFile, WarpEndpoint.Rebuild, WarpEndpoint.Restart, WarpEndpoint.Running, WarpEndpoint.Check, WarpEndpoint.Pause, RouteProbe.Fetch) =
+                (conf0, rebuild, restart, running, check, pause, fetch);
+            ConnectionCheck.DoorSource = doors;
+            try { Directory.Delete(dir, true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// The health monitor: two misses in a row before "down", one return announced once with how long it
+    /// lasted, tunnels that fail together reported together, the direct way and unconfigured tunnels left
+    /// out, and a history on disk that gives the share of answers, the events, and forgets a week-old line.
+    /// </summary>
+    private static void HealthChecks()
+    {
+        // ---- the tracker alone
+        var tracker = new HealthTracker();
+        var t0 = new DateTime(2026, 10, 25, 12, 0, 0, DateTimeKind.Utc);
+        (string, bool, TimeSpan?)? Feed(string route, bool ok, int seconds) => tracker.Feed(route, ok, t0.AddSeconds(seconds));
+        if (Feed("A", true, 0) != null || Feed("A", false, 10) != null) throw new Exception("первый промах уже тревога");
+        if (Feed("A", true, 20) != null) throw new Exception("одиночный промах закончился событием");
+        if (Feed("A", false, 30) != null) throw new Exception("после возврата счёт промахов не сброшен");
+        if (Feed("A", false, 40) is not ("A", true, null)) throw new Exception("два промаха подряд — не «упал»");
+        if (Feed("A", false, 50) != null || Feed("A", false, 60) != null) throw new Exception("«упал» повторяется");
+        if (Feed("B", false, 60) != null || Feed("B", true, 61) != null) throw new Exception("маршруты не независимы");
+        if (Feed("A", true, 130) is not ("A", false, { } gone) || gone != TimeSpan.FromSeconds(100)) throw new Exception("возврат: перерыв считается от первого промаха (100 с)");
+        if (Feed("A", true, 140) != null) throw new Exception("возврат объявлен дважды");
+        Feed("C", false, 0); Feed("C", false, 1);
+        tracker.Reset();
+        if (Feed("C", true, 2) != null || tracker.IsDown("C")) throw new Exception("после сброса объявлен возврат");
+
+        // ---- the monitor, with a clock and a network of its own
+        var dir = Path.Combine(Path.GetTempPath(), "tunor-health-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var file = Path.Combine(dir, "health.jsonl");
+        var (probe, filePath, now, logDir) = (HealthMonitor.Probe, HealthMonitor.FilePath, HealthMonitor.Now, AppLog.DirectoryOf);
+        var events = new List<HealthEvent>();
+        void Take(HealthEvent e) => events.Add(e);
+        try
+        {
+            var clock = t0;
+            var warp = true; var geo = true;
+            HealthMonitor.FilePath = () => file;
+            HealthMonitor.Now = () => clock;
+            AppLog.DirectoryOf = () => dir;
+            HealthMonitor.Probe = () => Task.FromResult(new List<PathResult>
+            {
+                new() { Name = "Напрямую", Status = "fail", Ms = 10000 },     // never counted
+                new() { Name = "WARP", Status = warp ? "ok" : "fail", Ms = 100 },
+                new() { Name = "geo", Status = geo ? "ok" : "fail", Ms = 200 },
+                new() { Name = "VPN", Status = "skip" },                       // not there to test: never counted
+            });
+            HealthMonitor.Reset();
+            HealthMonitor.Changed += Take;
+
+            TimeSpan Cycle(int seconds) { clock = t0.AddSeconds(seconds); return HealthMonitor.CycleAsync().GetAwaiter().GetResult(); }
+
+            if (Cycle(0) != HealthMonitor.Interval || events.Count != 0) throw new Exception("все отвечают: ждать положено полный срок и молчать");
+            warp = false; geo = false;
+            if (Cycle(180) != HealthMonitor.Confirm || events.Count != 0) throw new Exception("первый промах: проверить скорее, но не тревожить");
+            if (Cycle(205) != HealthMonitor.Confirm || events.Count != 1) throw new Exception("второй промах подряд: должно быть событие");
+            var down = events[0];
+            if (!down.Down || !down.Routes.SequenceEqual(new[] { "WARP", "geo" }) || down.Text != "«WARP», «geo» перестали отвечать.")
+                throw new Exception("событие «упали»: " + down.Text);
+            Cycle(230);
+            if (events.Count != 1) throw new Exception("«упал» объявлен повторно");
+            warp = true;
+            if (Cycle(600) != HealthMonitor.Confirm || events.Count != 2) throw new Exception("WARP вернулся, geo ещё нет");
+            if (events[1].Down || events[1].Text != "«WARP» снова отвечает, перерыв — 7 мин.") throw new Exception("событие «вернулся»: " + events[1].Text);
+            geo = true;
+            if (Cycle(660) != HealthMonitor.Interval || events.Count != 3) throw new Exception("всё вернулось");
+            if (events[2].Text != "«geo» снова отвечает, перерыв — 8 мин.") throw new Exception("событие «вернулся» (geo): " + events[2].Text);
+
+            var summary = HealthMonitor.Summary(TimeSpan.FromDays(1)).ToDictionary(r => r.Route);
+            if (summary.Count != 2 || summary.ContainsKey("Напрямую") || summary.ContainsKey("VPN")) throw new Exception("в истории чужие маршруты: " + string.Join(",", summary.Keys));
+            var w = summary["WARP"];
+            if (w.Samples != 6 || w.UptimePercent != 50.0 || !w.Up || w.LastMs != 100) throw new Exception($"WARP в истории: {w.Samples} замеров, {w.UptimePercent}%, up={w.Up}");
+            var log = HealthMonitor.Events(TimeSpan.FromDays(1), 10);
+            if (log.Count != 3 || log[0].Down || !log[2].Down || !log[0].Text.Contains("geo")) throw new Exception("события: от новых к старым, три штуки");
+            if (HealthMonitor.Events(TimeSpan.FromDays(1), 2).Count != 2) throw new Exception("число событий не ограничено");
+
+            // a week-old line goes, and a torn one does not stop the reading
+            File.AppendAllText(file, "{\"t\":\"" + t0.AddDays(-8).ToString("o") + "\",\"r\":\"WARP\",\"ok\":true,\"ms\":1}\n{\"t\":\"2026-10-2");
+            File.AppendAllText(file, "\n");
+            var lines = File.ReadAllLines(file).Length;
+            HealthMonitor.Prune();
+            if (File.ReadAllLines(file).Length != lines - 2) throw new Exception("устаревшая и оборванная строки не убраны: было " + lines + ", стало " + File.ReadAllLines(file).Length);
+            if (HealthMonitor.Summary(TimeSpan.FromDays(30)).First(r => r.Route == "WARP").Samples != 6) throw new Exception("после очистки замеры пропали");
+        }
+        finally
+        {
+            HealthMonitor.Changed -= Take;
+            HealthMonitor.Reset();
+            AppLog.Flush();
+            (HealthMonitor.Probe, HealthMonitor.FilePath, HealthMonitor.Now, AppLog.DirectoryOf) = (probe, filePath, now, logDir);
             try { Directory.Delete(dir, true); } catch { }
         }
     }

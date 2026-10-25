@@ -15,6 +15,11 @@ public sealed class PathResult
     public string Status { get; init; } = "";
     public string Ip { get; init; } = "";
     public string Country { get; init; } = "";
+    /// <summary>
+    /// Cloudflare's data centre that answered, as its three letters (DME, ARN...). Which one it is
+    /// depends on where the tunnel comes out, and a site that is slow or shut on one may be fine on another.
+    /// </summary>
+    public string Colo { get; init; } = "";
     /// <summary>Cloudflare's own verdict that the request came through WARP.</summary>
     public bool ViaWarp { get; init; }
     public int Ms { get; init; }
@@ -27,6 +32,9 @@ public sealed class PathResult
 /// actually working?" in one look, instead of by reading logs. Going through the live
 /// engine means no second WireGuard session is opened with the same key.
 /// </summary>
+/// <summary>One way out of the engine: a local proxy port that leads to one tunnel (or straight out).</summary>
+internal sealed record Door(string Name, int Port, bool Chained, PathResult? Skipped);
+
 public static class ConnectionCheck
 {
     // Cloudflare's trace page: plain key=value lines — ip, loc (country), warp=on/off.
@@ -46,24 +54,47 @@ public static class ConnectionCheck
         return null;
     }
 
-    public static async Task<List<PathResult>> RunAsync()
+    /// <summary>The name the direct way goes by in every list of results.</summary>
+    public const string DirectName = "Напрямую";
+
+    /// <summary>
+    /// Every way there is: straight out, and every tunnel in the list — not just the two that came
+    /// with the app, a VPN the user added themselves is the one they most want to see an answer from.
+    /// A tunnel that is not going to be tested comes with the reason.
+    /// </summary>
+    internal static List<Door> Doors() => DoorSource();
+
+    /// <summary>Where the list of doors comes from. A test puts its own.</summary>
+    internal static Func<List<Door>> DoorSource { get; set; } = LoadDoors;
+
+    private static List<Door> LoadDoors()
     {
         var tunnels = TunnelService.Load();
         var live = ConfigGenerator.LiveTunnels(tunnels);
 
-        // Every tunnel in the list, not just the two that came with the app: a VPN the
-        // user added themselves is the one they most want to see an answer from.
-        var tasks = new List<Task<PathResult>> { Probe("Напрямую", 1081, chained: false) };
+        var doors = new List<Door> { new(DirectName, 1081, false, null) };
         foreach (var t in tunnels)
         {
             var port = ConfigGenerator.DoorPort(t.Id, tunnels);
-            tasks.Add(live.Contains(t.Id) && port is > 0 and <= 65535
-                ? Probe(t.Title, port, chained: t.Detour.Length > 0)
-                : Task.FromResult(Skipped(t, tunnels)));
+            doors.Add(live.Contains(t.Id) && port is > 0 and <= 65535
+                ? new Door(t.Title, port, t.Detour.Length > 0, null)
+                : new Door(t.Title, port, false, Skipped(t, tunnels)));
         }
+        return doors;
+    }
+
+    /// <summary>
+    /// <paramref name="log"/> puts what was found into the engine's log, so a saved log shows the state
+    /// of every tunnel; the background monitor asks every few minutes and has no business there.
+    /// </summary>
+    public static async Task<List<PathResult>> RunAsync(bool log = true)
+    {
+        var tasks = Doors().Select(d => d.Skipped != null
+            ? Task.FromResult(d.Skipped)
+            : Probe(d.Name, d.Port, d.Chained)).ToList();
         var results = (await Task.WhenAll(tasks)).ToList();
 
-        // Into the log as well, so a saved log shows the state of every tunnel.
+        if (!log) return results;
         foreach (var r in results)
             EngineState.Note($"проверка {r.Name}: " + (r.Status switch
             {
@@ -150,6 +181,7 @@ public static class ConnectionCheck
                 Status = "ok",
                 Ip = kv.GetValueOrDefault("ip", "?"),
                 Country = kv.GetValueOrDefault("loc", ""),
+                Colo = kv.GetValueOrDefault("colo", ""),
                 ViaWarp = kv.GetValueOrDefault("warp", "off") is "on" or "plus",
                 Ms = (int)sw.ElapsedMilliseconds,
             };
