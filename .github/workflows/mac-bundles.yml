@@ -59,7 +59,9 @@ jobs:
       - name: The executable is for this processor
         working-directory: desktop
         run: |
-          exe=$(ls ${{ matrix.out }}/Tunor.app/Contents/MacOS/* | head -1)
+          # the one the bundle says it starts, not the first file in the folder (that is a .NET library)
+          name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' ${{ matrix.out }}/Tunor.app/Contents/Info.plist)
+          exe=${{ matrix.out }}/Tunor.app/Contents/MacOS/$name
           file "$exe"
           file "$exe" | grep -q "${{ matrix.want }}"
 
