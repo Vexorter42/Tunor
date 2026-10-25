@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Avalonia.Controls;
@@ -40,6 +41,9 @@ public partial class HomeView : UserControl
 
         UpdateWatcher.Changed += (_, _) => Dispatcher.UIThread.Post(ShowUpdate);
         AttachedToVisualTree += (_, _) => ShowUpdate();
+
+        HealthMonitor.Updated += () => Dispatcher.UIThread.Post(RefreshHealth);
+        AttachedToVisualTree += (_, _) => RefreshHealth();
     }
 
     /// <summary>Shows or hides the green banner, from what the background check has found.</summary>
@@ -350,7 +354,7 @@ public partial class HomeView : UserControl
                     "ok" => "AccentBrush", "fail" => "DangerBrush", _ => "TextDimBrush",
                 }),
                 r.Status == "ok" ? r.Ip : "",
-                r.Country,
+                r.Status == "ok" ? r.Country + (r.Colo.Length > 0 ? " · " + r.Colo : "") : "",
                 r.Status == "ok"
                     ? $"{r.Ms} мс" + (r.ViaWarp ? " · Cloudflare видит WARP" : "")
                     : r.Note)).ToList();
@@ -362,6 +366,52 @@ public partial class HomeView : UserControl
         }
         catch (Exception ex) { CheckNote.Text = "Проверка не удалась: " + ex.Message; }
         finally { BtnCheck.IsEnabled = true; }
+    }
+
+    private async void WarpPoint_Click(object? sender, RoutedEventArgs e)
+        => await new WarpEndpointWindow().ShowDialog(this);
+
+    // ------------------------------------------------------------ stability
+
+    private void RefreshHealth()
+    {
+        HealthList.Children.Clear();
+        List<RouteHealth> summary;
+        List<(DateTime At, bool Down, string Text)> events;
+        try
+        {
+            summary = HealthMonitor.Summary(TimeSpan.FromDays(1));
+            events = HealthMonitor.Events(TimeSpan.FromDays(7), 5);
+        }
+        catch { return; }
+
+        if (summary.Count == 0)
+        {
+            HealthNote.Text = SettingsService.Load().HealthNotify
+                ? "Данные появятся через несколько минут после запуска движка."
+                : "Слежение выключено — его можно включить в «Настройках».";
+            return;
+        }
+
+        foreach (var r in summary)
+        {
+            var row = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 10 };
+            row.Children.Add(new Avalonia.Controls.Shapes.Ellipse
+            {
+                Width = 9, Height = 9, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Fill = Palette.Brush(r.Up ? "SuccessBrush" : "DangerBrush"),
+            });
+            row.Children.Add(new TextBlock { Text = r.Route, Width = 120, FontWeight = Avalonia.Media.FontWeight.SemiBold });
+            row.Children.Add(new TextBlock
+            {
+                Text = $"{r.UptimePercent:0.#} % ответов за сутки · " + (r.Up ? $"сейчас отвечает, {r.LastMs} мс" : "сейчас не отвечает"),
+                Foreground = Palette.Brush(r.Up ? "TextDimBrush" : "DangerBrush"),
+            });
+            HealthList.Children.Add(row);
+        }
+        HealthNote.Text = events.Count == 0
+            ? "Перебоев за неделю не было."
+            : string.Join("\n", events.Select(x => $"{x.At:d MMM, HH:mm} — {x.Text}"));
     }
 
     private async void Install_Click(object? sender, RoutedEventArgs e)

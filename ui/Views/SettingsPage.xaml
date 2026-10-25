@@ -42,6 +42,11 @@
                     <TextBlock Text="При запуске и дальше раз в несколько часов. Нашлась новая версия — на главной появится зелёная кнопка «Обновиться»"
                                Style="{StaticResource Dim}" Margin="26,2,0,0" TextWrapping="Wrap"/>
 
+                    <CheckBox x:Name="ChkHealth" Content="Следить за туннелями и сообщать, если один перестал отвечать"
+                              Margin="0,12,0,0" Checked="Toggle_Changed" Unchecked="Toggle_Changed"/>
+                    <TextBlock Text="Раз в несколько минут Tunor запрашивает страницу Cloudflare через каждый туннель. Два промаха подряд — сообщение у значка в трее; когда туннель вернётся — ещё одно, с длиной перерыва. История за неделю видна на главной"
+                               Style="{StaticResource Dim}" Margin="26,2,0,0" TextWrapping="Wrap"/>
+
                     <TextBlock Text="Уровень журнала" Margin="0,16,0,0"/>
                     <ComboBox x:Name="CmbLogLevel" Margin="0,6,0,0" Width="300" HorizontalAlignment="Left"
                               Background="{StaticResource BgInputBrush}" Foreground="{StaticResource TextBrush}"

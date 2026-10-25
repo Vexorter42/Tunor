@@ -1234,6 +1234,14 @@ internal static class Program
             if (broke.Started || !broke.Note.Contains("не перезапустился") || !broke.Note.Contains("нет прав")) throw new Exception("сбой перезапуска: " + broke.Note);
             WarpEndpoint.Restart = () => Task.CompletedTask;
 
+            // the config cannot be rebuilt: the file is put back, and nothing is restarted
+            var kept = File.ReadAllText(path); restarts = 0;
+            WarpEndpoint.Rebuild = () => throw new InvalidOperationException("нет места на диске");
+            var noRoom = WarpEndpoint.TryAsync("162.159.195.1:500", null).GetAwaiter().GetResult();
+            if (noRoom.Started || !noRoom.Note.Contains("нет места") || File.ReadAllText(path) != kept || restarts != 0)
+                throw new Exception("сбой пересборки конфига оставил следы: " + noRoom.Note);
+            WarpEndpoint.Rebuild = () => rebuilt++;
+
             // WARP never answers: asked a few times, reported as it is, no site asked
             warpAnswers = false; asked = 0;
             var silent = WarpEndpoint.TryAsync("162.159.195.1:2408", "youtube.com").GetAwaiter().GetResult();

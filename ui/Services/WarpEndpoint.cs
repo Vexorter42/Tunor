@@ -149,7 +149,9 @@ public static class WarpEndpoint
         if (changed == text) return;
         try { File.Copy(path, path + ".bak", overwrite: true); } catch { }
         File.WriteAllText(path, changed);
-        Rebuild();
+        // A config that cannot be built from it is not left behind: the file goes back as it was.
+        try { Rebuild(); }
+        catch { File.WriteAllText(path, text); throw; }
     }
 
     /// <summary>The way the engine is restarted, and how the engine is waited for. A test puts its own.</summary>

@@ -14,11 +14,14 @@
         <Border Classes="card">
             <StackPanel Spacing="10">
                 <TextBlock Text="Куда пойдёт" Classes="h2"/>
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                     <TextBox Grid.Column="0" x:Name="LookupBox"
                              KeyDown="Lookup_KeyDown"/>
                     <Button Grid.Column="1" x:Name="BtnLookup" Content="Проверить"
                             Click="Lookup_Click"/>
+                    <Button Grid.Column="2" x:Name="BtnLookupAll" Content="Через все пути"
+                            ToolTip.Tip="Откроет сайт напрямую и через каждый туннель и покажет, где он открывается (нужен работающий движок)"
+                            Click="LookupAll_Click"/>
                 </Grid>
                 <TextBlock x:Name="LookupResult" TextWrapping="Wrap" IsVisible="False"/>
                 <TextBlock x:Name="LookupDetail" Classes="dim" TextWrapping="Wrap" IsVisible="False"/>

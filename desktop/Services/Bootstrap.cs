@@ -25,6 +25,23 @@ public static class Bootstrap
             await EngineService.StartAsync();
         });
 
+        // A tunnel that stops answering is announced, and the one that comes back. Linux has a
+        // notification service to ask; on macOS the Home page shows it.
+        HealthMonitor.Changed += ev =>
+        {
+            if (!OperatingSystem.IsLinux()) return;
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo("notify-send")
+                    { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
+                psi.ArgumentList.Add("Tunor");
+                psi.ArgumentList.Add(ev.Text);
+                System.Diagnostics.Process.Start(psi);
+            }
+            catch { /* no notification service: the Home page has it */ }
+        };
+        HealthMonitor.Start();
+
         // The Apps page is built from what this has seen; without it the page stays
         // empty however much traffic goes through.
         try { TrafficRecorder.Start(); } catch { }

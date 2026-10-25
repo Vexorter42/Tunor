@@ -1,0 +1,32 @@
+<v:DialogPanel xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:Tunor.Desktop.Views"
+        x:Class="Tunor.Desktop.Views.WarpEndpointWindow"
+        Title="Точка выхода WARP" Width="540"
+        Background="{StaticResource BgBrush}">
+    <StackPanel Margin="24" Spacing="8">
+        <TextBlock Text="Точка выхода WARP" Classes="h1"/>
+        <TextBlock Classes="dim" TextWrapping="Wrap"
+                   Text="От адреса, по которому Tunor достаёт WARP, зависит, из какого дата-центра Cloudflare ваш трафик выходит в интернет. Если сайт через WARP не открывается или тормозит, другая точка часто это лечит. Движок перезапускается — соединения прервутся на несколько секунд."/>
+
+        <TextBlock Text="Сейчас в конфиге" Classes="dim" Margin="0,10,0,0"/>
+        <TextBlock x:Name="CurrentText" FontWeight="SemiBold"/>
+
+        <TextBlock Text="Попробовать адрес" Classes="dim" Margin="0,8,0,0"/>
+        <ComboBox x:Name="Choice" HorizontalAlignment="Stretch"/>
+
+        <TextBlock Text="Сайт, который должен открыться" Classes="dim" Margin="0,8,0,0"/>
+        <TextBox x:Name="SiteBox" Text="www.youtube.com"/>
+
+        <TextBlock x:Name="ResultText" TextWrapping="Wrap" IsVisible="False" Margin="0,8,0,0"/>
+
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+            <Button x:Name="BtnTry" Classes="primary" Content="Применить и проверить" Click="Try_Click"/>
+            <Button x:Name="BtnNext" Content="Следующая точка" Click="Next_Click"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button x:Name="BtnRevert" Classes="ghost" Content="Вернуть прежнюю" Click="Revert_Click" IsEnabled="False"/>
+            <Button Content="Закрыть" Click="Close_Click"/>
+        </StackPanel>
+    </StackPanel>
+</v:DialogPanel>

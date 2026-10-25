@@ -294,6 +294,31 @@ public partial class RulesPage : UserControl
         if (e.Key == Key.Enter) Lookup_Click(sender, e);
     }
 
+    private async void LookupAll_Click(object sender, RoutedEventArgs e)
+    {
+        var input = LookupBox.Text;
+        if (string.IsNullOrWhiteSpace(input)) return;
+
+        LookupResult.Visibility = Visibility.Visible;
+        LookupDetail.Visibility = Visibility.Collapsed;
+        var why = ConnectionCheck.Unavailable();
+        if (why != null) { LookupResult.Text = why; return; }
+
+        LookupBtn.IsEnabled = LookupAllBtn.IsEnabled = false;
+        LookupResult.Text = "Открываю сайт через каждый путь…";
+        try
+        {
+            RulesService.Save(_groups);   // the answer about the rules is read from rules.json
+            var check = await RouteProbe.CheckSiteAsync(input);
+            LookupResult.Text = $"{check.Host}  →  по правилам: {(check.RuleRoute.Length > 0 ? check.RuleRoute : "не определено")}";
+            LookupDetail.Text = check.Report();
+            LookupDetail.Visibility = Visibility.Visible;
+        }
+        catch (ArgumentException ex) { LookupResult.Text = ex.Message; }
+        catch (Exception ex) { LookupResult.Text = "Не удалось проверить: " + ex.Message; }
+        finally { LookupBtn.IsEnabled = LookupAllBtn.IsEnabled = true; }
+    }
+
     private async void Lookup_Click(object sender, RoutedEventArgs e)
     {
         var input = LookupBox.Text;
