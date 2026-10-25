@@ -64,6 +64,8 @@ internal static class Program
                       InWindowDialogs, failures);
                 Check("Скачивание: сначала GitHub, потом зеркала, короткие таймауты, списки не ждут молчащую сеть",
                       FetchWays, failures);
+                Check("Подмена после обновления: ждёт, просит завершиться, добивает — и только потом меняет файлы",
+                      SwapScripts, failures);
             })
             .SetupWithoutStarting();
 
@@ -782,6 +784,42 @@ internal static class Program
             GitHubFetch.StallTimeout = stall;
             GitHubFetch.Forget();
             foreach (var f in files) { try { File.Delete(f); } catch { } }
+        }
+    }
+
+    /// <summary>
+    /// The scripts that replace the program after an update must not wait for ever for a copy that
+    /// is still running — that was a macOS update that downloaded, "closed", and came back as the old
+    /// version until somebody quit it by hand. Here: they ask it to end and then make it; whether they
+    /// do is run on a Mac against a stand-in (TUNOR_SMOKE_DUMP writes the scripts out for that).
+    /// </summary>
+    private static void SwapScripts()
+    {
+        var mac = UpdateService.SwapScript(424242, "/tmp/tunor-swaptest/stage/Tunor.app", "/tmp/tunor-swaptest/Old.app", 2, 2);
+        var linux = UpdateService.SwapFileScript(424242, "/tmp/tunor-swaptest/new.AppImage", "/tmp/tunor-swaptest/old.AppImage", 2, 2);
+
+        foreach (var (name, script) in new[] { ("macOS", mac), ("Linux", linux) })
+        {
+            if (!script.Contains("kill 424242")) throw new Exception(name + ": процесс не просят завершиться (TERM)");
+            if (!script.Contains("kill -9 424242")) throw new Exception(name + ": упрямый процесс не добивают (KILL)");
+            // the order matters: wait, then ask, then make, and only then touch the files
+            var ask = script.IndexOf("kill 424242", StringComparison.Ordinal);
+            var make = script.IndexOf("kill -9 424242", StringComparison.Ordinal);
+            var touch = script.IndexOf("OLD=", StringComparison.Ordinal);
+            if (!(ask < make && make < touch)) throw new Exception(name + ": порядок ожидания, TERM, KILL, подмены нарушен");
+        }
+
+        // the defaults: half a minute of grace and ten seconds after asking
+        var defaults = UpdateService.SwapScript(1, "a", "b");
+        if (!defaults.Contains("seq 1 60") || !defaults.Contains("seq 1 20"))
+            throw new Exception("по умолчанию ждут не 30 + 10 секунд: " + defaults.Split('\n')[2]);
+
+        var dump = Environment.GetEnvironmentVariable("TUNOR_SMOKE_DUMP");
+        if (!string.IsNullOrEmpty(dump))
+        {
+            Directory.CreateDirectory(dump);
+            File.WriteAllText(Path.Combine(dump, "swap-mac.sh"), mac + "\n");
+            File.WriteAllText(Path.Combine(dump, "swap-linux.sh"), linux + "\n");
         }
     }
 

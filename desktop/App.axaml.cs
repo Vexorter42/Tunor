@@ -13,6 +13,19 @@ public partial class App : Application
     /// <summary>The menu-bar icon, or null where the desktop has no tray.</summary>
     public static Services.Tray? Tray { get; private set; }
 
+    /// <summary>
+    /// Ends the app, process and all. Closing the window does not: with a menu-bar icon that only
+    /// hides it, because the tunnel outlives the window. An update has to end the process — the
+    /// script that replaces the program waits for it to exit, and an app that merely hides its window
+    /// is still running when the new one is put in place and "opened", which macOS answers by
+    /// showing the old copy it already has.
+    /// </summary>
+    public static void Quit()
+    {
+        if (Tray != null) { Tray.Quit(); return; }
+        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) desktop.Shutdown();
+    }
+
     public override void OnFrameworkInitializationCompleted()
     {
         // A fresh install has no settings and no config; make them before any page

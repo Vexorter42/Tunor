@@ -276,9 +276,10 @@ public partial class HomeView : UserControl
             status.Text = message;
             if (!ok) { button.IsEnabled = true; return; }
 
-            // A moment for the message to be read, then out of the way of the swap.
+            // A moment for the message to be read, then out of the way of the swap. Out of the
+            // way means gone: closing the window only hides it (see App.Quit).
             await System.Threading.Tasks.Task.Delay(1500);
-            (TopLevel.GetTopLevel(this) as Window)?.Close();
+            App.Quit();
         }
         catch (Exception ex)
         {

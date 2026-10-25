@@ -263,10 +263,13 @@ public static class UpdateService
         catch (Exception ex) { return (false, ex.Message); }
     }
 
-    private static string SwapFileScript(int pid, string fresh, string target) => string.Join("\n",
+    /// <summary>Like <see cref="SwapScript"/>: waits, then asks, then makes — a running AppImage cannot be written over.</summary>
+    internal static string SwapFileScript(int pid, string fresh, string target, int graceSeconds = 30, int termSeconds = 10) => string.Join("\n",
         "#!/bin/sh",
         "# Waits for Tunor to exit, then puts the new AppImage where the old one was.",
-        $"i=0; while [ $i -lt 120 ] && kill -0 {pid} 2>/dev/null; do sleep 0.5; i=$((i+1)); done",
+        $"i=0; while [ $i -lt {graceSeconds * 2} ] && kill -0 {pid} 2>/dev/null; do sleep 0.5; i=$((i+1)); done",
+        $"if kill -0 {pid} 2>/dev/null; then kill {pid} 2>/dev/null; i=0; while [ $i -lt {termSeconds * 2} ] && kill -0 {pid} 2>/dev/null; do sleep 0.5; i=$((i+1)); done; fi",
+        $"if kill -0 {pid} 2>/dev/null; then kill -9 {pid} 2>/dev/null; sleep 1; fi",
         $"OLD=\"{target}\"",
         $"NEW=\"{fresh}\"",
         "cp \"$OLD\" \"$OLD.old\" 2>/dev/null",
@@ -331,10 +334,17 @@ public static class UpdateService
         catch (Exception ex) { return (false, ex.Message); }
     }
 
-    private static string SwapScript(int pid, string fresh, string bundle) => string.Join("\n",
+    /// <summary>
+    /// Waits for Tunor to end — <paramref name="graceSeconds"/>, then asks it to with TERM and waits
+    /// <paramref name="termSeconds"/>, then makes it with KILL — so that a copy that is still running
+    /// can never be "replaced" and then opened as the old one.
+    /// </summary>
+    internal static string SwapScript(int pid, string fresh, string bundle, int graceSeconds = 30, int termSeconds = 10) => string.Join("\n",
         "#!/bin/bash",
         "# Waits for Tunor to let go of its own folder, then puts the new one in its place.",
-        $"for i in $(seq 1 120); do kill -0 {pid} 2>/dev/null || break; sleep 0.5; done",
+        $"for i in $(seq 1 {graceSeconds * 2}); do kill -0 {pid} 2>/dev/null || break; sleep 0.5; done",
+        $"if kill -0 {pid} 2>/dev/null; then kill {pid} 2>/dev/null; for i in $(seq 1 {termSeconds * 2}); do kill -0 {pid} 2>/dev/null || break; sleep 0.5; done; fi",
+        $"if kill -0 {pid} 2>/dev/null; then kill -9 {pid} 2>/dev/null; sleep 1; fi",
         $"OLD=\"{bundle}\"",
         $"NEW=\"{fresh}\"",
         "rm -rf \"$OLD.old\"",
