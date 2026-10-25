@@ -106,7 +106,7 @@
             <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0" Text="Готовые списки" Classes="h2"/>
-                    <Button Grid.Column="1" x:Name="BtnUpdate" Content="⭳  Обновить списки"
+                    <Button Grid.Column="1" x:Name="BtnUpdate" Content="↓  Обновить списки"
                             Click="Update_Click"/>
                 </Grid>
                 <TextBlock Classes="dim" TextWrapping="Wrap"

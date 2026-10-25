@@ -389,12 +389,12 @@ internal static class Program
         Jobs();
         if (layers.Children.Count != 1) throw new Exception("диалога нет на слое окна");
         if (!DialogHost.IsOpen) throw new Exception("IsOpen говорит, что диалога нет");
-        if (page.IsEnabled) throw new Exception("страница позади осталась включённой");
+        if (page.IsHitTestVisible) throw new Exception("страница позади продолжает принимать мышь");
         if (t1.IsCompleted) throw new Exception("ShowDialog вернулся, не дождавшись закрытия");
         one.Close();
         Jobs();
         if (!t1.IsCompleted) throw new Exception("после Close() ShowDialog не завершился");
-        if (!page.IsEnabled || layers.Children.Count != 0 || DialogHost.IsOpen)
+        if (!page.IsHitTestVisible || layers.Children.Count != 0 || DialogHost.IsOpen)
             throw new Exception("после закрытия страница не включилась или слой не опустел");
 
         // Esc closes it, and a confirmation closed that way is not a yes
@@ -416,10 +416,10 @@ internal static class Program
         upper.Close();
         Jobs();
         if (!tu.IsCompleted || tl.IsCompleted) throw new Exception("закрылся не тот диалог");
-        if (page.IsEnabled) throw new Exception("страница включилась, пока нижний диалог ещё открыт");
+        if (page.IsHitTestVisible) throw new Exception("страница включилась, пока нижний диалог ещё открыт");
         lower.Close();
         Jobs();
-        if (!tl.IsCompleted || !page.IsEnabled) throw new Exception("после обоих страница не включилась");
+        if (!tl.IsCompleted || !page.IsHitTestVisible) throw new Exception("после обоих страница не включилась");
 
         // with the window hidden there is nothing to draw on: a window of its own
         w.Hide();
