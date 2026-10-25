@@ -51,8 +51,10 @@ jobs:
       - name: Assemble the bundle
         working-directory: desktop
         run: |
-          python3 -m pip install --quiet pillow
-          python3 make-app.py ${{ matrix.arch == 'x64' && 'x64' || '' }}
+          # the system Python refuses a global install (PEP 668): a throwaway environment for the one package
+          python3 -m venv /tmp/mkapp
+          /tmp/mkapp/bin/pip install --quiet pillow
+          /tmp/mkapp/bin/python make-app.py ${{ matrix.arch == 'x64' && 'x64' || '' }}
 
       - name: The executable is for this processor
         working-directory: desktop
