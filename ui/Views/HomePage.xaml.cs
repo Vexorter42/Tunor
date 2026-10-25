@@ -109,6 +109,7 @@ public partial class HomePage : UserControl
         BtnStart.IsEnabled = true;
         BtnStop.IsEnabled = running;
         UpdateSetupWarning();
+        UpdateDpiHint();
     }
 
     // ------------------------------------------------------------ check
@@ -201,6 +202,25 @@ public partial class HomePage : UserControl
         if (direct?.Status == "fail" && warp?.Status == "ok")
             return "Напрямую сервер проверки не открылся — похоже, провайдер его ограничивает. Туннель при этом работает.";
         return "Всё работает.";
+    }
+
+    private void UpdateDpiHint()
+    {
+        var hint = DpiTools.Hint();
+        DpiText.Text = hint ?? "";
+        DpiCard.Visibility = hint == null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void HideDpi_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var s = SettingsService.Load();
+            s.HideDpiHint = true;
+            SettingsService.Save(s);
+        }
+        catch { }
+        UpdateDpiHint();
     }
 
     private void WarpPoint_Click(object sender, RoutedEventArgs e)

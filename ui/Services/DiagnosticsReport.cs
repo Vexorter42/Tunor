@@ -45,6 +45,7 @@ public static class DiagnosticsReport
         await EngineAsync(sb);
         Tunnels(sb);
         Settings(sb);
+        OtherTools(sb);
         Config(sb);
         Rules(sb);
         await AdapterAsync(sb);
@@ -211,6 +212,24 @@ public static class DiagnosticsReport
             Line(sb, "  AmneziaWG", d.AwgVersions);
         }
         catch (Exception ex) { Line(sb, "  разбор", "не удался: " + ex.Message); }
+    }
+
+    /// <summary>What else on this machine rewrites traffic: the first thing to ask when YouTube or Discord will not open with Tunor on.</summary>
+    private static void OtherTools(StringBuilder sb)
+    {
+        Head(sb, "ПРОГРАММЫ, КОТОРЫЕ МЕНЯЮТ ТРАФИК");
+        var running = DpiTools.Running();
+        if (running.Count == 0) sb.AppendLine("  не найдено (zapret, GoodbyeDPI, ByeDPI, SpoofDPI)");
+        foreach (var t in running) Line(sb, t.Name, t.PacketLevel ? "запущен, правит пакеты" : "запущен");
+
+        var tun = SettingsService.Load().Tun;
+        Line(sb, "Режим TUN в настройках", tun ? "включён" : "выключен");
+        if (DpiTools.Hint(tun, hidden: false, running, OperatingSystem.IsWindows()) is { } hint)
+        {
+            sb.AppendLine();
+            sb.AppendLine("  " + hint);
+        }
+        sb.AppendLine();
     }
 
     private static void Settings(StringBuilder sb)

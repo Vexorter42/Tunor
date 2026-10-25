@@ -87,6 +87,7 @@ public partial class HomeView : UserControl
         BtnStop.IsVisible = !privileged;
         BtnStop.IsEnabled = running;
         BtnStopElevated.IsVisible = privileged;
+        UpdateDpiHint();
 
         VersionText.Text = "Текущая версия: " + UpdateService.CurrentVersionString;
         // Said before an update is attempted rather than after it fails: a copy running
@@ -366,6 +367,25 @@ public partial class HomeView : UserControl
         }
         catch (Exception ex) { CheckNote.Text = "Проверка не удалась: " + ex.Message; }
         finally { BtnCheck.IsEnabled = true; }
+    }
+
+    private void UpdateDpiHint()
+    {
+        var hint = DpiTools.Hint();
+        DpiText.Text = hint ?? "";
+        DpiCard.IsVisible = hint != null;
+    }
+
+    private void HideDpi_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var s = SettingsService.Load();
+            s.HideDpiHint = true;
+            SettingsService.Save(s);
+        }
+        catch { }
+        UpdateDpiHint();
     }
 
     private async void WarpPoint_Click(object? sender, RoutedEventArgs e)

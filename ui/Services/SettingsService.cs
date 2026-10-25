@@ -79,6 +79,12 @@ public class AppSettings : INotifyPropertyChanged
     [JsonPropertyName("lastSeenVersion")]
     public string LastSeenVersion { get => _lastSeenVersion; set => Set(ref _lastSeenVersion, value ?? ""); }
 
+    private bool _hideDpiHint;
+
+    /// <summary>The person has read the note about zapret and TUN and does not want it on the Home page again.</summary>
+    [JsonPropertyName("hideDpiHint")]
+    public bool HideDpiHint { get => _hideDpiHint; set => Set(ref _hideDpiHint, value); }
+
     private bool _healthNotify = true;
 
     /// <summary>Say so when a tunnel stops answering, and when it answers again. On by default.</summary>
