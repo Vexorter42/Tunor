@@ -208,7 +208,7 @@ public partial class RulesView : UserControl
             var groups = RulesService.Load();
             // Through the same mirror the updater uses: the original source is often
             // unreachable from here, which is rather the point of the whole program.
-            var results = await RulesetDownloader.DownloadAllAsync(groups, "https://ghproxy.net/");
+            var results = await RulesetDownloader.DownloadAllAsync(groups, UpdateConfig.Load().Mirror);
             RulesService.Save(groups);
             ConfigGenerator.Generate();
             ListsUpdater.MarkUpdated();

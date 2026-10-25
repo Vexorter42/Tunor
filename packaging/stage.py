@@ -128,7 +128,7 @@ for _k in ("controllerSecret", "controllerPort", "listsUpdatedAt"):
     _st.pop(_k, None)
 json.dump(_st, open(STAGE + "/settings.json", "w", encoding="utf-8"),
           indent=2, ensure_ascii=False)
-json.dump({"repo": "Vexorter42/Tunor", "mirror": "https://ghproxy.net/"},
+json.dump({"repo": "Vexorter42/Tunor", "mirror": "https://gh-proxy.com/"},
           open(STAGE + "/update.json", "w", encoding="utf-8"), indent=2, ensure_ascii=False)
 
 # 3. sing-box = sing-box-lx (AmneziaWG 1.0/2.0/3.x) + helper scripts

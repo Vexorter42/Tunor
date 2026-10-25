@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -19,15 +18,11 @@ public class RulesetDownloadResult
 
 public static class RulesetDownloader
 {
-    private static readonly HttpClient Client = new()
-    {
-        Timeout = TimeSpan.FromSeconds(30),
-    };
-
     /// <summary>
     /// Downloads all rule sets that have a SourceUrl into <see cref="Paths.RulesetsDir"/>.
-    /// If <paramref name="mirrorPrefix"/> is non-empty, it's prepended to the URL
-    /// (e.g. "https://ghproxy.net/" for GitHub-proxy access).
+    /// Each comes from GitHub, and through the mirror (<paramref name="mirrorPrefix"/>, e.g.
+    /// "https://ghproxy.net/") only if GitHub does not answer — see <see cref="GitHubFetch"/>.
+    /// An empty mirror means GitHub only.
     /// Also updates each group's LocalPath so the caller can then save rules.json.
     /// </summary>
     public static async Task<List<RulesetDownloadResult>> DownloadAllAsync(
@@ -36,6 +31,11 @@ public static class RulesetDownloader
     {
         Directory.CreateDirectory(Paths.RulesetsDir);
         var results = new List<RulesetDownloadResult>();
+
+        // Every list that cannot be fetched costs the time of every way there is to try. With
+        // two in a row failing, the rest would fail the same way — nobody has the network or
+        // GitHub and every mirror are down — so they are skipped instead of waited for.
+        var failedInARow = 0;
 
         foreach (var g in groups)
         {
@@ -51,33 +51,31 @@ public static class RulesetDownloader
             // The rulesets live one level up in data/rulesets/.
             var relPath = "../data/rulesets/" + fname;
             var absPath = Path.Combine(Paths.RulesetsDir, fname);
-            var effectiveUrl = string.IsNullOrWhiteSpace(mirrorPrefix)
-                ? url
-                : mirrorPrefix.TrimEnd('/') + "/" + url;
+
+            if (failedInARow >= 2)
+            {
+                results.Add(new RulesetDownloadResult
+                {
+                    Tag = g.Tag, Url = url, LocalPath = relPath, Ok = false,
+                    Message = "пропущено: ни GitHub, ни зеркала не отвечают",
+                });
+                continue;
+            }
 
             try
             {
-                using var resp = await Client.GetAsync(effectiveUrl);
-                if (!resp.IsSuccessStatusCode)
-                {
-                    results.Add(new RulesetDownloadResult
-                    {
-                        Tag = g.Tag, Url = effectiveUrl, LocalPath = relPath, Ok = false,
-                        Message = $"HTTP {(int)resp.StatusCode}",
-                    });
-                    continue;
-                }
-                var bytes = await resp.Content.ReadAsByteArrayAsync();
+                var bytes = await GitHubFetch.GetBytesAsync(url, mirrorPrefix);
                 if (bytes.Length == 0)
                 {
                     results.Add(new RulesetDownloadResult
                     {
-                        Tag = g.Tag, Url = effectiveUrl, LocalPath = relPath, Ok = false,
+                        Tag = g.Tag, Url = url, LocalPath = relPath, Ok = false,
                         Message = "empty response",
                     });
                     continue;
                 }
                 await File.WriteAllBytesAsync(absPath, bytes);
+                failedInARow = 0;
 
                 // Convert group to local
                 g.Type = "local";
@@ -86,15 +84,17 @@ public static class RulesetDownloader
 
                 results.Add(new RulesetDownloadResult
                 {
-                    Tag = g.Tag, Url = effectiveUrl, LocalPath = relPath, Ok = true,
+                    Tag = g.Tag, Url = url, LocalPath = relPath, Ok = true,
                     Message = $"{bytes.Length} bytes",
                 });
             }
             catch (Exception ex)
             {
+                // Only "nobody answered" counts: a list that is simply gone says nothing about the next.
+                if (ex is GitHubFetch.FetchFailedException { Unreachable: true }) failedInARow++;
                 results.Add(new RulesetDownloadResult
                 {
-                    Tag = g.Tag, Url = effectiveUrl, LocalPath = relPath, Ok = false,
+                    Tag = g.Tag, Url = url, LocalPath = relPath, Ok = false,
                     Message = ex.Message,
                 });
             }

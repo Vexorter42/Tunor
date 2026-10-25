@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Net.Http;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -13,7 +12,7 @@ namespace Tunor.Services;
 public class UpdateConfig
 {
     public string Repo { get; set; } = "Vexorter42/Tunor";   // owner/repo on GitHub
-    public string Mirror { get; set; } = "https://ghproxy.net/"; // prefix for blocked GitHub
+    public string Mirror { get; set; } = "https://gh-proxy.com/"; // go-between for when GitHub does not answer; empty — none
 
     /// <summary>What the repository was called before the rename to Tunor.</summary>
     private const string FormerRepo = "Vexorter42/Nyx";
@@ -83,20 +82,6 @@ public class UpdateInfo
 
 public static class UpdateService
 {
-    /// <summary>For the manifest: a small file, and a slow answer means something is wrong.</summary>
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
-
-    /// <summary>
-    /// For the build itself, which is sixty-odd megabytes through a mirror.
-    ///
-    /// HttpClient.Timeout covers the whole operation, reading the body included, even
-    /// with ResponseHeadersRead — so the thirty seconds meant for a manifest were also
-    /// the budget for the download, and the update simply stopped partway on any
-    /// connection slower than two megabytes a second. Here the limit is on the whole
-    /// transfer and generous enough to be about a stall rather than about speed.
-    /// </summary>
-    private static readonly HttpClient Fetch = new() { Timeout = TimeSpan.FromMinutes(20) };
-
     public static Version CurrentVersion =>
         Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(1, 0, 0);
 
@@ -113,10 +98,7 @@ public static class UpdateService
         }
     }
 
-    private static string Mirror(UpdateConfig c, string githubUrl)
-        => string.IsNullOrWhiteSpace(c.Mirror) ? githubUrl : c.Mirror.TrimEnd('/') + "/" + githubUrl;
-
-    /// <summary>Fetches version.json from the latest GitHub release (through the mirror).</summary>
+    /// <summary>Fetches version.json from the latest GitHub release — from GitHub, or through the mirror if it does not answer.</summary>
     public static async Task<UpdateInfo> CheckAsync()
     {
         var cfg = UpdateConfig.Load();
@@ -125,10 +107,9 @@ public static class UpdateService
 
         try
         {
-            var manifestUrl = Mirror(cfg,
-                $"https://github.com/{cfg.Repo}/releases/latest/download/version.json");
+            var manifestUrl = $"https://github.com/{cfg.Repo}/releases/latest/download/version.json";
 
-            var text = await Http.GetStringAsync(manifestUrl);
+            var text = await GitHubFetch.GetStringAsync(manifestUrl, cfg.Mirror);
             var json = JsonNode.Parse(text) as JsonObject;
             var latest = json?["version"]?.GetValue<string>() ?? "";
             var url = json?["url"]?.GetValue<string>() ?? "";
@@ -188,34 +169,19 @@ public static class UpdateService
         }
     }
 
-    /// <summary>Downloads the installer (through mirror), verifies SHA256, runs it silently.</summary>
+    /// <summary>Downloads the installer (from GitHub, else through the mirror), verifies SHA256, runs it silently.</summary>
     public static async Task<(bool ok, string message)> DownloadAndApplyAsync(
         UpdateInfo info, IProgress<double>? progress = null)
     {
         var cfg = UpdateConfig.Load();
         try
         {
-            var dlUrl = Mirror(cfg, info.Url);
             var name = OperatingSystem.IsMacOS() ? $"Tunor-mac-{info.Latest}.tar.gz"
                      : OperatingSystem.IsLinux() ? $"Tunor-{info.Latest}-x86_64.AppImage"
                      : $"Tunor-Setup-{info.Latest}.exe";
             var tmp = Path.Combine(Path.GetTempPath(), name);
 
-            using (var resp = await Fetch.GetAsync(dlUrl, HttpCompletionOption.ResponseHeadersRead))
-            {
-                resp.EnsureSuccessStatusCode();
-                var total = resp.Content.Headers.ContentLength ?? -1;
-                await using var src = await resp.Content.ReadAsStreamAsync();
-                await using var dst = File.Create(tmp);
-                var buffer = new byte[81920];
-                long read = 0; int n;
-                while ((n = await src.ReadAsync(buffer)) > 0)
-                {
-                    await dst.WriteAsync(buffer.AsMemory(0, n));
-                    read += n;
-                    if (total > 0) progress?.Report((double)read / total);
-                }
-            }
+            await GitHubFetch.DownloadAsync(info.Url, cfg.Mirror, tmp, progress);
 
             // Verify SHA256
             if (!string.IsNullOrWhiteSpace(info.Sha256))
