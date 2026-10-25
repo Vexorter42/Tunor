@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 
 namespace Tunor.Services;
 
@@ -26,6 +27,14 @@ public static class EngineState
         _note = note;
         _lastFailure = lastFailure;
     }
+
+    private static Func<Task>? _restart;
+
+    /// <summary>How the app restarts the engine, for the services that have to (a new WARP endpoint takes effect only that way).</summary>
+    public static void ProvideRestart(Func<Task> restart) => _restart = restart;
+
+    /// <summary>Restarts the engine; does nothing when the app has not said how.</summary>
+    public static Task RestartAsync() => _restart?.Invoke() ?? Task.CompletedTask;
 
     /// <summary>
     /// Why the engine last died on its own, in plain words, or null. Each app knows this
