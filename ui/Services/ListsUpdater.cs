@@ -13,13 +13,21 @@ public static class ListsUpdater
 {
     public static readonly TimeSpan Interval = TimeSpan.FromDays(7);
 
-    public static async Task RunIfDueAsync()
+    /// <summary>
+    /// <paramref name="force"/> is for lists that are not there at all (a copy of the settings was
+    /// loaded on another computer): they are fetched whether or not the automatic refresh is on,
+    /// and whether or not they are due.
+    /// </summary>
+    public static async Task RunIfDueAsync(bool force = false)
     {
         try
         {
             var s = SettingsService.Load();
-            if (!s.AutoUpdateLists) return;
-            if (s.ListsUpdatedAt is { } at && DateTime.UtcNow - at < Interval) return;
+            if (!force)
+            {
+                if (!s.AutoUpdateLists) return;
+                if (s.ListsUpdatedAt is { } at && DateTime.UtcNow - at < Interval) return;
+            }
 
             var groups = RulesService.Load();
             if (!groups.Any(g => g.IsRemote || !string.IsNullOrEmpty(g.SourceUrl))) return;

@@ -19,6 +19,22 @@ public class RulesetDownloadResult
 public static class RulesetDownloader
 {
     /// <summary>
+    /// The name a list is saved under: the last part of its address, and nothing that could lead out
+    /// of the lists' folder — the address of a list may come from a file that somebody else made.
+    /// </summary>
+    internal static string SafeFileName(string fromUrl, string tag)
+    {
+        var name = fromUrl.Trim();
+        if (name.Length == 0 || name.Length > 120 || name is "." or ".."
+            || name.Any(c => char.IsControl(c) || "/\\:*?\"<>|".Contains(c)))
+        {
+            var safe = new string((tag ?? "").Where(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').ToArray());
+            return (safe.Length == 0 ? "list" : safe) + ".srs";
+        }
+        return name;
+    }
+
+    /// <summary>
     /// Downloads all rule sets that have a SourceUrl into <see cref="Paths.RulesetsDir"/>.
     /// Each comes from GitHub, and through the mirror (<paramref name="mirrorPrefix"/>, e.g.
     /// "https://ghproxy.net/") only if GitHub does not answer — see <see cref="GitHubFetch"/>.
@@ -45,8 +61,7 @@ public static class RulesetDownloader
                     : "";
             if (string.IsNullOrEmpty(url)) continue;
 
-            var fname = url.Split('/').Last();
-            if (string.IsNullOrEmpty(fname)) fname = g.Tag + ".srs";
+            var fname = SafeFileName(url.Split('/').Last().Split('?')[0], g.Tag);
             // Path is relative to sing-box's CWD which is the build/ folder.
             // The rulesets live one level up in data/rulesets/.
             var relPath = "../data/rulesets/" + fname;

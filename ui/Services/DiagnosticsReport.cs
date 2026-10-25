@@ -51,6 +51,7 @@ public static class DiagnosticsReport
         if (runCheck) await CheckAsync(sb);
         Crash(sb);
         LogSection(sb, logTail);
+        FileLogSection(sb);
 
         return Redact(sb.ToString());
     }
@@ -375,6 +376,23 @@ public static class DiagnosticsReport
             foreach (var l in lines.Skip(Math.Max(0, lines.Length - 40))) sb.AppendLine(l);
         }
         catch (Exception ex) { sb.AppendLine("  не прочитан: " + ex.Message); }
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// The log on disk, which reaches back past this run — what the page above cannot show. Only the
+    /// lines that say nothing about which sites were opened (see <see cref="AppLog.IsSafeForReport"/>).
+    /// </summary>
+    private static void FileLogSection(StringBuilder sb)
+    {
+        Head(sb, "ЖУРНАЛ НА ДИСКЕ (предупреждения, ошибки и рукопожатия туннелей)");
+        string[] lines;
+        try { lines = AppLog.Tail(300, AppLog.IsSafeForReport); }
+        catch { lines = Array.Empty<string>(); }
+
+        Line(sb, "Уровень журнала", AppSettings.NormalizeLevel(SettingsService.Load().LogLevel));
+        if (lines.Length == 0) sb.AppendLine("  пусто — файла журнала ещё нет или в нём нечего показать");
+        foreach (var l in lines) sb.AppendLine(l.Length > 300 ? l[..300] + "…" : l);
         sb.AppendLine();
     }
 

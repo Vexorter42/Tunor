@@ -33,6 +33,7 @@ public static class EngineLog
     {
         if (string.IsNullOrWhiteSpace(text)) return;
         var stamped = $"{DateTime.Now:HH:mm:ss}  {Strip(text)}";
+        AppLog.Write(Strip(text), text.StartsWith("[!]", StringComparison.Ordinal));
         lock (Lock)
         {
             Lines.Enqueue(stamped);

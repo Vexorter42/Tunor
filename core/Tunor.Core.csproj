@@ -44,6 +44,9 @@
 
   <ItemGroup>
     <Compile Include="..\ui\Services\ConfImporter.cs" Link="Services\ConfImporter.cs" />
+    <Compile Include="..\ui\Services\AppLog.cs" Link="Services\AppLog.cs" />
+    <Compile Include="..\ui\Services\WhatsNew.cs" Link="Services\WhatsNew.cs" />
+    <Compile Include="..\ui\Services\Backup.cs" Link="Services\Backup.cs" />
     <Compile Include="..\ui\Services\DiagnosticsReport.cs" Link="Services\DiagnosticsReport.cs" />
     <Compile Include="..\ui\Services\TunnelColors.cs" Link="Services\TunnelColors.cs" />
     <Compile Include="..\ui\Services\EngineState.cs" Link="Services\EngineState.cs" />

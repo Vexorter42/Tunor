@@ -31,6 +31,8 @@ public partial class App : Application
         // A fresh install has no settings and no config; make them before any page
         // tries to read them.
         Services.Bootstrap.Run();
+        Tunor.Services.AppLog.Write($"=== Tunor {Tunor.Services.UpdateService.CurrentVersionString} запущен · "
+                                    + $"{System.Runtime.InteropServices.RuntimeInformation.OSDescription} ===");
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {

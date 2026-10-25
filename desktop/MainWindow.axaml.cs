@@ -24,6 +24,28 @@ public partial class MainWindow : Window
         _tick.Tick += (_, _) => RefreshBadge();
         _tick.Start();
         RefreshBadge();
+
+        Opened += (_, _) => TryShowWhatsNew();
+    }
+
+    private bool _whatsNewDone;
+
+    /// <summary>The notes of the version that has just been installed, once, when the window is up.</summary>
+    private async void TryShowWhatsNew()
+    {
+        if (_whatsNewDone || DialogHost.IsOpen) return;
+        _whatsNewDone = true;
+        try
+        {
+            var found = await WhatsNew.CheckAsync();
+            if (found is not { } notes) return;
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                await new WhatsNewWindow(notes.Version, notes.Blocks).ShowDialog(this);
+                WhatsNew.MarkSeen(notes.Version);
+            });
+        }
+        catch { /* the notes are a courtesy; nothing here is worth a failure */ }
     }
 
     private void RefreshBadge()

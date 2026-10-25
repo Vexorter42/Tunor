@@ -30,6 +30,17 @@
                           IsCheckedChanged="Toggle_Changed"/>
                 <TextBlock Classes="dim" Margin="24,-6,0,0" TextWrapping="Wrap"
                            Text="При запуске и дальше раз в несколько часов. Нашлась новая версия — на главной появится зелёная кнопка «Обновиться»."/>
+                <TextBlock Text="Уровень журнала"/>
+                <ComboBox x:Name="CmbLogLevel" Width="300" HorizontalAlignment="Left" SelectionChanged="LogLevel_Changed">
+                    <ComboBoxItem Tag="error">Только ошибки</ComboBoxItem>
+                    <ComboBoxItem Tag="warn">Предупреждения (по умолчанию)</ComboBoxItem>
+                    <ComboBoxItem Tag="info">Информация</ComboBoxItem>
+                    <ComboBoxItem Tag="debug">Подробно (debug)</ComboBoxItem>
+                </ComboBox>
+                <TextBlock Classes="dim" TextWrapping="Wrap"
+                           Text="«Подробно» нужно, чтобы разобраться с обрывами: в журнал попадают рукопожатия туннелей. Там же появляются адреса открываемых сайтов, поэтому в отчёт о проблеме такие строки не попадают. Журнал пишется в файл и хранится 7 дней. Применяется после перезапуска движка."/>
+                <Button Classes="ghost" Content="Открыть папку журналов" HorizontalAlignment="Left"
+                        Click="OpenLogs_Click"/>
             </StackPanel>
         </Border>
         <Border Classes="card">
@@ -50,6 +61,19 @@
                     <Button Classes="ghost" Content="Открыть папку приложения" Margin="0,0,8,6"
                             Click="OpenRoot_Click"/>
                 </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Резервная копия" Classes="h2"/>
+                <TextBlock Classes="dim" TextWrapping="Wrap"
+                           Text="Настройки, правила, туннели с ключами и ссылками подписок, профили — одним файлом: чтобы перенести на другой компьютер или вернуться к тому, что было. Списки правил в файл не входят, они скачиваются заново."/>
+                <WrapPanel>
+                    <Button Content="Сохранить в файл…" Margin="0,0,8,6" Click="ExportBackup_Click"/>
+                    <Button Content="Загрузить из файла…" Margin="0,0,8,6" Click="ImportBackup_Click"/>
+                </WrapPanel>
+                <TextBlock x:Name="BackupHint" Classes="dim" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
 

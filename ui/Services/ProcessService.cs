@@ -90,7 +90,11 @@ public static class ProcessService
     }
 
     private static void Log(string line, bool isError = false)
-        => LogReceived?.Invoke(null, new LogEventArgs(StripAnsi(line), isError));
+    {
+        var clean = StripAnsi(line);
+        AppLog.Write(clean, isError);
+        LogReceived?.Invoke(null, new LogEventArgs(clean, isError));
+    }
 
     /// <summary>Puts an app-side message into the log, marked as coming from the UI.</summary>
     public static void Note(string message, bool isError = false) => Log("[ui] " + message, isError);
