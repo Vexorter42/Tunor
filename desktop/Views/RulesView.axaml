@@ -107,9 +107,12 @@
         <!-- the downloaded lists: their entries belong to whoever publishes them -->
         <Border Classes="card">
             <StackPanel Spacing="8">
-                <Grid ColumnDefinitions="*,Auto">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                     <TextBlock Grid.Column="0" Text="Готовые списки" Classes="h2"/>
-                    <Button Grid.Column="1" x:Name="BtnUpdate" Content="↓  Обновить списки"
+                    <Button Grid.Column="1" x:Name="BtnCatalog" Content="Каталог…"
+                            ToolTip.Tip="Готовые списки сайтов: YouTube, Discord, ChatGPT и другие"
+                            Click="Catalog_Click"/>
+                    <Button Grid.Column="2" x:Name="BtnUpdate" Content="↓  Обновить списки"
                             Click="Update_Click"/>
                 </Grid>
                 <TextBlock Classes="dim" TextWrapping="Wrap"
