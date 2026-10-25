@@ -48,3 +48,4 @@ __pycache__/
 bin/
 obj/
 build-mac/
+build-mac-x64/

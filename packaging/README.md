@@ -77,6 +77,10 @@ cd desktop
 dotnet publish -c Release -r osx-arm64 --self-contained true
 python make-app.py                 # -> build-mac/Tunor.app + Tunor-mac-arm64.tar.gz
 
+# для Macs на Intel — то же с x64: сборка osx-x64 и build-mac-x64/Tunor-mac-x64.tar.gz
+dotnet publish -c Release -r osx-x64 --self-contained true
+python make-app.py x64
+
 # на маке: подписать, пересобрать архив и сделать образ
 python make-dmg-background.py      # фон окна образа
 bash make-dmg.sh

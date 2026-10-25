@@ -51,7 +51,7 @@
 5. *(необязательно)* geo или свой VPN по ссылке — на вкладке «Туннели».
 6. Нажми **«Запустить»**.
 
-### macOS (Apple Silicon)
+### macOS (Apple Silicon и Intel)
 
 Проще всего одной командой — она скачает сборку, проверит контрольную сумму, положит рядом с собой и поставит движок:
 
@@ -59,7 +59,7 @@
 curl -fsSL https://raw.githubusercontent.com/Vexorter42/Tunor/main/packaging/mac-install.sh | bash
 ```
 
-Либо вручную: скачать **`Tunor-<версия>-arm64.dmg`** из релиза и перетащить Tunor в «Программы».
+Либо вручную: скачать **`Tunor-<версия>-arm64.dmg`** (Apple Silicon) или **`Tunor-<версия>-x64.dmg`** (Intel) из релиза и перетащить Tunor в «Программы». Для Intel нужна macOS 12 или новее: на ней работает .NET 8, на котором написана программа.
 
 Сборка подписана **ad-hoc**, а не сертификатом разработчика Apple — аккаунта за проектом нет. Поэтому при первом запуске система скажет, что не смогла проверить приложение:
 
@@ -151,7 +151,8 @@ sudo setcap cap_net_admin,cap_net_raw+ep ~/.config/tunor/build/sing-box
   "version": "1.11.5",
   "url":     ".../Tunor-Setup.exe",
   "sha256":  "…",
-  "mac":   { "url": ".../Tunor-mac-arm64.tar.gz",     "sha256": "…" },
+  "mac":     { "url": ".../Tunor-mac-arm64.tar.gz",   "sha256": "…" },
+  "mac-x64": { "url": ".../Tunor-mac-x64.tar.gz",     "sha256": "…" },
   "linux": { "url": ".../Tunor-1.11.6-x86_64.AppImage", "sha256": "…" }
 }
 ```
@@ -176,6 +177,10 @@ dotnet publish -c Release -r win-x64 --self-contained true
 cd desktop
 dotnet publish -c Release -r osx-arm64 --self-contained true
 python make-app.py            # -> build-mac/Tunor.app и Tunor-mac-arm64.tar.gz
+
+# macOS на процессоре Intel — то же, но с x64
+dotnet publish -c Release -r osx-x64 --self-contained true
+python make-app.py x64        # -> build-mac-x64/Tunor.app и Tunor-mac-x64.tar.gz
 
 # Linux (упаковка — на Linux, там appimagetool)
 cd desktop

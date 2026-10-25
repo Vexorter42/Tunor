@@ -66,6 +66,8 @@ internal static class Program
                       FetchWays, failures);
                 Check("Подмена после обновления: ждёт, просит завершиться, добивает — и только потом меняет файлы",
                       SwapScripts, failures);
+                Check("Манифест: Intel и Apple Silicon читают каждый свою сборку, чужую и установщик Windows не получают",
+                      ManifestParts, failures);
             })
             .SetupWithoutStarting();
 
@@ -821,6 +823,56 @@ internal static class Program
             File.WriteAllText(Path.Combine(dump, "swap-mac.sh"), mac + "\n");
             File.WriteAllText(Path.Combine(dump, "swap-linux.sh"), linux + "\n");
         }
+    }
+
+    /// <summary>
+    /// The manifest, as each machine reads it. An Intel Mac gets its own build and not the one for
+    /// Apple Silicon, and the other way round; with no part of its own a Mac is told so, and is not
+    /// handed the Windows installer; a part may carry a version of its own, for a build that has not
+    /// been made for the new release yet.
+    /// </summary>
+    private static void ManifestParts()
+    {
+        const string manifest = """
+            { "version": "2.1.0", "url": "https://x/win.exe", "sha256": "WIN", "notes": "общие",
+              "mac":     { "url": "https://x/mac-arm64.tgz",   "sha256": "ARM", "notes": "arm" },
+              "mac-x64": { "url": "https://x/mac-x64.tgz",     "sha256": "X64", "notes": "x64" },
+              "linux":   { "url": "https://x/linux.AppImage",  "sha256": "LIN" } }
+            """;
+        var cur = new Version(2, 0, 9);
+
+        void Expect(string what, UpdateInfo i, string url, string sha)
+        {
+            if (!string.IsNullOrEmpty(i.Error)) throw new Exception($"{what}: ошибка «{i.Error}»");
+            if (i.Url != url || i.Sha256 != sha) throw new Exception($"{what}: получено {i.Url} / {i.Sha256}, нужно {url} / {sha}");
+            if (!i.Available || i.Latest != "2.1.0") throw new Exception($"{what}: версия {i.Latest}, доступна: {i.Available}");
+        }
+
+        // which part each processor reads
+        if (UpdateService.MacSection(System.Runtime.InteropServices.Architecture.X64) != "mac-x64") throw new Exception("Intel читает не свою часть манифеста");
+        if (UpdateService.MacSection(System.Runtime.InteropServices.Architecture.Arm64) != "mac") throw new Exception("Apple Silicon читает не свою часть манифеста");
+
+        Expect("Windows", UpdateService.FromManifest(manifest, null, cur), "https://x/win.exe", "WIN");
+        Expect("Apple Silicon", UpdateService.FromManifest(manifest, "mac", cur), "https://x/mac-arm64.tgz", "ARM");
+        Expect("Intel", UpdateService.FromManifest(manifest, "mac-x64", cur), "https://x/mac-x64.tgz", "X64");
+        Expect("Linux", UpdateService.FromManifest(manifest, "linux", cur), "https://x/linux.AppImage", "LIN");
+        if (UpdateService.FromManifest(manifest, "mac-x64", cur).Notes != "x64") throw new Exception("у Intel не его заметки");
+
+        // a release made before Intel builds: no part for them, and the answer says so
+        const string before = """{ "version": "2.0.9", "url": "https://x/win.exe", "sha256": "W", "mac": { "url": "https://x/a.tgz", "sha256": "A" } }""";
+        var none = UpdateService.FromManifest(before, "mac-x64", cur);
+        if (string.IsNullOrEmpty(none.Error) || !none.Error.Contains("Intel")) throw new Exception("для Intel нет сборки, а об этом не сказано: «" + none.Error + "»");
+        if (!string.IsNullOrEmpty(none.Url)) throw new Exception("Intel-маку вручена чужая ссылка: " + none.Url);
+        if (!string.IsNullOrEmpty(UpdateService.FromManifest(before, "mac", cur).Error)) throw new Exception("Apple Silicon перестал находить свою сборку");
+
+        // a part with a version of its own: not offered what it already is
+        const string own = """{ "version": "2.1.0", "url": "https://x/w", "sha256": "W", "mac": { "version": "2.0.9", "url": "https://x/m", "sha256": "M" } }""";
+        var same = UpdateService.FromManifest(own, "mac", cur);
+        if (same.Available || same.Latest != "2.0.9") throw new Exception($"своя версия части не учтена: доступна {same.Available}, версия {same.Latest}");
+
+        // a part without a link is not a build
+        const string broken = """{ "version": "2.1.0", "url": "https://x/w", "mac-x64": { "sha256": "X" } }""";
+        if (!UpdateService.FromManifest(broken, "mac-x64", cur).Error.Contains("Некорректный")) throw new Exception("часть без ссылки принята за сборку");
     }
 
     /// <summary>How many temporary keychains .NET has left in this user's temp folder.</summary>

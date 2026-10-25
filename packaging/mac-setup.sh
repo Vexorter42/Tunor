@@ -1,7 +1,7 @@
 #!/bin/bash
 # Unpacks Tunor.app and puts the engine where it looks for it.
 #
-# Run it from the folder holding Tunor-mac-arm64.tar.gz:
+# Run it from the folder holding Tunor-mac-arm64.tar.gz (Apple Silicon) or Tunor-mac-x64.tar.gz (Intel):
 #
 #   bash mac-setup.sh
 #
@@ -16,7 +16,12 @@
 
 set -u
 VER="1.14.2-lx.11"
-TAR="Tunor-mac-arm64.tar.gz"
+# Two builds, one for each processor, each with the engine of its own kind.
+case "$(uname -m)" in
+  arm64)  TAR="Tunor-mac-arm64.tar.gz"; ENGINE_ARCH="arm64" ;;
+  x86_64) TAR="Tunor-mac-x64.tar.gz";   ENGINE_ARCH="amd64" ;;
+  *) printf '  ✗ не знаю такой процессор: %s\n' "$(uname -m)"; exit 1 ;;
+esac
 ROOT="$HOME/Library/Application Support/Tunor"
 REL="https://github.com/Leadaxe/sing-box-lx/releases/download/v$VER"
 
@@ -26,9 +31,8 @@ info() { printf '  · %s\n' "$1"; }
 head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
 head_ "Проверяю"
-[ "$(uname -m)" = "arm64" ] || { bad "эта сборка для Apple Silicon, а тут $(uname -m)"; exit 1; }
 [ -f "$TAR" ] || { bad "рядом нет $TAR — положи скрипт в ту же папку"; exit 1; }
-ok "macOS $(sw_vers -productVersion) · arm64"
+ok "macOS $(sw_vers -productVersion) · $(uname -m)"
 
 head_ "Распаковываю приложение"
 rm -rf Tunor.app
@@ -54,13 +58,13 @@ else
   else
     info "скачиваю $VER…"
     TMP=$(mktemp -d)
-    if curl -fsSL -o "$TMP/e.tar.gz" "$REL/sing-box-$VER-darwin-arm64.tar.gz" \
+    if curl -fsSL -o "$TMP/e.tar.gz" "$REL/sing-box-$VER-darwin-$ENGINE_ARCH.tar.gz" \
        && curl -fsSL -o "$TMP/S" "$REL/SHA256SUMS"; then
-      W=$(grep " sing-box-$VER-darwin-arm64.tar.gz\$" "$TMP/S" | awk '{print $1}')
+      W=$(grep " sing-box-$VER-darwin-$ENGINE_ARCH.tar.gz\$" "$TMP/S" | awk '{print $1}')
       H=$(shasum -a 256 "$TMP/e.tar.gz" | awk '{print $1}')
       if [ "$W" = "$H" ]; then
         tar -xzf "$TMP/e.tar.gz" -C "$TMP"
-        cp "$TMP/sing-box-$VER-darwin-arm64/sing-box" "$ROOT/build/sing-box"
+        cp "$TMP/sing-box-$VER-darwin-$ENGINE_ARCH/sing-box" "$ROOT/build/sing-box"
         ok "скачан и проверен по контрольной сумме"
       else
         bad "контрольная сумма не совпала — движок не установлен"
