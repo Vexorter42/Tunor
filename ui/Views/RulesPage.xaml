@@ -28,7 +28,10 @@
                         Click="SaveApply_Click" Margin="0,0,8,0"/>
                 <Button Content="⇩ Обновить" ToolTip="Обновить списки правил" Padding="12,7"
                         Style="{StaticResource SecondaryButton}"
-                        Click="UpdateRulesets_Click"/>
+                        Click="UpdateRulesets_Click" Margin="0,0,8,0"/>
+                <Button Content="📚 Каталог" ToolTip="Готовые списки сайтов: YouTube, Discord, ChatGPT и другие" Padding="12,7"
+                        Style="{StaticResource SecondaryButton}"
+                        Click="Catalog_Click"/>
             </StackPanel>
             <TextBlock x:Name="StatusText" Margin="0,6,0,0" Style="{StaticResource Dim}"/>
 

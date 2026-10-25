@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -46,6 +47,8 @@ internal static class Program
         ("Окно: запущенные программы", () => new ProcessPickerWindow()),
         ("Окно: свой VPN", () => new AddVpnWindow()),
         ("Окно: подтверждение", () => new ConfirmWindow("Заголовок", "Текст")),
+        ("Окно: каталог списков", () => { Catalog.FetchRemote = () => throw new InvalidOperationException("в проверке без сети"); return new CatalogWindow(); }),
+        ("Окно: точка WARP", () => new WarpEndpointWindow()),
         ("Окно: пароль к копии", () => PasswordWindow.ForSaving()),
         ("Окно: пароль к копии (открытие)", () => PasswordWindow.ForOpening("Пароль не подошёл")),
         ("Окно: что нового", () => new WhatsNewWindow("2.2.0", WhatsNew.Format("Текст.\n\n---\n\n**Заголовок**\n\nАбзац."))),
@@ -82,6 +85,8 @@ internal static class Program
                       () => Task.Run(WarpEndpointChecks).GetAwaiter().GetResult(), failures);
                 Check("Здоровье туннелей: два промаха подряд, возврат с перерывом, общий отчёт, история, очистка",
                       () => Task.Run(HealthChecks).GetAwaiter().GetResult(), failures);
+                Check("Каталог списков: только годные записи, встроенный, свежий и сохранённый, добавление без повторов",
+                      () => Task.Run(CatalogChecks).GetAwaiter().GetResult(), failures);
             })
             .SetupWithoutStarting();
 
@@ -1345,6 +1350,135 @@ internal static class Program
             HealthMonitor.Reset();
             AppLog.Flush();
             (HealthMonitor.Probe, HealthMonitor.FilePath, HealthMonitor.Now, AppLog.DirectoryOf) = (probe, filePath, now, logDir);
+            try { Directory.Delete(dir, true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// The catalog of ready lists: only valid entries are taken from a file that came from the internet, the one
+    /// inside the program is valid and complete, the freshest copy wins and the last one fetched is kept, a name is
+    /// never taken twice, and adding puts new lists in, downloads only those, and leaves the others as they were.
+    /// </summary>
+    private static void CatalogChecks()
+    {
+        string Doc(params string[] entries) => "{\"format\":1,\"lists\":[" + string.Join(",", entries) + "]}";
+        string E(string id, string url, string route = "warp", string title = "Название", string category = "Группа", string about = "Описание")
+            => $"{{\"id\":\"{id}\",\"title\":\"{title}\",\"about\":\"{about}\",\"category\":\"{category}\",\"url\":\"{url}\",\"route\":\"{route}\"}}";
+        const string good = "https://github.com/itdoginfo/allow-domains/releases/latest/download/";
+
+        // ---- what is taken from a file
+        var parsed = Catalog.Parse(Doc(
+            E("ok-one", good + "a.srs"),
+            E("ok-two", "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-x.srs", "geo"),
+            E("Bad-Id", good + "b.srs"),                               // upper case
+            E("../up", good + "c.srs"),                                // a path in the name
+            E("plain-http", "http://github.com/x/y/releases/download/z.srs"),
+            E("other-host", "https://example.com/x.srs"),
+            E("lookalike", "https://github.com.evil.example/x.srs"),
+            E("not-srs", good + "x.txt"),
+            E("with-query", good + "x.srs?token=1"),
+            E("odd-file", good + "..%2f..%2fx.srs"),                   // an encoded way out of the folder
+            E("bad-route", good + "d.srs", "direct"),
+            E("long-title", good + "e.srs", "warp", new string('я', 61)),
+            E("no-title", good + "f.srs", "warp", ""),
+            E("ok-one", good + "g.srs"),                               // the same id again
+            E("same-url", good + "a.srs")), out var dropped);          // the same address again
+        if (parsed == null || parsed.Count != 2 || dropped != 13)
+            throw new Exception($"разбор: принято {parsed?.Count}, отброшено {dropped} (ждали 2 и 13)");
+        if (parsed[1].Route != "geo" || parsed[0].Route != "warp") throw new Exception("маршрут записи прочитан неверно");
+
+        foreach (var junk in new[] { "", "не json", "[]", "{}", "{\"format\":2,\"lists\":[]}", "{\"format\":1}", Doc(), Doc(E("Bad", good + "a.srs")),
+                                     new string(' ', 300 * 1024) + Doc(E("big", good + "a.srs")) })
+            if (Catalog.Parse(junk, out _) != null) throw new Exception("принято за каталог: " + junk[..Math.Min(30, junk.Length)]);
+
+        // ---- the one inside the program
+        var builtIn = Catalog.BuiltIn();
+        if (builtIn.Count < 25) throw new Exception("во встроенном каталоге мало записей: " + builtIn.Count);
+        if (builtIn.Select(e => e.Id).Distinct().Count() != builtIn.Count) throw new Exception("в каталоге повторяются id");
+        if (builtIn.Select(e => e.Url.ToLowerInvariant()).Distinct().Count() != builtIn.Count) throw new Exception("в каталоге повторяются адреса");
+        if (!builtIn.Any(e => e.Route == "geo") || !builtIn.Any(e => e.Route == "warp")) throw new Exception("в каталоге нет одного из маршрутов");
+        if (builtIn.Select(e => e.Url.Split('/').Last()).Distinct().Count() != builtIn.Count) throw new Exception("два списка легли бы в один файл");
+
+        // ---- where it comes from
+        var dir = Path.Combine(Path.GetTempPath(), "tunor-catalog-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var (fetch, cache, loadG, saveG, download, rebuild) = (Catalog.FetchRemote, Catalog.CacheFile, Catalog.LoadGroups, Catalog.SaveGroups, Catalog.Download, Catalog.Rebuild);
+        try
+        {
+            var cachePath = Path.Combine(dir, "sub", "catalog.json");
+            Catalog.CacheFile = () => cachePath;
+
+            var fresh = Doc(E("fresh-one", good + "n1.srs"), E("fresh-two", good + "n2.srs"), E("fresh-three", good + "n3.srs"));
+            Catalog.FetchRemote = () => Task.FromResult(fresh);
+            var (a, from) = Catalog.LoadAsync(true).GetAwaiter().GetResult();
+            if (from != Catalog.From.Repository || a.Count != 3 || !File.Exists(cachePath)) throw new Exception("свежий каталог не принят или не сохранён");
+
+            Catalog.FetchRemote = () => throw new HttpRequestException("нет сети");
+            var (b, fromB) = Catalog.LoadAsync(true).GetAwaiter().GetResult();
+            if (fromB != Catalog.From.Saved || b.Count != 3) throw new Exception("без сети взят не сохранённый каталог");
+
+            Catalog.FetchRemote = () => Task.FromResult("<html>captive portal</html>");
+            var (c, fromC) = Catalog.LoadAsync(true).GetAwaiter().GetResult();
+            if (fromC != Catalog.From.Saved || c.Count != 3) throw new Exception("страница-заглушка принята за каталог");
+
+            Catalog.FetchRemote = () => Task.FromResult(Doc(E("Bad", "http://x")));
+            if (Catalog.LoadAsync(true).GetAwaiter().GetResult().Source != Catalog.From.Saved) throw new Exception("каталог без единой годной записи вытеснил прежний");
+
+            File.WriteAllText(cachePath, "мусор");
+            var (d, fromD) = Catalog.LoadAsync(true).GetAwaiter().GetResult();
+            if (fromD != Catalog.From.BuiltIn || d.Count != builtIn.Count) throw new Exception("с испорченным сохранённым и без сети нужен встроенный");
+
+            Catalog.FetchRemote = () => throw new InvalidOperationException("в окно без запроса не ходят");
+            if (Catalog.LoadAsync(false).GetAwaiter().GetResult().Source != Catalog.From.BuiltIn) throw new Exception("без запроса к репозиторию взят не встроенный");
+
+            // ---- adding
+            var yt = builtIn.First(e => e.Id == "youtube");
+            var tiktok = builtIn.First(e => e.Id == "tiktok");
+            var openai = builtIn.First(e => e.Id == "openai");
+
+            var have = new List<RuleGroup>
+            {
+                new() { Tag = "warp-youtube-2", Type = "local", SourceUrl = yt.Url, Path = "../data/rulesets/youtube.srs" },   // the list is there under another name
+                new() { Tag = "geo-tiktok", Type = "inline" },                                                                   // the name is taken by something else
+                new() { Tag = "warp-custom", Type = "inline" },
+            };
+            var plan = Catalog.Plan(new[] { yt, tiktok, openai }, null, have);
+            if (plan.Count != 2 || plan.Any(p => p.Entry.Id == "youtube")) throw new Exception("уже добавленный список добавлен ещё раз");
+            var t = plan.First(p => p.Entry.Id == "tiktok").Group;
+            var o = plan.First(p => p.Entry.Id == "openai").Group;
+            if (t.Tag != "geo-tiktok-2") throw new Exception("занятое имя не обойдено: " + t.Tag);
+            if (o.Tag != "geo-openai" || o.Type != "local" || o.Format != "binary" || o.SourceUrl != openai.Url || o.Path != "../data/rulesets/geosite-openai.srs")
+                throw new Exception($"группа собрана неверно: {o.Tag} {o.Type} {o.Path}");
+            if (have.Count != 5) throw new Exception("добавленное не попало в список");
+
+            var forced = Catalog.Plan(new[] { builtIn.First(e => e.Id == "netflix") }, "warp", new List<RuleGroup>());
+            if (forced[0].Group.Tag != "warp-netflix") throw new Exception("маршрут, выбранный человеком, не применён: " + forced[0].Group.Tag);
+
+            var disk = new List<RuleGroup> { new() { Tag = "warp-custom", Type = "inline" }, new() { Tag = "warp-youtube", Type = "local", SourceUrl = yt.Url, Path = "../data/rulesets/youtube.srs" } };
+            List<RuleGroup>? saved = null; var rebuilt = 0; List<string>? downloaded = null;
+            Catalog.LoadGroups = () => disk;
+            Catalog.SaveGroups = g => saved = g;
+            Catalog.Rebuild = () => rebuilt++;
+            Catalog.Download = groups =>
+            {
+                var list = groups.ToList();
+                downloaded = list.Select(g => g.Tag).ToList();
+                return Task.FromResult(list.Select(g => new RulesetDownloadResult { Tag = g.Tag, Ok = g.Tag != "geo-openai", Message = "нет ответа" }).ToList());
+            };
+            var done = Catalog.AddAsync(new[] { yt, tiktok, openai }, null).GetAwaiter().GetResult();
+            if (done.Count != 2 || !done.First(x => x.Entry.Id == "tiktok").Downloaded || done.First(x => x.Entry.Id == "openai").Downloaded)
+                throw new Exception("итог добавления: " + string.Join(", ", done.Select(x => x.Tag + "=" + x.Downloaded)));
+            if (!downloaded!.SequenceEqual(new[] { "geo-tiktok", "geo-openai" })) throw new Exception("скачивались не только новые: " + string.Join(",", downloaded!));
+            if (saved == null || saved.Count != 4 || rebuilt != 1) throw new Exception($"сохранено {saved?.Count}, пересборок {rebuilt}");
+            if (done.First(x => x.Entry.Id == "openai").Note != "нет ответа") throw new Exception("причина неудачи потеряна");
+
+            rebuilt = 0; saved = null;
+            if (Catalog.AddAsync(new[] { yt }, null).GetAwaiter().GetResult().Count != 0 || saved != null || rebuilt != 0)
+                throw new Exception("добавление уже имеющегося что-то записало");
+        }
+        finally
+        {
+            (Catalog.FetchRemote, Catalog.CacheFile, Catalog.LoadGroups, Catalog.SaveGroups, Catalog.Download, Catalog.Rebuild) = (fetch, cache, loadG, saveG, download, rebuild);
             try { Directory.Delete(dir, true); } catch { }
         }
     }

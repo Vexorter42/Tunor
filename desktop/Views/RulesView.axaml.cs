@@ -223,6 +223,15 @@ public partial class RulesView : UserControl
 
     // ---------------------------------------------------------------- downloading
 
+    private async void Catalog_Click(object? sender, RoutedEventArgs e)
+    {
+        var dlg = new CatalogWindow();
+        await dlg.ShowDialog(this);
+        if (!dlg.Changed) return;
+        Refresh();
+        StatusText.Text = "Списки добавлены. Перезапусти движок, чтобы они заработали.";
+    }
+
     private async void Update_Click(object? sender, RoutedEventArgs e)
     {
         BtnUpdate.IsEnabled = false;

@@ -1,0 +1,253 @@
+{
+  "format": 1,
+  "lists": [
+    {
+      "id": "russia-inside",
+      "title": "Основной список блокировок",
+      "about": "Большой общий список сайтов, к которым в России закрыт доступ",
+      "category": "Заблокированное в России",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/russia_inside.srs",
+      "route": "warp"
+    },
+    {
+      "id": "block",
+      "title": "Реестр блокировок",
+      "about": "Домены, заблокированные Роскомнадзором",
+      "category": "Заблокированное в России",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/block.srs",
+      "route": "warp"
+    },
+    {
+      "id": "news",
+      "title": "Новостные сайты",
+      "about": "Зарубежные СМИ, закрытые в России",
+      "category": "Заблокированное в России",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/news.srs",
+      "route": "warp"
+    },
+    {
+      "id": "hdrezka",
+      "title": "HDrezka",
+      "about": "Онлайн-кинотеатр",
+      "category": "Заблокированное в России",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/hdrezka.srs",
+      "route": "warp"
+    },
+    {
+      "id": "anime",
+      "title": "Аниме",
+      "about": "Сайты с аниме",
+      "category": "Заблокированное в России",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/anime.srs",
+      "route": "warp"
+    },
+    {
+      "id": "porn",
+      "title": "Сайты для взрослых",
+      "about": "Закрытые в России сайты 18+",
+      "category": "Заблокированное в России",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/porn.srs",
+      "route": "warp"
+    },
+    {
+      "id": "youtube",
+      "title": "YouTube",
+      "about": "Видео, превью, API",
+      "category": "Соцсети, мессенджеры, игры",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/youtube.srs",
+      "route": "warp"
+    },
+    {
+      "id": "discord",
+      "title": "Discord",
+      "about": "Чаты и голосовые каналы",
+      "category": "Соцсети, мессенджеры, игры",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/discord.srs",
+      "route": "warp"
+    },
+    {
+      "id": "meta",
+      "title": "Facebook, Instagram, WhatsApp",
+      "about": "Сервисы компании Meta",
+      "category": "Соцсети, мессенджеры, игры",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/meta.srs",
+      "route": "warp"
+    },
+    {
+      "id": "twitter",
+      "title": "Twitter / X",
+      "about": "Лента, картинки, API",
+      "category": "Соцсети, мессенджеры, игры",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/twitter.srs",
+      "route": "warp"
+    },
+    {
+      "id": "telegram",
+      "title": "Telegram",
+      "about": "Домены Telegram",
+      "category": "Соцсети, мессенджеры, игры",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/telegram.srs",
+      "route": "warp"
+    },
+    {
+      "id": "roblox",
+      "title": "Roblox",
+      "about": "Игра и её сервисы",
+      "category": "Соцсети, мессенджеры, игры",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/roblox.srs",
+      "route": "warp"
+    },
+    {
+      "id": "linkedin",
+      "title": "LinkedIn",
+      "about": "Профессиональная сеть",
+      "category": "Соцсети, мессенджеры, игры",
+      "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-linkedin.srs",
+      "route": "warp"
+    },
+    {
+      "id": "reddit",
+      "title": "Reddit",
+      "about": "Форумы и сообщества",
+      "category": "Соцсети, мессенджеры, игры",
+      "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-reddit.srs",
+      "route": "warp"
+    },
+    {
+      "id": "medium",
+      "title": "Medium",
+      "about": "Блоги и статьи",
+      "category": "Соцсети, мессенджеры, игры",
+      "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-medium.srs",
+      "route": "warp"
+    },
+    {
+      "id": "google-meet",
+      "title": "Google Meet",
+      "about": "Видеозвонки",
+      "category": "Сервисы Google",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/google_meet.srs",
+      "route": "warp"
+    },
+    {
+      "id": "google-play",
+      "title": "Google Play",
+      "about": "Магазин приложений",
+      "category": "Сервисы Google",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/google_play.srs",
+      "route": "warp"
+    },
+    {
+      "id": "cloudflare",
+      "title": "Cloudflare",
+      "about": "Сети Cloudflare: помогает, когда сайты за ним не открываются",
+      "category": "Хостинги и CDN (по сетям)",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/cloudflare.srs",
+      "route": "warp"
+    },
+    {
+      "id": "cloudfront",
+      "title": "Amazon CloudFront",
+      "about": "Сети CDN от Amazon",
+      "category": "Хостинги и CDN (по сетям)",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/cloudfront.srs",
+      "route": "warp"
+    },
+    {
+      "id": "digitalocean",
+      "title": "DigitalOcean",
+      "about": "Сети хостинга DigitalOcean",
+      "category": "Хостинги и CDN (по сетям)",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/digitalocean.srs",
+      "route": "warp"
+    },
+    {
+      "id": "hetzner",
+      "title": "Hetzner",
+      "about": "Сети хостинга Hetzner",
+      "category": "Хостинги и CDN (по сетям)",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/hetzner.srs",
+      "route": "warp"
+    },
+    {
+      "id": "ovh",
+      "title": "OVH",
+      "about": "Сети хостинга OVH",
+      "category": "Хостинги и CDN (по сетям)",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/ovh.srs",
+      "route": "warp"
+    },
+    {
+      "id": "geoblock",
+      "title": "Закрытые для России",
+      "about": "Сайты, которые сами не пускают российские адреса",
+      "category": "Нужна другая страна (geo)",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/geoblock.srs",
+      "route": "geo"
+    },
+    {
+      "id": "tiktok",
+      "title": "TikTok",
+      "about": "Видео и лента",
+      "category": "Нужна другая страна (geo)",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/tiktok.srs",
+      "route": "geo"
+    },
+    {
+      "id": "google-ai",
+      "title": "Google AI",
+      "about": "Gemini и другие сервисы Google AI",
+      "category": "Нужна другая страна (geo)",
+      "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/google_ai.srs",
+      "route": "geo"
+    },
+    {
+      "id": "openai",
+      "title": "OpenAI",
+      "about": "ChatGPT и API",
+      "category": "Нужна другая страна (geo)",
+      "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-openai.srs",
+      "route": "geo"
+    },
+    {
+      "id": "anthropic",
+      "title": "Anthropic",
+      "about": "Claude и API",
+      "category": "Нужна другая страна (geo)",
+      "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-anthropic.srs",
+      "route": "geo"
+    },
+    {
+      "id": "netflix",
+      "title": "Netflix",
+      "about": "Кино и сериалы",
+      "category": "Нужна другая страна (geo)",
+      "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-netflix.srs",
+      "route": "geo"
+    },
+    {
+      "id": "spotify",
+      "title": "Spotify",
+      "about": "Музыка и подкасты",
+      "category": "Нужна другая страна (geo)",
+      "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-spotify.srs",
+      "route": "geo"
+    },
+    {
+      "id": "notion",
+      "title": "Notion",
+      "about": "Заметки и документы",
+      "category": "Нужна другая страна (geo)",
+      "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-notion.srs",
+      "route": "geo"
+    },
+    {
+      "id": "figma",
+      "title": "Figma",
+      "about": "Дизайн в браузере",
+      "category": "Нужна другая страна (geo)",
+      "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-figma.srs",
+      "route": "geo"
+    }
+  ]
+}

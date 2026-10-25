@@ -143,6 +143,19 @@ public partial class RulesPage : UserControl
         _current.SourceUrl = SourceUrlBox.Text;
     }
 
+    private void Catalog_Click(object sender, RoutedEventArgs e)
+    {
+        // The catalog adds to the rules on disk: what is being edited here goes there first, and is read back after.
+        try { RulesService.Save(_groups); }
+        catch (Exception ex) { StatusText.Text = "Не сохранилось: " + ex.Message; return; }
+
+        var dlg = new CatalogDialog { Owner = Window.GetWindow(this) };
+        dlg.ShowDialog();
+        if (!dlg.Changed) return;
+        Reload();
+        StatusText.Text = "Списки добавлены. Перезапусти движок, чтобы они заработали.";
+    }
+
     private async void UpdateRulesets_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new UpdateRulesetsDialog(_groups.ToList())

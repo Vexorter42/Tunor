@@ -45,6 +45,8 @@
     <!-- 256px source for in-app <Image> elements: WPF decodes an .ico's FIRST
          frame (16x16) and upscales it, which looks blurry at 30-34px. -->
     <Resource Include="Assets\app.png" />
+    <!-- The catalog of ready rule lists that comes with the program; a newer one is fetched from the repository. -->
+    <EmbeddedResource Include="..\catalog\catalog.json" LogicalName="catalog.json" />
   </ItemGroup>
 
 </Project>
