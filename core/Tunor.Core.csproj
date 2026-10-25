@@ -51,7 +51,6 @@
     <Compile Include="..\ui\Services\WarpEndpoint.cs" Link="Services\WarpEndpoint.cs" />
     <Compile Include="..\ui\Services\HealthMonitor.cs" Link="Services\HealthMonitor.cs" />
     <Compile Include="..\ui\Services\Catalog.cs" Link="Services\Catalog.cs" />
-    <Compile Include="..\ui\Services\WarpRegistration.cs" Link="Services\WarpRegistration.cs" />
     <EmbeddedResource Include="..\catalog\catalog.json" LogicalName="catalog.json" />
     <Compile Include="..\ui\Services\DiagnosticsReport.cs" Link="Services\DiagnosticsReport.cs" />
     <Compile Include="..\ui\Services\TunnelColors.cs" Link="Services\TunnelColors.cs" />
