@@ -1,8 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Tunor.Services;
 
 namespace Tunor.Views;
 
@@ -60,6 +64,7 @@ public partial class GenerateConfigDialog : DialogPanel
         string? note, string linkLabel, string url)
     {
         var d = new GenerateConfigDialog();
+        d.HereButton.Visibility = url.Contains("warp_generator") && WarpRegistration.Available ? Visibility.Visible : Visibility.Collapsed;
         d.TitleText.Text = title;
         d.IntroText.Text = intro;
         d._url = url;
@@ -83,6 +88,45 @@ public partial class GenerateConfigDialog : DialogPanel
         }
 
         return d;
+    }
+
+    /// <summary>Makes the WARP config here instead of in the bot. See <see cref="WarpRegistration"/>.</summary>
+    private async void Here_Click(object sender, RoutedEventArgs e)
+    {
+        var agreed = Msg.Show(
+            "Tunor зарегистрирует в Cloudflare новое устройство WARP — так же, как это делает приложение 1.1.1.1 — и запишет выданный конфиг в warp.conf. "
+            + "Прежний warp.conf сохранится как warp.conf.bak.\n\n"
+            + "При регистрации от вашего имени принимаются условия Cloudflare: " + WarpRegistration.TermsUrl + "\n\n"
+            + "Запрос уйдёт напрямую, а если напрямую не получится — через туннели, которые уже работают.\n\nПродолжить?",
+            "Создать WARP-конфиг здесь", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (agreed != MessageBoxResult.Yes) return;
+
+        HereButton.IsEnabled = false;
+        try
+        {
+            var ways = new List<(string, int?)> { ("напрямую", null) };
+            if (EngineState.IsRunning)
+                foreach (var door in ConnectionCheck.Doors().Where(d => d.Skipped == null && d.Name != ConnectionCheck.DirectName))
+                    ways.Add(("через " + door.Name, door.Port));
+
+            var previous = File.Exists(Paths.WarpConf) ? File.ReadAllText(Paths.WarpConf) : null;
+            var account = await WarpRegistration.RegisterAsync(ways);
+            ConfImporter.ApplyText(WarpRegistration.BuildConf(account, awg: true, previousConf: previous), ConfKind.Warp);
+
+            var running = EngineState.IsRunning;
+            var restart = Msg.Show(
+                $"Готово: новый конфиг записан в warp.conf (запрос шёл {account.Way}). Прежний сохранён как warp.conf.bak."
+                + (running ? "\n\nПерезапустить движок сейчас, чтобы он заработал?" : "\n\nЗапустите движок, чтобы он заработал."),
+                "Tunor", running ? MessageBoxButton.YesNo : MessageBoxButton.OK, MessageBoxImage.Information);
+            if (running && restart == MessageBoxResult.Yes) await ProcessService.RestartAsync();
+            Close();
+        }
+        catch (Exception ex)
+        {
+            Msg.Show("Не получилось: " + ex.Message + "\n\nwarp.conf не тронут. Конфиг можно получить в боте — кнопка рядом.",
+                     "Tunor", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally { HereButton.IsEnabled = true; }
     }
 
     private static UIElement SettingRow(string key, string value)
