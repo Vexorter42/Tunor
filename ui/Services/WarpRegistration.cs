@@ -52,11 +52,12 @@ public static class WarpRegistration
     public const string TermsUrl = "https://www.cloudflare.com/application/terms/";
 
     /// <summary>
-    /// The window that makes a config here is shown only when TUNOR_EXPERIMENTAL=1: it talks to Cloudflare's
+    /// The window that makes a config here is shown only when TUNOR_EXPERIMENTAL=1 is set or a file experimental.flag lies in the program's folder: it talks to Cloudflare's
     /// registration, which cannot be tried against from where the program is written, so a build for trying it
     /// carries the switch, and the release does not until someone has seen it work.
     /// </summary>
-    public static bool Available => Environment.GetEnvironmentVariable("TUNOR_EXPERIMENTAL") == "1";
+    public static bool Available =>
+        Environment.GetEnvironmentVariable("TUNOR_EXPERIMENTAL") == "1" || System.IO.File.Exists(System.IO.Path.Combine(Paths.AppRoot, "experimental.flag"));
 
     // ------------------------------------------------------------------ the keys
 
