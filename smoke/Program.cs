@@ -87,6 +87,8 @@ internal static class Program
                       () => Task.Run(HealthChecks).GetAwaiter().GetResult(), failures);
                 Check("Каталог списков: только годные записи, встроенный, свежий и сохранённый, добавление без повторов",
                       () => Task.Run(CatalogChecks).GetAwaiter().GetResult(), failures);
+                Check("zapret и TUN: узнаём по имени процесса, виноваты только правящие пакеты, подсказка — при TUN, в Windows и пока не скрыта",
+                      DpiToolsChecks, failures);
             })
             .SetupWithoutStarting();
 
@@ -1481,6 +1483,65 @@ internal static class Program
             (Catalog.FetchRemote, Catalog.CacheFile, Catalog.LoadGroups, Catalog.SaveGroups, Catalog.Download, Catalog.Rebuild) = (fetch, cache, loadG, saveG, download, rebuild);
             try { Directory.Delete(dir, true); } catch { }
         }
+    }
+
+    /// <summary>
+    /// zapret and TUN: the programs are recognised by their process names in any case, only those that hook packets are
+    /// blamed (a SOCKS proxy touches nothing), the note appears only with TUN on, on Windows, and until it is hidden,
+    /// it names the right key for zapret and not for the others, and the list of processes is not asked for on every tick.
+    /// </summary>
+    private static void DpiToolsChecks()
+    {
+        var names = DpiTools.ProcessNames;
+        try
+        {
+            var asked = 0;
+            DpiTools.ProcessNames = () => { asked++; return new[] { "chrome", "WinWS", "winws", "ByeDPI", "explorer", "GoodbyeDPI" }; };
+            DpiTools.Forget();
+            var running = DpiTools.Running();
+            if (running.Select(r => r.Name).OrderBy(x => x).SequenceEqual(new[] { "ByeDPI", "GoodbyeDPI", "zapret (winws.exe)" }.OrderBy(x => x)) == false)
+                throw new Exception("найдено: " + string.Join(", ", running.Select(r => r.Name)));
+            if (running.First(r => r.Name == "ByeDPI").PacketLevel || !running.First(r => r.Name.StartsWith("zapret")).PacketLevel) throw new Exception("кто правит пакеты, определено неверно");
+            DpiTools.Running(); DpiTools.Running();
+            if (asked != 1) throw new Exception($"список процессов запрошен {asked} раз за три вопроса подряд");
+            DpiTools.Forget(); DpiTools.Running();
+            if (asked != 2) throw new Exception("после «забыть» список не запрошен заново");
+
+            DpiTools.ProcessNames = () => new[] { "chrome", "svchost" };
+            DpiTools.Forget();
+            if (DpiTools.Running().Count != 0) throw new Exception("нашлось то, чего нет");
+            DpiTools.ProcessNames = () => throw new InvalidOperationException("доступ закрыт");
+            DpiTools.Forget();
+            if (DpiTools.Running().Count != 0) throw new Exception("сбой при чтении процессов не прошёл тихо");
+        }
+        finally { DpiTools.ProcessNames = names; DpiTools.Forget(); }
+
+        var zapret = new[] { new DpiTool("zapret (winws.exe)", true, true) };
+        var goodbye = new[] { new DpiTool("GoodbyeDPI", true, false) };
+        var byedpi = new[] { new DpiTool("ByeDPI", false, false) };
+        var h = DpiTools.Hint(true, false, zapret, true) ?? throw new Exception("для zapret при TUN подсказки нет");
+        foreach (var piece in new[] { "zapret (winws.exe)", "--wf-iface=", "netsh interface ipv4 show interfaces", "172.18.0.1", "«Только через туннель»", "YouTube" })
+            if (!h.Contains(piece)) throw new Exception("в подсказке нет «" + piece + "»");
+        var g = DpiTools.Hint(true, false, goodbye, true) ?? throw new Exception("для GoodbyeDPI подсказки нет");
+        if (g.Contains("--wf-iface") || !g.Contains("GoodbyeDPI") || !g.Contains("остановите")) throw new Exception("совет для GoodbyeDPI: " + g);
+        if (DpiTools.Hint(true, false, byedpi, true) != null) throw new Exception("ByeDPI — прокси, он не виноват");
+        if (DpiTools.Hint(false, false, zapret, true) != null) throw new Exception("TUN выключен, а подсказка есть");
+        if (DpiTools.Hint(true, true, zapret, true) != null) throw new Exception("подсказка скрыта, а показана");
+        if (DpiTools.Hint(true, false, zapret, false) != null) throw new Exception("WinDivert есть только в Windows");
+        if (DpiTools.Hint(true, false, Array.Empty<DpiTool>(), true) != null) throw new Exception("ничего не запущено, а подсказка есть");
+        var both = DpiTools.Hint(true, false, zapret.Concat(goodbye).ToList(), true)!;
+        if (!both.Contains("zapret (winws.exe) и GoodbyeDPI") || !both.Contains("--wf-iface")) throw new Exception("обе программы: " + both);
+
+        // the choice to hide it is a setting that survives
+        var path = Paths.SettingsJson;
+        var had = File.Exists(path) ? File.ReadAllText(path) : null;
+        try
+        {
+            if (new AppSettings().HideDpiHint) throw new Exception("по умолчанию подсказка скрыта");
+            SettingsService.Save(new AppSettings { HideDpiHint = true });
+            if (!SettingsService.Load().HideDpiHint) throw new Exception("«не показывать» не сохранилось");
+        }
+        finally { if (had == null) { try { File.Delete(path); } catch { } } else File.WriteAllText(path, had); }
     }
 
     /// <summary>

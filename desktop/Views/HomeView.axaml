@@ -46,6 +46,15 @@
             </StackPanel>
         </Border>
 
+        <!-- zapret / GoodbyeDPI next to TUN: what they do to each other, and what to do -->
+        <Border x:Name="DpiCard" Classes="card" IsVisible="False">
+            <StackPanel Spacing="8">
+                <TextBlock Text="zapret и TUN" Classes="h2"/>
+                <TextBlock x:Name="DpiText" Classes="dim" TextWrapping="Wrap"/>
+                <Button Classes="ghost" Content="Понятно, не показывать" HorizontalAlignment="Left" Click="HideDpi_Click"/>
+            </StackPanel>
+        </Border>
+
         <Border Classes="card">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Grid.Column="0">
