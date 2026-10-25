@@ -12,6 +12,11 @@ name: macOS bundles (for trying)
 
 on:
   workflow_dispatch:
+  # A manual workflow only exists for the Actions tab once it is on the main branch. On a feature
+  # branch it runs when its own file changes, which is how a change to it gets tried.
+  push:
+    branches: ["features-*"]
+    paths: [".github/workflows/mac-bundles.yml"]
 
 permissions:
   contents: read
