@@ -55,6 +55,7 @@ public partial class App : Application
         }
         catch { }
 
+        Services.AppLog.Write($"=== Tunor {Services.UpdateService.CurrentVersionString} запущен · {Environment.OSVersion} ===");
         base.OnStartup(e);
     }
 

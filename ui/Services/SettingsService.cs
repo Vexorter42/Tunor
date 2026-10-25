@@ -55,6 +55,36 @@ public class AppSettings : INotifyPropertyChanged
     [JsonPropertyName("autoCheckUpdates")]
     public bool AutoCheckUpdates { get => _autoCheckUpdates; set => Set(ref _autoCheckUpdates, value); }
 
+    private string _logLevel = "warn";
+
+    /// <summary>
+    /// How much the engine says: error, warn (the default), info or debug. A tunnel's handshakes —
+    /// whether a drop is the network or the keys — are debug lines; the rest of debug is every
+    /// connection there is, so it is raised to look into something and lowered after.
+    /// </summary>
+    [JsonPropertyName("logLevel")]
+    public string LogLevel { get => _logLevel; set => Set(ref _logLevel, NormalizeLevel(value)); }
+
+    public static string NormalizeLevel(string? level) => level?.Trim().ToLowerInvariant() switch
+    {
+        "error" => "error",
+        "info" => "info",
+        "debug" => "debug",
+        _ => "warn",
+    };
+
+    private string _lastSeenVersion = "";
+
+    /// <summary>The version whose "what's new" was last shown; empty on a first run.</summary>
+    [JsonPropertyName("lastSeenVersion")]
+    public string LastSeenVersion { get => _lastSeenVersion; set => Set(ref _lastSeenVersion, value ?? ""); }
+
+    private bool _healthNotify = true;
+
+    /// <summary>Say so when a tunnel stops answering, and when it answers again. On by default.</summary>
+    [JsonPropertyName("healthNotify")]
+    public bool HealthNotify { get => _healthNotify; set => Set(ref _healthNotify, value); }
+
     [JsonPropertyName("listsUpdatedAt")]
     public DateTime? ListsUpdatedAt { get => _listsUpdatedAt; set => Set(ref _listsUpdatedAt, value); }
 

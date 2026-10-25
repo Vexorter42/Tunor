@@ -46,6 +46,9 @@ internal static class Program
         ("Окно: запущенные программы", () => new ProcessPickerWindow()),
         ("Окно: свой VPN", () => new AddVpnWindow()),
         ("Окно: подтверждение", () => new ConfirmWindow("Заголовок", "Текст")),
+        ("Окно: пароль к копии", () => PasswordWindow.ForSaving()),
+        ("Окно: пароль к копии (открытие)", () => PasswordWindow.ForOpening("Пароль не подошёл")),
+        ("Окно: что нового", () => new WhatsNewWindow("2.2.0", WhatsNew.Format("Текст.\n\n---\n\n**Заголовок**\n\nАбзац."))),
     };
 
     [STAThread]
@@ -68,6 +71,11 @@ internal static class Program
                       SwapScripts, failures);
                 Check("Манифест: Intel и Apple Silicon читают каждый свою сборку, чужую и установщик Windows не получают",
                       ManifestParts, failures);
+                Check("Журнал на диске: запись, перенос большого файла, хвост, очистка, фильтр для отчёта", LogFile, failures);
+                Check("«Что нового»: только после обновления, заметки без разметки и без таблицы файлов, повтор при отсутствии сети",
+                      WhatsNewChecks, failures);
+                Check("Резервная копия: что входит, пароль, чужое остаётся своим, чужой файл не выйдет из папки",
+                      BackupChecks, failures);
             })
             .SetupWithoutStarting();
 
@@ -873,6 +881,389 @@ internal static class Program
         // a part without a link is not a build
         const string broken = """{ "version": "2.1.0", "url": "https://x/w", "mac-x64": { "sha256": "X" } }""";
         if (!UpdateService.FromManifest(broken, "mac-x64", cur).Error.Contains("Некорректный")) throw new Exception("часть без ссылки принята за сборку");
+    }
+
+    /// <summary>
+    /// The log on disk: lines reach the file stamped and marked, a file that grows too big is rolled
+    /// and the tail reads across the two, old days are removed and other files are not, the report gets
+    /// only what does not say which sites were opened, and a disk that cannot be written to does not
+    /// bring anything down.
+    /// </summary>
+    private static void LogFile()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "tunor-logtest-" + Guid.NewGuid().ToString("N"));
+        var was = (AppLog.DirectoryOf, AppLog.MaxBytes);
+        try
+        {
+            AppLog.DirectoryOf = () => dir;
+            AppLog.MaxBytes = 4000;
+            string Today() => Path.Combine(dir, $"tunor-{DateTime.Now:yyyy-MM-dd}.log");
+
+            // written, stamped, marked
+            AppLog.Write("[ui] первая строка");
+            AppLog.Write("ERROR[0001] что-то сломалось", problem: true);
+            AppLog.Flush();
+            if (!File.Exists(Today())) throw new Exception("файл дня не появился: " + string.Join(",", Directory.Exists(dir) ? Directory.GetFiles(dir) : Array.Empty<string>()));
+            var lines = File.ReadAllLines(Today());
+            if (lines.Length < 2) throw new Exception("в файле строк: " + lines.Length);
+            var first = lines.First(l => l.Contains("первая строка"));
+            if (!System.Text.RegularExpressions.Regex.IsMatch(first, @"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3}       \[ui\] первая строка$"))
+                throw new Exception("не такая метка времени: «" + first + "»");
+            if (!lines.Any(l => l.Contains(" [err] ERROR[0001]"))) throw new Exception("ошибка не помечена");
+
+            // a tail takes the last lines, in order
+            for (var i = 1; i <= 10; i++) AppLog.Write("[ui] пронумерованная " + i);
+            var tail = AppLog.Tail(3);
+            if (tail.Length != 3 || !tail[0].EndsWith("пронумерованная 8") || !tail[2].EndsWith("пронумерованная 10"))
+                throw new Exception("хвост: " + string.Join(" | ", tail.Select(l => l[^20..])));
+            if (AppLog.Tail(2, l => l.Contains("ERROR")).Length != 1) throw new Exception("хвост с фильтром");
+
+            // a file that is too big is rolled, and the tail reads over both
+            for (var i = 1; i <= 34; i++) { AppLog.Write("[ui] много-много текста ради размера файла, строка " + i); AppLog.Flush(); }
+            var rolled = Path.ChangeExtension(Today(), ".1.log");
+            if (!File.Exists(rolled)) throw new Exception("большой файл не перенесён в .1.log");
+            if (!File.Exists(Today())) throw new Exception("после переноса не начат новый файл");
+            var across = AppLog.Tail(100);
+            if (across.Length != 46 || !across[^1].EndsWith("строка 34")) throw new Exception("хвост через два файла: " + across.Length + " строк вместо 46");
+            for (var i = 1; i < across.Length; i++)
+                if (string.CompareOrdinal(across[i - 1][..23], across[i][..23]) > 0) throw new Exception("хвост не по порядку времени");
+
+            // a day never takes more than two files, however much is said
+            for (var i = 1; i <= 120; i++) { AppLog.Write("[ui] ещё и ещё текста, чтобы файл переполнялся не раз, строка " + i); AppLog.Flush(); }
+            var daysFiles = Directory.GetFiles(dir, $"tunor-{DateTime.Now:yyyy-MM-dd}*").Length;
+            if (daysFiles != 2) throw new Exception("файлов за день: " + daysFiles);
+
+            // old days go, other files stay
+            var old = Path.Combine(dir, "tunor-2020-01-01.log");
+            File.WriteAllText(old, "старое");
+            File.SetLastWriteTime(old, DateTime.Now.AddDays(-30));
+            var other = Path.Combine(dir, "чужой-файл.txt");
+            File.WriteAllText(other, "не журнал");
+            File.SetLastWriteTime(other, DateTime.Now.AddDays(-30));
+            AppLog.Prune(dir);
+            if (File.Exists(old)) throw new Exception("старый день не удалён");
+            if (!File.Exists(other) || !File.Exists(Today())) throw new Exception("удалено лишнее");
+
+            // what may go into a report
+            string Line(string mark, string body) => $"2026-10-25 12:00:00.000 {mark} {body}";
+            var safe = new[]
+            {
+                Line("     ", "[ui] sing-box started"),
+                Line("[err]", "ERROR[0017] [4036881739 15.1s] connection: open connection to 149.154.175.100:80: context deadline exceeded"),
+                Line("     ", "WARN[0000] lxd: running elevated"),
+                Line("     ", "DEBUG endpoint/wireguard[w]: peer(bmXO…fgyo) - sending handshake initiation"),
+                Line("     ", "=== Tunor 2.2.0 запущен ==="),
+            };
+            var unsafeLines = new[]
+            {
+                Line("     ", "INFO[0001] [123456 1ms] inbound/mixed[proxy-in]: inbound connection to www.example.com:443"),
+                Line("     ", "DEBUG[0002] router: match[3] domain_suffix=youtube.com => warp-out"),
+                Line("     ", "INFO[0003] dns: exchanged www.example.com A"),
+            };
+            foreach (var l in safe) if (!AppLog.IsSafeForReport(l)) throw new Exception("для отчёта нужная строка отброшена: " + l[30..]);
+            foreach (var l in unsafeLines) if (AppLog.IsSafeForReport(l)) throw new Exception("в отчёт попала строка с адресом сайта: " + l[30..]);
+
+            // the level setting
+            foreach (var (given, want) in new (string?, string)[] { ("debug", "debug"), (" DEBUG ", "debug"), ("Info", "info"), ("error", "error"), ("warn", "warn"), ("trace", "warn"), ("что-то", "warn"), (null, "warn") })
+                if (AppSettings.NormalizeLevel(given) != want) throw new Exception($"уровень «{given}» → «{AppSettings.NormalizeLevel(given)}», нужно «{want}»");
+
+            // a place that cannot be written to is not an error
+            var blocker = Path.Combine(Path.GetTempPath(), "tunor-logtest-file-" + Guid.NewGuid().ToString("N"));
+            File.WriteAllText(blocker, "это файл, а не папка");
+            AppLog.DirectoryOf = () => Path.Combine(blocker, "logs");
+            AppLog.Write("[ui] в никуда");
+            AppLog.Flush();
+            _ = AppLog.Tail(5);
+            File.Delete(blocker);
+        }
+        finally
+        {
+            AppLog.Flush();
+            (AppLog.DirectoryOf, AppLog.MaxBytes) = was;
+            try { Directory.Delete(dir, true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// Export and import of the settings: the files that make a setup travel, the machine's own
+    /// things do not, a password really locks the file, a wrong one or a damaged file says so, and a
+    /// file made by someone else cannot write outside the program's folder, change where updates come
+    /// from, or point a tunnel or a rule at a file that is not the program's.
+    /// </summary>
+    private static void BackupChecks()
+    {
+        var from = Path.Combine(Path.GetTempPath(), "tunor-backup-from-" + Guid.NewGuid().ToString("N"));
+        var to = Path.Combine(Path.GetTempPath(), "tunor-backup-to-" + Guid.NewGuid().ToString("N"));
+        var root = Backup.Root;
+        try
+        {
+            void Put(string dir, string name, string text)
+            {
+                var path = Path.Combine(dir, name.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllText(path, text);
+            }
+            string Get(string dir, string name) => File.ReadAllText(Path.Combine(dir, name.Replace('/', Path.DirectorySeparatorChar)));
+
+            const string vless = "vless://11111111-2222-3333-4444-555555555555@secret.example.net:443?security=tls#home";
+            const string rules = """[{"type":"local","tag":"warp-youtube","_source_url":"https://example.com/youtube.srs","path":"../data/rulesets/youtube.srs","format":"binary"},{"type":"inline","tag":"warp-custom","rules":[{"domain":["a.example"]}]}]""";
+            string tunnels(string file) => "[{\"id\":\"warp\",\"title\":\"WARP\",\"kind\":\"wireguard\",\"file\":\"" + file + "\"},"
+                + "{\"id\":\"home\",\"title\":\"home\",\"kind\":\"vless\",\"url\":\"" + vless + "\",\"sub\":\"https://sub.example.net/token123\"}]";
+
+            // ---- the machine the copy is made on
+            Put(from, "settings.json", """{"accept":true,"logLevel":"debug","final":"warp","controllerPort":4711,"controllerSecret":"FROM-SECRET","listsUpdatedAt":"2026-01-01T00:00:00","lastSeenVersion":"2.1.0","paths":{"config":"D:/elsewhere/config.json"}}""");
+            Put(from, "update.json", """{"Repo":"someone/else","Mirror":""}""");
+            Put(from, "data/rules.json", rules);
+            Put(from, "data/tunnels.json", tunnels("data/warp.conf"));
+            Put(from, "data/warp.conf", "[Interface]\nPrivateKey = WARPKEY\n");
+            Put(from, "data/geo.conf", "[Interface]\nPrivateKey = GEOKEY\n");
+            Put(from, "data/profiles/awg/home.conf", "[Interface]\nPrivateKey = HOMEKEY\n");
+            Put(from, "data/cache.db", "cache");
+            Put(from, "data/warp.conf.bak", "old");
+            Put(from, "data/rulesets/youtube.srs", "list");
+            Put(from, "build/config.json", "{}");
+
+            Backup.Root = () => from;
+            var present = Backup.Present();
+            var want = new[] { "settings.json", "data/rules.json", "data/tunnels.json", "data/warp.conf", "data/geo.conf", "data/profiles/awg/home.conf" };
+            if (!present.OrderBy(x => x).SequenceEqual(want.OrderBy(x => x)))
+                throw new Exception("в копию должно идти: " + string.Join(", ", want) + "; идёт: " + string.Join(", ", present));
+
+            // ---- without a password: a plain zip, with the machine's own things taken out
+            var plain = Backup.Export(null);
+            var read = Backup.Read(plain, null);
+            if (read.WasEncrypted || read.Files.Count != want.Length) throw new Exception("копия без пароля прочиталась не так: " + read.Files.Count);
+            var settings = System.Text.Encoding.UTF8.GetString(read.Files.First(f => f.Name == "settings.json").Data);
+            foreach (var own in new[] { "FROM-SECRET", "4711", "listsUpdatedAt", "lastSeenVersion", "\"accept\"", "elsewhere" })
+                if (settings.Contains(own)) throw new Exception("в копию попало то, что принадлежит этой машине: " + own);
+            if (!settings.Contains("\"logLevel\": \"debug\"") && !settings.Contains("\"logLevel\":\"debug\"")) throw new Exception("настройка уровня журнала не попала в копию");
+            if (read.Files.Any(f => f.Name.Contains("update")) || read.Files.Any(f => f.Name.Contains("cache")))
+                throw new Exception("в копию попало лишнее");
+
+            // ---- with a password: nothing readable, the right word opens it, others do not
+            var locked = Backup.Export("пароль-1");
+            var raw = System.Text.Encoding.Latin1.GetString(locked);
+            if (!raw.StartsWith("TNRB1")) throw new Exception("у файла с паролем нет своей метки");
+            foreach (var secret in new[] { "WARPKEY", "HOMEKEY", "secret.example.net", "token123" })
+                if (raw.Contains(secret)) throw new Exception("в файле с паролем читается: " + secret);
+            try { Backup.Read(locked, null); throw new Exception("файл с паролем открылся без пароля"); }
+            catch (BackupException e) when (e.NeedsPassword) { }
+            try { Backup.Read(locked, "не тот"); throw new Exception("файл с паролем открылся чужим паролем"); }
+            catch (BackupException e) when (e.WrongPassword && !e.NeedsPassword) { }
+            var opened = Backup.Read(locked, "пароль-1");
+            if (!opened.WasEncrypted || opened.Files.Count != want.Length) throw new Exception("с верным паролем прочиталось не всё");
+            var broken = (byte[])locked.Clone();
+            broken[broken.Length / 2] ^= 0x55;
+            try { Backup.Read(broken, "пароль-1"); throw new Exception("испорченный файл открылся"); }
+            catch (BackupException) { }
+            if (Backup.Export("пароль-1").AsSpan().SequenceEqual(locked)) throw new Exception("два файла с одним паролем одинаковы: нет соли");
+
+            // ---- loaded onto another machine, which keeps what is its own and what it had
+            Backup.Root = () => to;
+            Put(to, "settings.json", """{"accept":true,"logLevel":"warn","controllerPort":9999,"controllerSecret":"TO-SECRET","paths":{"config":"build/config.json"}}""");
+            Put(to, "update.json", """{"Repo":"Vexorter42/Tunor","Mirror":"https://gh-proxy.com/"}""");
+            Put(to, "data/rules.json", "[]");
+            Put(to, "data/profiles/awg/old.conf", "OLD");
+            var plan = Backup.Plan(opened);
+            if (!plan.Replaces.Contains("data/rules.json") || !plan.Adds.Contains("data/warp.conf"))
+                throw new Exception("план показывает не то: заменит " + string.Join(",", plan.Replaces) + "; добавит " + string.Join(",", plan.Adds));
+            var said = Backup.Describe(opened);
+            if (!said.Contains("Заменит: настройки, правила.") || !said.Contains("Добавит: ") || !said.Contains("WARP") || !said.Contains("профили (1)") || said.Contains(".json") || said.Contains(".conf"))
+                throw new Exception("описание перед загрузкой: " + said);
+            var copies = Backup.Apply(opened);
+
+            var after = Get(to, "settings.json");
+            if (!after.Contains("TO-SECRET") || !after.Contains("9999") || after.Contains("FROM-SECRET")) throw new Exception("секрет и порт этой машины не сохранились");
+            if (!after.Contains("debug") || !after.Contains("\"final\": \"warp\"")) throw new Exception("настройки из копии не применились: " + after);
+            if (!after.Contains("build/config.json") || after.Contains("elsewhere")) throw new Exception("пути этой машины изменились");
+            if (!after.Contains("\"accept\": true")) throw new Exception("согласие с лицензией потеряно");
+            if (Get(to, "update.json").Contains("someone/else")) throw new Exception("копия сменила адрес обновлений");
+            if (Get(to, "data/warp.conf") != Get(from, "data/warp.conf") || Get(to, "data/profiles/awg/home.conf") != Get(from, "data/profiles/awg/home.conf"))
+                throw new Exception("ключи туннелей не перенеслись");
+            if (Get(to, "data/rules.json") != rules) throw new Exception("правила не перенеслись");
+            if (File.ReadAllText(Path.Combine(copies, "data", "rules.json")) != "[]") throw new Exception("прежние правила не сохранены в «до загрузки»");
+            if (!File.Exists(Path.Combine(copies, "settings.json"))) throw new Exception("прежние настройки не сохранены в «до загрузки»");
+            if (File.Exists(Path.Combine(copies, "data", "warp.conf"))) throw new Exception("скопировано то, чего не было");
+            if (Get(to, "data/profiles/awg/old.conf") != "OLD") throw new Exception("лишний файл, которого нет в копии, тронут");
+
+            // ---- a file made by someone else
+            string Zip(params (string Name, string Data)[] entries)
+            {
+                using var ms = new MemoryStream();
+                using (var z = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, true))
+                {
+                    void Entry(string n, string d) { using var w = new StreamWriter(z.CreateEntry(n).Open()); w.Write(d); }
+                    Entry("backup.json", """{"format":1,"app":"9.9.9","created":"2026-01-01T00:00:00Z"}""");
+                    foreach (var (n, d) in entries) Entry(n, d);
+                }
+                return Convert.ToBase64String(ms.ToArray());
+            }
+            void Rejected(string why, string base64)
+            {
+                try { Backup.Read(Convert.FromBase64String(base64), null); }
+                catch (BackupException) { return; }
+                throw new Exception("принят файл: " + why);
+            }
+
+            Rejected("выход из папки", Zip(("../evil.txt", "x")));
+            Rejected("выход из папки глубже", Zip(("data/../../evil.txt", "x")));
+            Rejected("абсолютный путь", Zip(("/etc/evil", "x"), ("C:/evil.txt", "x")));
+            Rejected("выход через профили", Zip(("data/profiles/awg/../../../evil.conf", "x")));
+            Rejected("обратные слэши", Zip(("data\\profiles\\awg\\x.conf", "x")));
+            Rejected("update.json", Zip(("update.json", """{"Repo":"evil/evil"}""")));
+            Rejected("чужое имя", Zip(("build/config.json", "{}")));
+            Rejected("не json в туннелях", Zip(("data/tunnels.json", "не json")));
+            Rejected("туннель смотрит наружу", Zip(("data/tunnels.json", tunnels("../../Users/x/secret.conf"))));
+            Rejected("туннель смотрит на системный файл", Zip(("data/tunnels.json", tunnels("C:/Windows/win.ini"))));
+            Rejected("список правил вне папки", Zip(("data/rules.json", """[{"type":"local","tag":"x","path":"../../Windows/win.ini"}]""")));
+            Rejected("адрес списка не сайт", Zip(("data/rules.json", """[{"type":"local","tag":"x","_source_url":"file:///etc/passwd","path":"../data/rulesets/x.srs"}]""")));
+            Rejected("пустая копия", Zip());
+            Rejected("не копия", Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("просто текст, не архив")));
+            Rejected("пустой файл", "");
+            Rejected("обрезанный архив", Convert.ToBase64String(plain.AsSpan(0, plain.Length / 2).ToArray()));
+            Rejected("копия из будущего", Convert.ToBase64String(MakeFutureFormat()));
+
+            // folders entries, as other zip programs write them, are not a reason to refuse
+            var withFolders = Backup.Read(Convert.FromBase64String(Zip(("data/", ""), ("data/profiles/", ""), ("data/warp.conf", "k"))), null);
+            if (withFolders.Files.Count != 1) throw new Exception("записи о папках учтены как файлы");
+
+            // Apply does not take a hand-made list on trust either
+            Backup.Root = () => to;
+            var evil = Path.Combine(Path.GetDirectoryName(to)!, "tunor-evil-" + Guid.NewGuid().ToString("N") + ".txt");
+            try
+            {
+                Backup.Apply(new BackupContents { Files = { ("../" + Path.GetFileName(evil), new byte[] { 1 }) } });
+                throw new Exception("Apply записал по недопустимому имени");
+            }
+            catch (BackupException) { }
+            if (File.Exists(evil)) { File.Delete(evil); throw new Exception("файл записан за пределами папки"); }
+
+            // the lists' names, which come from addresses that a copy can carry
+            foreach (var (url, tag, wantName) in new[]
+                     { ("youtube.srs", "warp-youtube", "youtube.srs"), ("..", "warp-x", "warp-x.srs"), ("", "geo-y", "geo-y.srs"),
+                       ("..\\..\\boom", "warp-z", "warp-z.srs"), ("a:b", "t", "t.srs"), ("x?y", "t", "t.srs"), ("", "", "list.srs"), ("a\"b", "t", "t.srs") })
+                if (RulesetDownloader.SafeFileName(url, tag) != wantName)
+                    throw new Exception($"имя списка «{url}» → «{RulesetDownloader.SafeFileName(url, tag)}», ожидалось «{wantName}»");
+        }
+        finally
+        {
+            Backup.Root = root;
+            foreach (var d in new[] { from, to }) { try { Directory.Delete(d, true); } catch { } }
+        }
+
+        static byte[] MakeFutureFormat()
+        {
+            using var ms = new MemoryStream();
+            using (var z = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, true))
+            {
+                using (var w = new StreamWriter(z.CreateEntry("backup.json").Open())) w.Write("""{"format":2}""");
+                using (var w = new StreamWriter(z.CreateEntry("data/warp.conf").Open())) w.Write("k");
+            }
+            return ms.ToArray();
+        }
+    }
+
+    /// <summary>
+    /// "What's new": shown after an upgrade and only then; a first run, the same version and a step back
+    /// show nothing; notes that could not be fetched are tried again at the next start, and are not
+    /// marked as seen; with the search for updates switched off nothing is fetched; and a release's notes
+    /// become headings and paragraphs, without the table of files or the instructions for the first launch.
+    /// </summary>
+    private static void WhatsNewChecks()
+    {
+        foreach (var (last, now, want) in new (string?, string, bool)[]
+                 { (null, "2.2.0", false), ("", "2.2.0", false), ("2.1.0", "2.2.0", true), ("2.2.0", "2.2.0", false),
+                   ("2.3.0", "2.2.0", false), ("мусор", "2.2.0", false), ("2.1.0", "2.1.1", true), ("2.9.9", "2.10.0", true) })
+            if (WhatsNew.Due(last, now) != want) throw new Exception($"Due({last}, {now}) должно быть {want}");
+
+        const string notes = """
+            Появилась сборка для маков с процессором Intel. Движок не менялся.
+
+            ---
+
+            **Сборка для Intel-маков**
+
+            До сих пор была только сборка для Apple Silicon. Теперь есть `Tunor-2.1.0-x64.dmg`: [подробнее](https://example.com/x).
+
+            **Что проверено**
+
+            Подпись проходит проверку.
+
+            ---
+
+            **Скачать**
+
+            | | |
+            |---|---|
+            | Windows | `Tunor-Setup.exe` |
+
+            На macOS при первом запуске система скажет, что не смогла проверить приложение.
+            """;
+        var blocks = WhatsNew.Format(notes);
+        var headings = blocks.Where(b => b.Heading).Select(b => b.Text).ToList();
+        if (!headings.SequenceEqual(new[] { "Сборка для Intel-маков", "Что проверено" }))
+            throw new Exception("заголовки: " + string.Join(" | ", headings));
+        if (blocks[0].Heading || !blocks[0].Text.StartsWith("Появилась сборка")) throw new Exception("первый абзац потерян");
+        if (blocks.Any(b => b.Text.Contains("**") || b.Text.Contains('`') || b.Text.Contains("](")))
+            throw new Exception("в тексте остались знаки разметки");
+        if (!blocks.Any(b => b.Text.Contains("Tunor-2.1.0-x64.dmg: подробнее.")))
+            throw new Exception("ссылка не превращена в текст: " + string.Join(" / ", blocks.Select(b => b.Text)));
+        if (blocks.Any(b => b.Text.Contains("Windows") || b.Text.Contains("Скачать") || b.Text.Contains("На macOS при первом")))
+            throw new Exception("после «Скачать» осталось лишнее");
+
+        // the flow, against a stand-in for the network and for settings.json
+        var path = Paths.SettingsJson;
+        var had = File.Exists(path) ? File.ReadAllText(path) : null;
+        var source = WhatsNew.Source;
+        try
+        {
+            var current = UpdateService.CurrentVersionString;
+            var fetches = 0;
+            string? answer = notes;
+            WhatsNew.Source = _ => { fetches++; return Task.FromResult<string?>(answer); };
+
+            void Put(string last, bool autoCheck)
+            {
+                var s = new AppSettings { LastSeenVersion = last, AutoCheckUpdates = autoCheck };
+                SettingsService.Save(s);
+            }
+            string Seen() => SettingsService.Load().LastSeenVersion;
+            (string Version, IReadOnlyList<WhatsNew.Block> Blocks)? Check() => WhatsNew.CheckAsync().GetAwaiter().GetResult();
+
+            Put("", true);
+            if (Check() != null || fetches != 0) throw new Exception("первый запуск показал заметки или ходил в сеть");
+            if (Seen() != current) throw new Exception("первый запуск не запомнил версию");
+
+            Put("0.9.0", true);
+            fetches = 0;
+            var found = Check();
+            if (found == null || found.Value.Version != current || found.Value.Blocks.Count == 0) throw new Exception("после обновления заметок нет");
+            if (fetches != 1) throw new Exception("за заметками сходили " + fetches + " раз");
+            if (Seen() != "0.9.0") throw new Exception("версию отметили увиденной до того, как заметки показаны");
+            WhatsNew.MarkSeen(found.Value.Version);
+            if (Seen() != current) throw new Exception("MarkSeen не отметил версию");
+            if (Check() != null) throw new Exception("заметки показаны дважды");
+
+            Put("0.9.0", true);
+            answer = null;
+            if (Check() != null) throw new Exception("заметок нет, а что-то показано");
+            if (Seen() != "0.9.0") throw new Exception("заметки не достали, а версию отметили: в следующий раз не покажут");
+
+            Put("0.9.0", false);
+            answer = notes;
+            fetches = 0;
+            if (Check() != null || fetches != 0) throw new Exception("поиск обновлений выключен, а заметки ищутся");
+            if (Seen() != current) throw new Exception("при выключенном поиске версия не отмечена");
+
+            Put("99.0.0", true);
+            fetches = 0;
+            if (Check() != null || fetches != 0) throw new Exception("после отката назад показаны заметки");
+        }
+        finally
+        {
+            WhatsNew.Source = source;
+            if (had == null) { try { File.Delete(path); } catch { } } else File.WriteAllText(path, had);
+        }
     }
 
     /// <summary>How many temporary keychains .NET has left in this user's temp folder.</summary>

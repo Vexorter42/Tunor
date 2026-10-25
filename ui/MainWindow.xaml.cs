@@ -74,12 +74,33 @@ public partial class MainWindow : Window
             _tray.Show();
             if (App.IsAutostart) Hide();
             else ShowFirstRunIfNeeded();
+            TryShowWhatsNew();
 
             _ = ListsUpdater.RunIfDueAsync();
             UpdateWatcher.Start();
         };
 
         Closing += OnClosing;
+
+        // A window that started hidden (autostart) shows the notes when it is first brought up.
+        IsVisibleChanged += (_, _) => TryShowWhatsNew();
+    }
+
+    private bool _whatsNewDone;
+
+    /// <summary>The notes of the version that has just been installed, once, when the window can be seen.</summary>
+    private async void TryShowWhatsNew()
+    {
+        if (_whatsNewDone || !IsVisible || DialogHost.IsOpen) return;
+        _whatsNewDone = true;
+        try
+        {
+            var found = await WhatsNew.CheckAsync();
+            if (found is not { } notes) return;
+            new WhatsNewDialog(notes.Version, notes.Blocks).ShowDialog();
+            WhatsNew.MarkSeen(notes.Version);
+        }
+        catch { /* the notes are a courtesy; nothing here is worth a failure */ }
     }
 
     /// <summary>

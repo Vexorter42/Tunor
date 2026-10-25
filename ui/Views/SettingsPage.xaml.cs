@@ -30,6 +30,8 @@ public partial class SettingsPage : UserControl
             ChkWatchdog.IsChecked = _settings.Watchdog;
             ChkAutoLists.IsChecked = _settings.AutoUpdateLists;
             ChkAutoUpdate.IsChecked = _settings.AutoCheckUpdates;
+            foreach (ComboBoxItem item in CmbLogLevel.Items)
+                item.IsSelected = (string?)item.Tag == AppSettings.NormalizeLevel(_settings.LogLevel);
             ListsAgeText.Text = _settings.ListsUpdatedAt is { } at
                 ? $"Последнее обновление: {at.ToLocalTime():d MMMM, HH:mm}"
                 : "Скачиваются в фоне через зеркало";
@@ -47,6 +49,127 @@ public partial class SettingsPage : UserControl
         _settings.AutoUpdateLists = ChkAutoLists.IsChecked == true;
         _settings.AutoCheckUpdates = ChkAutoUpdate.IsChecked == true;
         Persist();
+    }
+
+    private void LogLevel_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || CmbLogLevel.SelectedItem is not ComboBoxItem { Tag: string level }) return;
+        _settings.LogLevel = level;
+        Persist();
+    }
+
+    private void OpenLogs_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(AppLog.Dir);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{AppLog.Dir}\"")
+                { UseShellExecute = false });
+        }
+        catch (Exception ex) { Msg.Show(ex.Message, "Tunor", MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+
+    // ------------------------------------------------------------ backup
+
+    private const string BackupFilter =
+        "Резервная копия Tunor (*" + Backup.Extension + ")|*" + Backup.Extension + "|Все файлы|*.*";
+
+    private void ExportBackup_Click(object sender, RoutedEventArgs e)
+    {
+        var ask = PasswordDialog.ForSaving();
+        ask.ShowDialog();
+        if (ask.Choice == PasswordChoice.Cancel) return;
+        var password = ask.Choice == PasswordChoice.Password ? ask.Password : null;
+
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = $"tunor-{DateTime.Now:yyyy-MM-dd}{Backup.Extension}",
+            DefaultExt = Backup.Extension,
+            Filter = BackupFilter,
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+        };
+        if (dlg.ShowDialog(Window.GetWindow(this)) != true) return;
+
+        try
+        {
+            System.IO.File.WriteAllBytes(dlg.FileName, Backup.Export(password));
+            // What is on the disk is opened again, so a file that would not open is found now and not on the day it is needed.
+            Backup.Read(System.IO.File.ReadAllBytes(dlg.FileName), password);
+            BackupHint.Text = $"Сохранено: {dlg.FileName}" + (password == null ? " · без пароля, храните файл только у себя" : "");
+        }
+        catch (Exception ex)
+        {
+            BackupHint.Text = "";
+            Msg.Show("Не удалось сохранить: " + ex.Message, "Tunor", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void ImportBackup_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = BackupFilter,
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+        };
+        if (dlg.ShowDialog(Window.GetWindow(this)) != true) return;
+
+        BackupContents? contents;
+        try
+        {
+            if (new System.IO.FileInfo(dlg.FileName).Length > 70L * 1024 * 1024)
+                throw new BackupException("Это не резервная копия Tunor: файл слишком большой.");
+            contents = OpenBackup(System.IO.File.ReadAllBytes(dlg.FileName));
+        }
+        catch (Exception ex)
+        {
+            Msg.Show(ex.Message, "Tunor", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (contents == null) return;
+
+        if (Msg.Show(Backup.Describe(contents), "Загрузить настройки?", MessageBoxButton.YesNo, MessageBoxImage.Question)
+            != MessageBoxResult.Yes) return;
+
+        string copies;
+        try { copies = Backup.Apply(contents); }
+        catch (Exception ex)
+        {
+            Reload();
+            Msg.Show("Не загрузилось: " + ex.Message + "\n\nТо, что успели заменить, сохранено в папке data\\backups.",
+                     "Tunor", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        Reload();
+        var note = "";
+        try { ConfigGenerator.Generate(); }
+        catch (Exception ex) { note += "\n\nКонфигурацию движка собрать не удалось: " + ex.Message; }
+        if (Backup.ListsMissing())
+        {
+            _ = ListsUpdater.RunIfDueAsync(force: true);
+            note += "\n\nСписков правил на этом компьютере ещё нет — они скачиваются в фоне.";
+        }
+        BackupHint.Text = $"Загружено · {DateTime.Now:HH:mm:ss}";
+        Msg.Show("Настройки загружены." + (ProcessService.IsRunning ? " Чтобы они вступили в силу, перезапустите движок." : "")
+                 + note + "\n\nПрежние файлы сохранены: " + copies,
+                 "Tunor", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    /// <summary>Opens a backup, asking for the password as long as it is needed; null if the person gave up.</summary>
+    private static BackupContents? OpenBackup(byte[] data)
+    {
+        string? password = null;
+        while (true)
+        {
+            try { return Backup.Read(data, password); }
+            catch (BackupException ex) when (ex.NeedsPassword || ex.WrongPassword)
+            {
+                var ask = PasswordDialog.ForOpening(ex.WrongPassword ? ex.Message : null);
+                ask.ShowDialog();
+                if (ask.Choice != PasswordChoice.Password) return null;
+                password = ask.Password;
+            }
+        }
     }
 
     private void ShowWizard_Click(object sender, RoutedEventArgs e)

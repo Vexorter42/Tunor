@@ -162,7 +162,7 @@ public static class ConfigGenerator
             ["log"] = new JsonObject
             {
                 ["disabled"] = !settings.Logging,
-                ["level"] = "warn",
+                ["level"] = AppSettings.NormalizeLevel(settings.LogLevel),
             },
             ["dns"] = BuildDns(),
             ["inbounds"] = BuildInbounds(settings, tunnels),

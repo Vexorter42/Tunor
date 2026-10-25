@@ -42,6 +42,20 @@
                     <TextBlock Text="При запуске и дальше раз в несколько часов. Нашлась новая версия — на главной появится зелёная кнопка «Обновиться»"
                                Style="{StaticResource Dim}" Margin="26,2,0,0" TextWrapping="Wrap"/>
 
+                    <TextBlock Text="Уровень журнала" Margin="0,16,0,0"/>
+                    <ComboBox x:Name="CmbLogLevel" Margin="0,6,0,0" Width="300" HorizontalAlignment="Left"
+                              Background="{StaticResource BgInputBrush}" Foreground="{StaticResource TextBrush}"
+                              BorderBrush="{StaticResource BorderBrush}" SelectionChanged="LogLevel_Changed">
+                        <ComboBoxItem Content="Только ошибки" Tag="error"/>
+                        <ComboBoxItem Content="Предупреждения (по умолчанию)" Tag="warn"/>
+                        <ComboBoxItem Content="Информация" Tag="info"/>
+                        <ComboBoxItem Content="Подробно (debug)" Tag="debug"/>
+                    </ComboBox>
+                    <TextBlock Text="«Подробно» нужно, чтобы разобраться с обрывами: в журнал попадают рукопожатия туннелей. Там же появляются адреса открываемых сайтов, поэтому в отчёт о проблеме такие строки не попадают. Журнал пишется в файл и хранится 7 дней. Применяется после перезапуска движка."
+                               Style="{StaticResource Dim}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                    <Button Content="Открыть папку журналов" Style="{StaticResource GhostButton}"
+                            HorizontalAlignment="Left" Margin="0,8,0,0" Click="OpenLogs_Click"/>
+
                     <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
                         <Button Content="Условия использования и туториал"
                                 Style="{StaticResource SecondaryButton}" MinWidth="260"
@@ -63,6 +77,21 @@
                     <StackPanel x:Name="FinalChoices"/>
                     <TextBlock x:Name="FinalHint" Style="{StaticResource Dim}"
                                Margin="26,6,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Резервная копия" Style="{StaticResource H2}"/>
+                    <TextBlock Text="Настройки, правила, туннели с ключами и ссылками подписок, профили — одним файлом: чтобы перенести на другой компьютер или вернуться к тому, что было. Списки правил в файл не входят, они скачиваются заново."
+                               Style="{StaticResource Dim}" Margin="0,4,0,12" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Сохранить в файл…" Style="{StaticResource SecondaryButton}"
+                                MinWidth="170" Click="ExportBackup_Click"/>
+                        <Button Content="Загрузить из файла…" Style="{StaticResource SecondaryButton}"
+                                MinWidth="170" Margin="10,0,0,0" Click="ImportBackup_Click"/>
+                    </StackPanel>
+                    <TextBlock x:Name="BackupHint" Style="{StaticResource Dim}" Margin="0,10,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 
