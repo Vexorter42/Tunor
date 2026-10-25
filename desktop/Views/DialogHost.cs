@@ -43,7 +43,7 @@ public static class DialogHost
     private static Panel? _layers;
     private static readonly List<Entry> Stack = new();
     private static readonly Dictionary<DialogPanel, (Window Window, TaskCompletionSource Done)> Windows = new();
-    private static readonly List<Control> Switched = new();
+    private static readonly List<(Control Element, bool HitTest, KeyboardNavigationMode Tab)> Switched = new();
 
     /// <summary>True while a dialog is waiting for an answer.</summary>
     public static bool IsOpen => Stack.Count > 0 || Windows.Count > 0;
@@ -191,19 +191,30 @@ public static class DialogHost
 
     // ------------------------------------------------------------------ the app behind it
 
+    /// <summary>
+    /// The app behind a dialog takes neither the mouse nor Tab — and still looks as it did. A
+    /// disabled control draws itself in the theme's disabled colours (on Windows a list and a
+    /// text field turned white behind a dialog that way); hit-testing and keyboard navigation are
+    /// what has to stop, not the look.
+    /// </summary>
     private static void SwitchOff()
     {
         foreach (var child in _root!.Children)
         {
-            if (ReferenceEquals(child, _layers) || !child.IsEnabled) continue;
-            child.IsEnabled = false;
-            Switched.Add(child);
+            if (ReferenceEquals(child, _layers)) continue;
+            Switched.Add((child, child.IsHitTestVisible, KeyboardNavigation.GetTabNavigation(child)));
+            child.IsHitTestVisible = false;
+            KeyboardNavigation.SetTabNavigation(child, KeyboardNavigationMode.None);
         }
     }
 
     private static void SwitchBackOn()
     {
-        foreach (var child in Switched) child.IsEnabled = true;
+        foreach (var (element, hit, tab) in Switched)
+        {
+            element.IsHitTestVisible = hit;
+            KeyboardNavigation.SetTabNavigation(element, tab);
+        }
         Switched.Clear();
     }
 

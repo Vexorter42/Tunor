@@ -1,0 +1,29 @@
+<UserControl x:Class="Tunor.Views.TitleBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+             Foreground="{StaticResource TextBrush}">
+    <!-- The window's title bar, in the app's own colours. The window is drawn without the
+         system one (see FrameChrome): this is what takes its place — the icon, the name, and
+         the three buttons. The bar itself is the window's caption, so it drags and
+         double-clicks like one; only the buttons are marked as clickable. -->
+    <Border Height="36" Background="{StaticResource BgPanelBrush}"
+            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+        <DockPanel LastChildFill="False">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                <Button x:Name="MinBtn" Style="{StaticResource CaptionButton}" Content="&#xE921;"
+                        ToolTip="Свернуть" AutomationProperties.Name="Свернуть" Click="Min_Click"/>
+                <Button x:Name="MaxBtn" Style="{StaticResource CaptionButton}" Content="&#xE922;"
+                        ToolTip="Развернуть" AutomationProperties.Name="Развернуть" Click="Max_Click"/>
+                <Button x:Name="CloseBtn" Style="{StaticResource CaptionCloseButton}" Content="&#xE8BB;"
+                        ToolTip="Закрыть" AutomationProperties.Name="Закрыть" Click="Close_Click"/>
+            </StackPanel>
+
+            <Image DockPanel.Dock="Left" Source="../Assets/app.png" Width="16" Height="16" Margin="12,0,9,0"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+            <TextBlock x:Name="TitleText" DockPanel.Dock="Left" VerticalAlignment="Center"
+                       FontSize="12" Foreground="{StaticResource TextDimBrush}"/>
+        </DockPanel>
+    </Border>
+</UserControl>

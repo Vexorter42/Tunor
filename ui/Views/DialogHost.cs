@@ -15,8 +15,8 @@ namespace Tunor.Views;
 /// Draws <see cref="DialogPanel"/>s over the main window and waits for them.
 ///
 /// The main window gives it one empty layer on top of everything else. A dialog becomes a
-/// card on a dimmed backdrop in that layer; everything underneath is switched off, so
-/// neither a click nor Tab reaches it; and <see cref="Show"/> waits the way
+/// card on a dimmed backdrop in that layer; everything underneath stops taking the mouse and
+/// Tab, so nothing reaches it; and <see cref="Show"/> waits the way
 /// <c>Window.ShowDialog</c> does — it keeps the message loop going and returns when the
 /// dialog is closed. A dialog may open another one (an error over a form): they stack,
 /// the last one is the one that answers.
@@ -44,7 +44,7 @@ public static class DialogHost
     private static Panel? _layers;
     private static readonly List<Entry> Stack = new();
     private static readonly Dictionary<DialogPanel, Window> Windows = new();
-    private static readonly List<UIElement> Switched = new();
+    private static readonly List<(UIElement Element, DependencyProperty Property, object? Was)> Switched = new();
     private static IInputElement? _focusBefore;
 
     /// <summary>True while a dialog is waiting for an answer.</summary>
@@ -201,23 +201,43 @@ public static class DialogHost
 
     // ------------------------------------------------------------------ the app behind it
 
+    /// <summary>
+    /// The app behind a dialog takes neither the mouse nor Tab — and still looks as it did.
+    ///
+    /// It used to be switched off with IsEnabled = false, and a disabled control draws itself
+    /// in the system's disabled colours: a list and a text field in this app went white behind
+    /// the dialog. Hit-testing and keyboard navigation are what has to stop, not the look.
+    /// </summary>
     private static void SwitchOff()
     {
         _focusBefore = Keyboard.FocusedElement;
         foreach (UIElement child in _root!.Children)
         {
-            if (ReferenceEquals(child, _layers) || !child.IsEnabled) continue;
-            child.IsEnabled = false;
-            Switched.Add(child);
+            if (ReferenceEquals(child, _layers)) continue;
+            Set(child, UIElement.IsHitTestVisibleProperty, false);
+            Set(child, KeyboardNavigation.TabNavigationProperty, KeyboardNavigationMode.None);
+            Set(child, KeyboardNavigation.ControlTabNavigationProperty, KeyboardNavigationMode.None);
+            Set(child, KeyboardNavigation.DirectionalNavigationProperty, KeyboardNavigationMode.None);
         }
+    }
+
+    /// <summary>Sets a value and remembers what was set locally before, to put it back exactly.</summary>
+    private static void Set(UIElement element, DependencyProperty property, object value)
+    {
+        Switched.Add((element, property, element.ReadLocalValue(property)));
+        element.SetValue(property, value);
     }
 
     private static void SwitchBackOn()
     {
-        foreach (var child in Switched) child.IsEnabled = true;
+        foreach (var (element, property, was) in Switched)
+        {
+            if (was == DependencyProperty.UnsetValue) element.ClearValue(property);
+            else element.SetValue(property, was);
+        }
         Switched.Clear();
 
-        // Back to where the user was typing, once the app is enabled again.
+        // Back to where the user was typing.
         var back = _focusBefore as UIElement;
         _focusBefore = null;
         back?.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>

@@ -19,7 +19,7 @@
                     <TextBlock x:Name="UpdateBannerText" Classes="dim" TextWrapping="Wrap"/>
                 </StackPanel>
                 <Button x:Name="BtnUpdateNow" Grid.Column="1" Classes="primary"
-                        Content="⭳  Обновиться" MinWidth="170" VerticalAlignment="Center"
+                        Content="↓  Обновиться" MinWidth="170" VerticalAlignment="Center"
                         Click="UpdateNow_Click"/>
             </Grid>
         </Border>
@@ -115,7 +115,7 @@
                 <TextBlock x:Name="InstallHint" TextWrapping="Wrap" IsVisible="False"
                            Foreground="{StaticResource DangerBrush}"/>
                 <StackPanel Orientation="Horizontal" Spacing="14">
-                    <Button x:Name="BtnUpdate" Content="⭳  Проверить обновления"
+                    <Button x:Name="BtnUpdate" Content="↓  Проверить обновления"
                             Click="Update_Click"/>
                     <Button x:Name="BtnInstallUpdate" Classes="primary" Content="Обновить"
                             Click="InstallUpdate_Click" IsVisible="False"/>

@@ -27,6 +27,7 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        FrameChrome.Apply(this);
         InitializeComponent();
         DialogHost.Attach(this, AppRoot, DialogLayers);
         PageHost.Content = _home;

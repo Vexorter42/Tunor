@@ -15,7 +15,15 @@
         DragLeave="Window_DragLeave" Drop="Window_Drop"
         KeyDown="Window_KeyDown">
 
-    <Grid x:Name="AppRoot">
+    <!-- The window has no system title bar (FrameChrome): the app's own is the first row. -->
+    <Grid>
+    <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+    <views:TitleBar Grid.Row="0"/>
+
+    <Grid x:Name="AppRoot" Grid.Row="1">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="218"/>
             <ColumnDefinition Width="*"/>
@@ -94,5 +102,6 @@
 
         <!-- Dialogs are drawn here, over everything: see DialogHost -->
         <Grid x:Name="DialogLayers" Grid.ColumnSpan="2"/>
+    </Grid>
     </Grid>
 </Window>
