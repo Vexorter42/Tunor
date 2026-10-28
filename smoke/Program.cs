@@ -89,6 +89,8 @@ internal static class Program
                       () => Task.Run(CatalogChecks).GetAwaiter().GetResult(), failures);
                 Check("zapret и TUN: узнаём по имени процесса, виноваты только правящие пакеты, подсказка — при TUN, в Windows и пока не скрыта",
                       DpiToolsChecks, failures);
+                Check("Пинг серверов подписки: адрес из ссылки, середина трёх замеров, не ответившие, один поиск имени, не больше восьми разом, остановка, порядок",
+                      () => Task.Run(NodePingChecks).GetAwaiter().GetResult(), failures);
             })
             .SetupWithoutStarting();
 
@@ -1546,6 +1548,130 @@ internal static class Program
             if (!SettingsService.Load().HideDpiHint) throw new Exception("«не показывать» не сохранилось");
         }
         finally { if (had == null) { try { File.Delete(path); } catch { } } else File.WriteAllText(path, had); }
+    }
+
+    /// <summary>
+    /// The ping of a subscription's servers: where a link points, which cannot be timed by a connection, the middle of three
+    /// answers, a server that did not answer or whose name is not found, a lookup shared by the servers of one host, at most
+    /// eight at a time, a run that can be stopped, the order nearest-first with the dead ones last — and a real connection.
+    /// </summary>
+    private static void NodePingChecks()
+    {
+        static SubNode N(string host, int port, string name, string type = "tcp")
+            => new() { Name = name, Url = $"vless://11111111-2222-3333-4444-555555555555@{host}:{port}?encryption=none&security=none&type={type}#{name}" };
+
+        var (connect, resolve) = (NodePing.Connect, NodePing.Resolve);
+        try
+        {
+            if (NodePing.Target(N("a.example", 8443, "A")) is not ("a.example", 8443)) throw new Exception("адрес и порт сервера из ссылки");
+            if (NodePing.Target(new SubNode { Name = "x", Url = "vless://не ссылка" }) != null) throw new Exception("из негодной ссылки взят адрес");
+            if (NodePing.NotMeasurable(N("a.example", 443, "Q", "quic")) == null) throw new Exception("QUIC принят за измеримый");
+            if (NodePing.NotMeasurable(N("a.example", 443, "T")) != null) throw new Exception("tcp принят за неизмеримый");
+            if (NodePing.NotMeasurable(new SubNode { Name = "x", Url = "мусор" }) == null) throw new Exception("негодная ссылка принята за измеримую");
+
+            foreach (var (answers, want) in new (double[], int?)[]
+                     { (Array.Empty<double>(), null), (new[] { 40.0 }, 40), (new[] { 10.0, 30, 20 }, 20), (new[] { 10.0, 30 }, 20), (new[] { 0.2 }, 1), (new[] { 99.0, 1, 50, 60 }, 55) })
+                if (NodePing.Middle(answers) != want) throw new Exception($"середина от {string.Join(",", answers)} = {NodePing.Middle(answers)}, ждали {want}");
+
+            // ---- scripted network: what each host does
+            var lookups = new List<string>();
+            var script = new Dictionary<string, double?[]>
+            {
+                ["fast.example"] = new double?[] { 20, 22, 21 },
+                ["flaky.example"] = new double?[] { null, 50, 40 },
+                ["dead.example"] = new double?[] { null, null, null },
+            };
+            var turn = new Dictionary<string, int>();
+            NodePing.Resolve = host =>
+            {
+                lock (lookups) lookups.Add(host);
+                if (host == "gone.example") throw new System.Net.Sockets.SocketException(11001);
+                return Task.FromResult(new[] { System.Net.IPAddress.Parse("203.0.113.7") });
+            };
+
+            // a connect that knows the host through the port (each test host has its own port)
+            var ports = new Dictionary<int, string> { [1001] = "fast.example", [1002] = "flaky.example", [1003] = "dead.example" };
+            NodePing.Connect = (address, port, _, _) =>
+            {
+                var host = ports[port];
+                int i; lock (turn) { turn.TryGetValue(host, out i); turn[host] = i + 1; }
+                return Task.FromResult(script[host][i]);
+            };
+            var nodes = new List<SubNode> { N("fast.example", 1001, "fast"), N("flaky.example", 1002, "flaky"), N("dead.example", 1003, "dead") };
+            var got = NodePing.MeasureAllAsync(nodes).GetAwaiter().GetResult();
+            if (got[nodes[0]].Ms != 21 || got[nodes[1]].Ms != 45 || got[nodes[2]].Ms != null || got[nodes[2]].Note != "нет ответа")
+                throw new Exception("итоги: " + string.Join(", ", nodes.Select(n => n.Name + "=" + NodePing.Format(got[n]))));
+            if (NodePing.Format(got[nodes[1]]) != "45 мс" || NodePing.Format(new PingResult(null, "")) != "нет ответа") throw new Exception("подпись");
+
+            // a name that is not found, a quic server and a literal address (no lookup for it)
+            lookups.Clear();
+            var odd = new List<SubNode> { N("gone.example", 1001, "gone"), N("fast.example", 1001, "quic", "quic"), N("203.0.113.9", 1001, "literal") };
+            turn.Clear();
+            var oddRes = NodePing.MeasureAllAsync(odd).GetAwaiter().GetResult();
+            if (oddRes[odd[0]].Note != "имя сервера не находится") throw new Exception("не найденное имя: " + oddRes[odd[0]].Note);
+            if (!oddRes[odd[1]].Note.Contains("UDP")) throw new Exception("QUIC: " + oddRes[odd[1]].Note);
+            if (lookups.Contains("203.0.113.9")) throw new Exception("адрес-число искали в DNS");
+            ports[1001] = "fast.example"; turn.Clear();
+            if (oddRes[odd[2]].Ms != 21) throw new Exception("сервер по числовому адресу: " + NodePing.Format(oddRes[odd[2]]));
+
+            // ten servers on one host: one lookup
+            lookups.Clear(); turn.Clear();
+            var same = Enumerable.Range(0, 10).Select(i => N("fast.example", 1001, "s" + i)).ToList();
+            NodePing.Connect = (a, p, t, c) => Task.FromResult<double?>(15);
+            NodePing.MeasureAllAsync(same).GetAwaiter().GetResult();
+            if (lookups.Count != 1) throw new Exception($"имя искали {lookups.Count} раз вместо одного");
+
+            // not more than eight at a time, and every server is counted when it is done
+            var current = 0; var most = 0;
+            NodePing.Connect = async (a, p, t, c) =>
+            {
+                var now = Interlocked.Increment(ref current);
+                lock (turn) most = Math.Max(most, now);
+                await Task.Delay(30, c);
+                Interlocked.Decrement(ref current);
+                return 10;
+            };
+            var many = Enumerable.Range(0, 40).Select(i => N("h" + i + ".example", 443, "n" + i)).ToList();
+            var marks = new List<(int, int)>();
+            var all = NodePing.MeasureAllAsync(many, (d, n) => { lock (marks) marks.Add((d, n)); }).GetAwaiter().GetResult();
+            if (all.Count != 40 || most > 8 || most < 4) throw new Exception($"одновременно до {most}, итогов {all.Count}");
+            if (marks.Count != 40 || marks.Max(m => m.Item1) != 40 || marks.Any(m => m.Item2 != 40)) throw new Exception("счёт готовых сбился");
+
+            // stopped half way: comes back soon with what it has
+            using var stop = new CancellationTokenSource();
+            NodePing.Connect = async (a, p, t, c) => { await Task.Delay(400, c); return 10; };
+            var started = DateTime.UtcNow;
+            var task = NodePing.MeasureAllAsync(many, null, stop.Token);
+            stop.CancelAfter(150);
+            var partial = task.GetAwaiter().GetResult();
+            if (DateTime.UtcNow - started > TimeSpan.FromSeconds(3) || partial.Count >= 40) throw new Exception($"остановка: {partial.Count} из 40 за {(DateTime.UtcNow - started).TotalSeconds:0.0} с");
+
+            // the order
+            var a1 = N("a", 1, "A"); var b1 = N("b", 1, "B"); var c1 = N("c", 1, "C"); var d1 = N("d", 1, "D"); var e1 = N("e", 1, "E"); var f1 = N("f", 1, "F");
+            var order = NodePing.Sorted(new[] { a1, b1, c1, d1, e1, f1 }, new Dictionary<SubNode, PingResult>
+            {
+                [a1] = new(50, ""), [b1] = new(null, "нет ответа"), [c1] = new(20, ""), [d1] = new(20, ""), [e1] = new(5, ""),
+            });
+            if (!order.SequenceEqual(new[] { e1, c1, d1, a1, b1, f1 })) throw new Exception("порядок: " + string.Join(" ", order.Select(n => n.Name)));
+        }
+        finally { (NodePing.Connect, NodePing.Resolve) = (connect, resolve); }
+
+        // ---- a real connection, to a port that listens and to one that does not
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        var open = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+        var shut = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        shut.Start();
+        var closed = ((System.Net.IPEndPoint)shut.LocalEndpoint).Port;
+        shut.Stop();
+        try
+        {
+            var up = N("127.0.0.1", open, "up"); var down = N("127.0.0.1", closed, "down");
+            var res = NodePing.MeasureAllAsync(new[] { up, down }).GetAwaiter().GetResult();
+            if (res[up].Ms is not { } ms || ms > 1000) throw new Exception("порт, который слушает: " + NodePing.Format(res[up]));
+            if (res[down].Ms != null) throw new Exception("порт, где никого нет, ответил: " + NodePing.Format(res[down]));
+        }
+        finally { listener.Stop(); }
     }
 
     /// <summary>

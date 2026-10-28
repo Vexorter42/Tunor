@@ -56,6 +56,13 @@
                                      IsCheckedChanged="NodeMode_Changed"/>
                         <ComboBox x:Name="NodeBox" Margin="24,0,0,0" IsEnabled="False"
                                   HorizontalAlignment="Stretch" MaxDropDownHeight="260"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="24,2,0,0">
+                            <Button x:Name="BtnPing" Content="Проверить пинг" Click="Ping_Click"
+                                    ToolTip.Tip="За сколько открывается соединение с каждым сервером. Меряется отсюда, напрямую"/>
+                            <Button x:Name="BtnFastest" Classes="ghost" Content="Выбрать быстрейший"
+                                    IsEnabled="False" Click="Fastest_Click"/>
+                        </StackPanel>
+                        <TextBlock x:Name="PingStatus" Classes="dim" Margin="24,0,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
 
                     <CheckBox x:Name="ViaWarp" Content="Подключаться через WARP"/>

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
@@ -22,6 +23,9 @@ public partial class AddVpnWindow : DialogPanel
     private List<SubNode> _nodes = new();
     private string _subTitle = "", _subTraffic = "";
     private bool _nameTouched;
+    private Dictionary<SubNode, PingResult> _pings = new();   // what the last ping said, by server
+    private List<SubNode> _view = new();                      // the servers in the order the list shows them
+    private CancellationTokenSource? _pingCts;
 
     /// <summary>True when the tunnel list was written and config.json rebuilt.</summary>
     public bool Saved { get; private set; }
@@ -140,12 +144,72 @@ public partial class AddVpnWindow : DialogPanel
         if (_subTraffic.Length > 0) parts.Add(_subTraffic);
         SummaryText.Text = string.Join(" · ", parts);
 
-        NodeBox.ItemsSource = _nodes.Select(n => $"{n.Name}  —  {n.Summary}").ToList();
-        var at = _nodes.FindIndex(n => n.Name == chosen);
-        RbPick.IsChecked = at >= 0;
-        RbAuto.IsChecked = at < 0;
-        NodeBox.SelectedIndex = at >= 0 ? at : 0;
+        _pingCts?.Cancel();
+        _pings = new Dictionary<SubNode, PingResult>();
+        PingStatus.Text = "";
+        BtnPing.IsEnabled = true;
+        BtnFastest.IsEnabled = false;
+
+        var pick = _nodes.FirstOrDefault(n => n.Name == chosen);
+        RenderNodes(pick);
+        RbPick.IsChecked = pick != null;
+        RbAuto.IsChecked = pick == null;
         BtnSave.IsEnabled = true;
+    }
+
+    /// <summary>The list of servers, nearest first once they have been pinged; <paramref name="select"/> stays selected.</summary>
+    private void RenderNodes(SubNode? select)
+    {
+        _view = _pings.Count > 0 ? NodePing.Sorted(_nodes, _pings) : _nodes.ToList();
+        NodeBox.ItemsSource = _view.Select(n =>
+            (_pings.TryGetValue(n, out var r) ? NodePing.Format(r) + "  ·  " : "") + $"{n.Name}  —  {n.Summary}").ToList();
+        var at = select == null ? -1 : _view.IndexOf(select);
+        NodeBox.SelectedIndex = at >= 0 ? at : 0;
+    }
+
+    private async void Ping_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_nodes.Count == 0) return;
+        _pingCts?.Cancel();
+        var cts = _pingCts = new CancellationTokenSource();
+        var selected = NodeBox.SelectedIndex is var s and >= 0 && s < _view.Count ? _view[s] : null;
+        BtnPing.IsEnabled = BtnFastest.IsEnabled = false;
+        PingStatus.Text = "проверяю…";
+        try
+        {
+            var results = await NodePing.MeasureAllAsync(_nodes.ToList(),
+                (done, total) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    if (!cts.IsCancellationRequested) PingStatus.Text = $"проверено {done} из {total}";
+                }), cts.Token);
+            if (cts.IsCancellationRequested) return;
+
+            _pings = results;
+            RenderNodes(selected);
+            var best = NodePing.Sorted(_nodes, _pings).FirstOrDefault(n => _pings.TryGetValue(n, out var r) && r.Answered);
+            var alive = _pings.Values.Count(r => r.Answered);
+            PingStatus.Text = best == null
+                ? "ни один сервер не ответил: либо они недоступны отсюда, либо работают только по UDP"
+                : $"ответили {alive} из {_nodes.Count}. Быстрейший — {best.Name}, {NodePing.Format(_pings[best])}";
+            BtnFastest.IsEnabled = best != null;
+        }
+        catch (Exception ex) { PingStatus.Text = "не получилось: " + ex.Message; }
+        finally { if (!cts.IsCancellationRequested) BtnPing.IsEnabled = true; }
+    }
+
+    /// <summary>Picks the server that answered fastest, and switches the window to choosing a server by hand.</summary>
+    private void Fastest_Click(object? sender, RoutedEventArgs e)
+    {
+        var best = _view.FindIndex(n => _pings.TryGetValue(n, out var p) && p.Answered);
+        if (best < 0) return;
+        RbPick.IsChecked = true;
+        NodeBox.SelectedIndex = best;
+    }
+
+    public override void Dismiss()
+    {
+        _pingCts?.Cancel();
+        base.Dismiss();
     }
 
     private void NodeMode_Changed(object? sender, RoutedEventArgs e)
@@ -170,7 +234,11 @@ public partial class AddVpnWindow : DialogPanel
         catch { /* another program may hold the clipboard; typing still works */ }
     }
 
-    private void Cancel_Click(object? sender, RoutedEventArgs e) => Close();
+    private void Cancel_Click(object? sender, RoutedEventArgs e)
+    {
+        _pingCts?.Cancel();
+        Close();
+    }
 
     private void Save_Click(object? sender, RoutedEventArgs e)
     {
@@ -201,8 +269,8 @@ public partial class AddVpnWindow : DialogPanel
                 t.Nodes = _nodes;
                 t.Fetched = DateTime.UtcNow;
                 t.Node = RbPick.IsChecked == true && NodeBox.SelectedIndex is var i and >= 0
-                         && i < _nodes.Count
-                    ? _nodes[i].Name
+                         && i < _view.Count
+                    ? _view[i].Name
                     : "";                            // empty: the engine picks by latency
             }
             else
@@ -217,6 +285,7 @@ public partial class AddVpnWindow : DialogPanel
             TunnelService.Save(_tunnels);
             ConfigGenerator.Generate();
             Saved = true;
+            _pingCts?.Cancel();
             Close();
         }
         catch (Exception ex)
