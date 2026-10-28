@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Windows;
 using Tunor.Services;
 
@@ -19,6 +20,8 @@ public partial class AddVpnDialog : DialogPanel
     private List<SubNode> _nodes = new();     // set when it holds a subscription
     private string _subTitle = "", _subTraffic = "";
     private bool _nameTouched;
+    private Dictionary<SubNode, PingResult> _pings = new();   // what the last ping said, by server
+    private CancellationTokenSource? _pingCts;
 
     /// <summary>A row of the server list.</summary>
     private sealed record NodeRow(SubNode Node, string Label);
@@ -153,15 +156,74 @@ public partial class AddVpnDialog : DialogPanel
         if (_subTraffic.Length > 0) parts.Add(_subTraffic);
         SummaryText.Text = string.Join(" · ", parts);
 
-        NodeBox.ItemsSource = _nodes
-            .Select(n => new NodeRow(n, $"{n.Name}  —  {n.Summary}"))
-            .ToList();
+        _pingCts?.Cancel();
+        _pings = new Dictionary<SubNode, PingResult>();
+        PingStatus.Text = "";
+        BtnPing.IsEnabled = true;
+        BtnFastest.IsEnabled = false;
 
         var pick = _nodes.FirstOrDefault(n => n.Name == chosen);
+        RenderNodes(pick);
         RbPick.IsChecked = pick != null;
         RbAuto.IsChecked = pick == null;
-        NodeBox.SelectedIndex = pick != null ? _nodes.IndexOf(pick) : 0;
         BtnSave.IsEnabled = true;
+    }
+
+    /// <summary>The list of servers, nearest first once they have been pinged; <paramref name="select"/> stays selected.</summary>
+    private void RenderNodes(SubNode? select)
+    {
+        var order = _pings.Count > 0 ? NodePing.Sorted(_nodes, _pings) : _nodes;
+        var rows = order.Select(n => new NodeRow(n,
+            (_pings.TryGetValue(n, out var r) ? NodePing.Format(r) + "  ·  " : "") + $"{n.Name}  —  {n.Summary}")).ToList();
+        NodeBox.ItemsSource = rows;
+        var at = select == null ? -1 : rows.FindIndex(r => r.Node == select);
+        NodeBox.SelectedIndex = at >= 0 ? at : 0;
+    }
+
+    private async void Ping_Click(object sender, RoutedEventArgs e)
+    {
+        if (_nodes.Count == 0) return;
+        _pingCts?.Cancel();
+        var cts = _pingCts = new CancellationTokenSource();
+        var selected = (NodeBox.SelectedItem as NodeRow)?.Node;
+        BtnPing.IsEnabled = BtnFastest.IsEnabled = false;
+        PingStatus.Text = "проверяю…";
+        try
+        {
+            var results = await NodePing.MeasureAllAsync(_nodes.ToList(),
+                (done, total) => Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (!cts.IsCancellationRequested) PingStatus.Text = $"проверено {done} из {total}";
+                })), cts.Token);
+            if (cts.IsCancellationRequested) return;
+
+            _pings = results;
+            RenderNodes(selected);
+            var best = NodePing.Sorted(_nodes, _pings).FirstOrDefault(n => _pings.TryGetValue(n, out var r) && r.Answered);
+            var alive = _pings.Values.Count(r => r.Answered);
+            PingStatus.Text = best == null
+                ? "ни один сервер не ответил: либо они недоступны отсюда, либо работают только по UDP"
+                : $"ответили {alive} из {_nodes.Count}. Быстрейший — {best.Name}, {NodePing.Format(_pings[best])}";
+            BtnFastest.IsEnabled = best != null;
+        }
+        catch (Exception ex) { PingStatus.Text = "не получилось: " + ex.Message; }
+        finally { if (!cts.IsCancellationRequested) BtnPing.IsEnabled = true; }
+    }
+
+    /// <summary>Picks the server that answered fastest, and switches the dialog to choosing a server by hand.</summary>
+    private void Fastest_Click(object sender, RoutedEventArgs e)
+    {
+        var rows = NodeBox.ItemsSource as List<NodeRow>;
+        var best = rows?.FindIndex(r => _pings.TryGetValue(r.Node, out var p) && p.Answered) ?? -1;
+        if (best < 0) return;
+        RbPick.IsChecked = true;
+        NodeBox.SelectedIndex = best;
+    }
+
+    public override void Dismiss()
+    {
+        _pingCts?.Cancel();
+        base.Dismiss();
     }
 
     private void NodeMode_Changed(object sender, RoutedEventArgs e)
@@ -185,7 +247,11 @@ public partial class AddVpnDialog : DialogPanel
         catch { /* another program may hold the clipboard open; typing still works */ }
     }
 
-    private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
+    private void Cancel_Click(object sender, RoutedEventArgs e)
+    {
+        _pingCts?.Cancel();
+        Close();
+    }
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
@@ -234,6 +300,7 @@ public partial class AddVpnDialog : DialogPanel
             TunnelService.Save(_tunnels);
             ConfigGenerator.Generate();
             Saved = true;
+            _pingCts?.Cancel();
             Close();
         }
         catch (Exception ex)

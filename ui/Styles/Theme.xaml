@@ -390,6 +390,8 @@
                         <ContentPresenter x:Name="ContentSite" IsHitTestVisible="False"
                                           Content="{TemplateBinding SelectionBoxItem}"
                                           ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
                                           Margin="{TemplateBinding Padding}"
                                           VerticalAlignment="Center" HorizontalAlignment="Left"/>
                         <Popup x:Name="Popup" Placement="Bottom"

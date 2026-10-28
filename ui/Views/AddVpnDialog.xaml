@@ -77,6 +77,14 @@
                                  Content="Выбрать сервер" Checked="NodeMode_Changed"/>
                     <ComboBox x:Name="NodeBox" Margin="24,8,0,0" MaxDropDownHeight="260"
                               IsEnabled="False" DisplayMemberPath="Label"/>
+                    <StackPanel Orientation="Horizontal" Margin="24,8,0,0">
+                        <Button x:Name="BtnPing" Content="Проверить пинг" Style="{StaticResource SecondaryButton}"
+                                Click="Ping_Click"
+                                ToolTip="За сколько открывается соединение с каждым сервером. Меряется отсюда, напрямую"/>
+                        <Button x:Name="BtnFastest" Content="Выбрать быстрейший" Style="{StaticResource GhostButton}"
+                                Margin="8,0,0,0" IsEnabled="False" Click="Fastest_Click"/>
+                    </StackPanel>
+                    <TextBlock x:Name="PingStatus" Style="{StaticResource Dim}" Margin="24,6,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
 
                 <CheckBox x:Name="ViaWarp" Margin="0,14,0,0" Content="Подключаться через WARP"/>
