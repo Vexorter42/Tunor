@@ -561,7 +561,8 @@ internal static class Program
             {
                 mode = "gone";
                 if (!Until(() => UpdateWatcher.Available == null)) problem = "обновление вышло из списка, а баннер остался";
-                else if (events != 2) problem = $"событий {events}, а должно быть 2 (нашлось и исчезло)";
+                // The banner goes first and the event is told a moment after it: waiting for the event too, or a loaded machine reads it too soon.
+                else if (!Until(() => events >= 2, 1500) || events != 2) problem = $"событий {events}, а должно быть 2 (нашлось и исчезло)";
             }
 
             if (problem == null)
