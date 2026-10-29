@@ -1,0 +1,138 @@
+<v:DialogPanel xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:Tunor.Desktop.Views"
+        x:Class="Tunor.Desktop.Views.TutorialWindow"
+        Title="Обучение" Width="680" Height="566"
+        Background="{StaticResource BgBrush}">
+
+    <Grid Margin="26,18" RowDefinitions="Auto,Auto,*,Auto">
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+            <Image Source="avares://TunorDesktop/Assets/app.png" Width="32" Height="32"/>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="StepTitle" Classes="h1" FontSize="21"/>
+                <TextBlock x:Name="StepSubtitle" Classes="dim" Margin="0,2,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Where in the course -->
+        <Grid Grid.Row="1" Margin="0,12,0,0">
+            <StackPanel x:Name="Progress" Orientation="Horizontal" VerticalAlignment="Center"/>
+            <TextBlock x:Name="ProgressText" Classes="dim" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+        </Grid>
+
+        <!-- The screens -->
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+
+            <!-- terms -->
+            <Border x:Name="PTerms" Classes="card" IsVisible="False">
+                <DockPanel>
+                    <CheckBox x:Name="ChkAccept" DockPanel.Dock="Bottom" Margin="0,14,0,0"
+                              IsCheckedChanged="Accept_Changed"/>
+                    <ScrollViewer>
+                        <TextBlock x:Name="AgreementText" TextWrapping="Wrap" LineHeight="20" FontSize="12.5"
+                                   Margin="0,0,12,0"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- a lesson -->
+            <Border x:Name="PLesson" Classes="card" Padding="16,12" IsVisible="False">
+                <DockPanel>
+                    <v:SceneView x:Name="LessonScene" DockPanel.Dock="Top" MaxWidth="392"
+                                 HorizontalAlignment="Center"/>
+                    <ProgressBar x:Name="LessonBar" DockPanel.Dock="Top" Minimum="0" Maximum="1" Height="3"
+                                 MaxWidth="392" Margin="0,5,0,0" Value="0"/>
+                    <ScrollViewer Margin="0,8,0,0">
+                        <StackPanel x:Name="LessonPoints"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- the question after a lesson -->
+            <Border x:Name="PCheck" Classes="card" IsVisible="False">
+                <ScrollViewer>
+                    <StackPanel>
+                        <TextBlock x:Name="CheckKicker" Classes="dim"/>
+                        <TextBlock x:Name="CheckQuestion" Classes="h2" TextWrapping="Wrap" Margin="0,6,0,16"/>
+                        <StackPanel x:Name="CheckOptions" Spacing="8"/>
+                        <TextBlock x:Name="CheckFeedback" TextWrapping="Wrap" FontSize="12.5" Margin="2,10,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- setting up -->
+            <Border x:Name="PSetup" Classes="card" IsVisible="False">
+                <ScrollViewer>
+                    <StackPanel>
+                        <TextBlock Text="1. Списки правил" Classes="h2"/>
+                        <TextBlock x:Name="SetupLists" Classes="dim" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                        <Grid ColumnDefinitions="Auto,*" Margin="0,10,0,0">
+                            <Button x:Name="BtnDownloadLists" Content="Скачать списки" MinWidth="190"
+                                    HorizontalContentAlignment="Center" Click="DownloadLists_Click"/>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
+                                <TextBlock x:Name="ListsStatus" Classes="dim" TextWrapping="Wrap"/>
+                                <ProgressBar x:Name="ListsBar" Minimum="0" Maximum="100" IsVisible="False" Height="3" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="2. Конфиг WARP" Classes="h2" Margin="0,18,0,0"/>
+                        <TextBlock x:Name="SetupBot" Classes="dim" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                        <TextBlock x:Name="SetupAdd" Classes="dim" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        <Grid ColumnDefinitions="Auto,*" Margin="0,10,0,0">
+                            <Button Content="Открыть бота в Telegram" MinWidth="190"
+                                    HorizontalContentAlignment="Center" Click="OpenBot_Click"/>
+                            <TextBlock x:Name="WarpStatus" Grid.Column="1" FontWeight="SemiBold" FontSize="12.5"
+                                       VerticalAlignment="Center" Margin="14,0,0,0" TextWrapping="Wrap"/>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- an exam question -->
+            <Border x:Name="PExam" Classes="card" IsVisible="False">
+                <ScrollViewer>
+                    <StackPanel>
+                        <TextBlock x:Name="ExamKicker" Classes="dim"/>
+                        <TextBlock x:Name="ExamQuestion" Classes="h2" TextWrapping="Wrap" Margin="0,6,0,16"/>
+                        <StackPanel x:Name="ExamOptions" Spacing="8"/>
+                        <TextBlock x:Name="ExamFeedback" TextWrapping="Wrap" FontSize="12.5" Margin="2,10,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- the result -->
+            <Border x:Name="PResult" Classes="card" IsVisible="False">
+                <ScrollViewer>
+                    <StackPanel>
+                        <TextBlock x:Name="ResultHead" Classes="h2" TextWrapping="Wrap"/>
+                        <StackPanel x:Name="ResultBody" Margin="0,10,0,0" Spacing="2"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- done -->
+            <Border x:Name="PDone" Classes="card" IsVisible="False">
+                <DockPanel>
+                    <v:SceneView x:Name="DoneScene" DockPanel.Dock="Top" MaxWidth="330" HorizontalAlignment="Center"
+                                 Margin="0,0,0,12"/>
+                    <ScrollViewer>
+                        <StackPanel x:Name="DonePoints"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- Navigation -->
+        <Grid Grid.Row="3" Margin="0,12,0,0" ColumnDefinitions="*,Auto">
+            <TextBlock x:Name="NavHint" Grid.Column="0" Classes="dim" VerticalAlignment="Center"
+                       TextWrapping="Wrap" Margin="0,0,16,0"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                <Button x:Name="BtnBack" Content="Назад" MinWidth="100" Click="Back_Click"/>
+                <Button x:Name="BtnNext" Classes="primary" Content="Далее" MinWidth="170"
+                        HorizontalContentAlignment="Center" Click="Next_Click"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</v:DialogPanel>

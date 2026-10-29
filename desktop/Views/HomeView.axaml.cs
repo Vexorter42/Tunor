@@ -88,6 +88,7 @@ public partial class HomeView : UserControl
         BtnStop.IsEnabled = running;
         BtnStopElevated.IsVisible = privileged;
         UpdateDpiHint();
+        UpdateTutorialOffer();
 
         VersionText.Text = "Текущая версия: " + UpdateService.CurrentVersionString;
         // Said before an update is attempted rather than after it fails: a copy running
@@ -369,6 +370,25 @@ public partial class HomeView : UserControl
         finally { BtnCheck.IsEnabled = true; }
     }
 
+    private void UpdateTutorialOffer()
+    {
+        try { TutorialCard.IsVisible = TutorialState.Needed(SettingsService.Load(), Course.Load().Version) == TutorialNeed.Offer; }
+        catch { TutorialCard.IsVisible = false; }
+    }
+
+    private async void StartTutorial_Click(object? sender, RoutedEventArgs e)
+    {
+        TutorialState.MarkOffered();
+        TutorialCard.IsVisible = false;
+        await new TutorialWindow(false).ShowDialog(this);
+    }
+
+    private void SkipTutorial_Click(object? sender, RoutedEventArgs e)
+    {
+        TutorialState.MarkOffered();
+        TutorialCard.IsVisible = false;
+    }
+
     private void UpdateDpiHint()
     {
         var hint = DpiTools.Hint();
@@ -386,6 +406,7 @@ public partial class HomeView : UserControl
         }
         catch { }
         UpdateDpiHint();
+        UpdateTutorialOffer();
     }
 
     private async void WarpPoint_Click(object? sender, RoutedEventArgs e)

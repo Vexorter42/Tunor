@@ -25,7 +25,35 @@ public partial class MainWindow : Window
         _tick.Start();
         RefreshBadge();
 
-        Opened += (_, _) => TryShowWhatsNew();
+        Opened += (_, _) => { if (!TryShowTutorial()) TryShowWhatsNew(); };
+    }
+
+    /// <summary>
+    /// A new install starts with the terms and the tutorial, and the program is not used before
+    /// they are done: closing them closes the program. Someone who used it before is not stopped;
+    /// the Home page offers them the tutorial once. Returns whether the tutorial is up.
+    /// </summary>
+    private bool TryShowTutorial()
+    {
+        try
+        {
+            if (TutorialState.Needed(SettingsService.Load(), Course.Load().Version) != TutorialNeed.Required) return false;
+        }
+        catch { return false; }
+
+        _ = RunTutorial();
+        return true;
+    }
+
+    private async System.Threading.Tasks.Task RunTutorial()
+    {
+        TutorialState.MarkRequired();
+        var tutorial = new TutorialWindow(required: true);
+        await tutorial.ShowDialog(this);
+        if (!tutorial.Completed) { App.Quit(); return; }
+
+        PageHost.Content = new HomeView();       // rule lists may have been downloaded meanwhile
+        TryShowWhatsNew();                       // marks this version as seen: a new install has no notes to read
     }
 
     private bool _whatsNewDone;

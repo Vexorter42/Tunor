@@ -109,18 +109,21 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// First launch after an install: show the licence agreement + tutorial.
-    /// Accepting is a gate — without it the app closes again.
+    /// First launch after an install: the terms, then the tutorial. Passing it is a gate —
+    /// without it the app closes again. Someone who used the program before is not stopped here;
+    /// the Home page offers them the tutorial once.
     /// </summary>
     private void ShowFirstRunIfNeeded()
     {
         try
         {
-            if (SettingsService.Load().Accept) return;
+            if (TutorialState.Needed(SettingsService.Load(), Course.Load().Version) != TutorialNeed.Required) return;
 
-            new FirstRunWizard { Owner = this }.ShowDialog();
+            TutorialState.MarkRequired();
+            var tutorial = new TutorialDialog(required: true) { Owner = this };
+            tutorial.ShowDialog();
 
-            if (!SettingsService.Load().Accept)
+            if (!tutorial.Completed)
             {
                 _forceExit = true;
                 Close();

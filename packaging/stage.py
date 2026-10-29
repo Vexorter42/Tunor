@@ -123,8 +123,11 @@ print(f"text colour set in all {_windows} windows and dialogs")
 _st = json.load(open(APP + "/settings.json", encoding="utf-8"))
 _st["accept"] = False          # show the licence + tutorial on first launch
 # Per-machine state, not defaults: the stats API key must be each install's own
-# (Tunor generates one when missing), and a fresh install has downloaded no lists yet.
-for _k in ("controllerSecret", "controllerPort", "listsUpdatedAt"):
+# (Tunor generates one when missing), a fresh install has downloaded no lists yet, and it has
+# seen no "what's new" and passed no tutorial — a settings file that says it has would hand a
+# new person the answers of the one who built the installer.
+for _k in ("controllerSecret", "controllerPort", "listsUpdatedAt", "lastSeenVersion",
+           "tutorialPassed", "tutorialOffered", "tutorialRequired", "hideDpiHint"):
     _st.pop(_k, None)
 json.dump(_st, open(STAGE + "/settings.json", "w", encoding="utf-8"),
           indent=2, ensure_ascii=False)

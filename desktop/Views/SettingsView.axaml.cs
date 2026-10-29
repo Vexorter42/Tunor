@@ -215,6 +215,12 @@ public partial class SettingsView : UserControl
             : "Выключено — локального прокси не будет.";
     }
 
+    private async void Tutorial_Click(object? sender, RoutedEventArgs e)
+    {
+        TutorialState.MarkOffered();
+        await new TutorialWindow(false).ShowDialog(this);
+    }
+
     private void Licenses_Click(object? sender, RoutedEventArgs e) => Open(Paths.LicensesDir);
     private void OpenRoot_Click(object? sender, RoutedEventArgs e) => Open(Paths.AppRoot);
 

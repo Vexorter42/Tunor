@@ -54,6 +54,10 @@
     <Compile Include="..\ui\Services\DpiTools.cs" Link="Services\DpiTools.cs" />
     <Compile Include="..\ui\Services\NodePing.cs" Link="Services\NodePing.cs" />
     <EmbeddedResource Include="..\catalog\catalog.json" LogicalName="catalog.json" />
+    <Compile Include="..\ui\Services\SceneModel.cs" Link="Services\SceneModel.cs" />
+    <Compile Include="..\ui\Services\Tutorial.cs" Link="Services\Tutorial.cs" />
+    <EmbeddedResource Include="..\tutorial\course.json" LogicalName="course.json" />
+    <EmbeddedResource Include="..\tutorial\scenes\*.json" LogicalName="scene-%(Filename)%(Extension)" />
     <Compile Include="..\ui\Services\DiagnosticsReport.cs" Link="Services\DiagnosticsReport.cs" />
     <Compile Include="..\ui\Services\TunnelColors.cs" Link="Services\TunnelColors.cs" />
     <Compile Include="..\ui\Services\EngineState.cs" Link="Services\EngineState.cs" />
