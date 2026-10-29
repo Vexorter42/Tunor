@@ -568,8 +568,8 @@ def thumbs(out, shots):
     d = ImageDraw.Draw(img)
     lines = ["Не открываются", "сайты?"]
     for k, l in enumerate(lines):
-        w = R.font(130, True).getlength(l)
-        d.text(((W - w) / 2, 250 + k * 160), l, font=R.font(130, True), fill=col("text")[:3])
+        w = R.font(112, True).getlength(l)
+        d.text(((W - w) / 2, 270 + k * 150), l, font=R.font(112, True), fill=col("text")[:3])
     sub = "Tunor решает за тебя"
     w = R.font(60, False).getlength(sub)
     d.text(((W - w) / 2, 1480), sub, font=R.font(60, True), fill=col("accent")[:3])
