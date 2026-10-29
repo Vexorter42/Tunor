@@ -1,0 +1,16 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# the engine library is fetched (fetch-libbox.py), not stored: 120 MB
+app/libs/*.aar
+
+# the key an APK is signed with never goes into the repository
+*.jks
+*.keystore
+signing.properties
