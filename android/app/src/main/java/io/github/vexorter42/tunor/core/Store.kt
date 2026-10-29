@@ -21,7 +21,7 @@ class Store(context: Context) {
     val state: StateFlow<State> = flow.asStateFlow()
 
     private fun read(): State = try {
-        if (file.exists()) json.decodeFromString(State.serializer(), file.readText()) else State()
+        if (file.exists()) json.decodeFromString(State.serializer(), file.readText()).migrated() else State()
     } catch (e: Exception) {
         State()          // an unreadable file is the same as none: the person starts again, the app does not crash
     }

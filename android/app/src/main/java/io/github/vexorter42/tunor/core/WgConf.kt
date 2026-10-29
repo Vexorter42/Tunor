@@ -28,9 +28,10 @@ class WgConf private constructor(val iface: Map<String, String>, val peer: Map<S
         return null
     }
 
-    /** The endpoint of the engine's configuration. */
-    fun toEndpoint(tag: String): JSONObject {
+    /** The endpoint of the engine's configuration; [detour] is the tag of what it is carried by, if it rides inside another tunnel. */
+    fun toEndpoint(tag: String, detour: String? = null): JSONObject {
         val ep = JSONObject().put("type", "wireguard").put("tag", tag)
+        if (detour != null) ep.put("detour", detour)
         iface["MTU"]?.toIntOrNull()?.let { ep.put("mtu", it) }
 
         val addresses = JSONArray()

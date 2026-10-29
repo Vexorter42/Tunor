@@ -11,17 +11,18 @@ import java.net.URL
 import java.util.Locale
 
 /**
- * A local entrance to the engine that always leads to one place whatever the rules say: one to the tunnel,
- * one to the direct road. The connection check goes in through them, to ask each road where it comes out.
- * They listen on the phone's own loopback and want a password made fresh each time the tunnel starts.
+ * Local entrances to the engine that each lead to one place whatever the rules say: one to every tunnel that
+ * is running, one to the direct road. The connection check goes in through them, to ask each road where it
+ * comes out. They listen on the phone's own loopback and want a password made fresh each time the engine starts.
  */
-class Door(val tunnelPort: Int, val directPort: Int, val user: String, val password: String) {
+class Door(val user: String, val password: String, val direct: Int, val tunnels: Map<String, Int>) {
     companion object {
-        fun fresh(): Door {
+        /** Doors for these tunnels, by id. */
+        fun fresh(ids: List<String>): Door {
             val chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
             val rnd = java.security.SecureRandom()
             val password = (1..24).map { chars[rnd.nextInt(chars.length)] }.joinToString("")
-            return Door(21082, 21081, "tunor", password)
+            return Door("tunor", password, 21081, ids.withIndex().associate { (i, id) -> id to 21082 + i })
         }
     }
 }

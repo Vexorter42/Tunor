@@ -19,7 +19,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -33,7 +32,6 @@ import androidx.compose.ui.unit.sp
 import io.github.vexorter42.tunor.bg.Phase
 import io.github.vexorter42.tunor.bg.Vpn
 import io.github.vexorter42.tunor.core.ConfigBuilder
-import io.github.vexorter42.tunor.core.Settings
 
 @Composable
 fun HomeScreen(vm: MainViewModel, padding: PaddingValues, onToggle: () -> Unit) {
@@ -42,7 +40,7 @@ fun HomeScreen(vm: MainViewModel, padding: PaddingValues, onToggle: () -> Unit) 
     val check by vm.check.collectAsState()
     val checking by vm.checking.collectAsState()
 
-    val tunnel = ConfigBuilder.activeTunnel(state)
+    val working = ConfigBuilder.live(state.tunnels)
     val running = phase == Phase.Started
     val busy = phase == Phase.Starting
 
@@ -78,10 +76,16 @@ fun HomeScreen(vm: MainViewModel, padding: PaddingValues, onToggle: () -> Unit) 
             val failed = phase as? Phase.Failed
             if (failed != null) {
                 Text(failed.why, color = Palette.Danger, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
-            } else if (tunnel == null) {
+            } else if (state.tunnels.isEmpty()) {
                 Text("Добавь туннель во вкладке «Туннели».", color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+            } else if (working.isEmpty()) {
+                Text("Ни один туннель не готов: причина написана во вкладке «Туннели».", color = Palette.Danger, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
             } else {
-                Text("Туннель: ${tunnel.title}", color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                val left = state.tunnels.size - working.size
+                Text(
+                    "Туннели: " + working.joinToString(", ") { it.title } + if (left > 0) " (не готовы: $left)" else "",
+                    color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),
+                )
             }
             Spacer(Modifier.height(14.dp))
             Button(
@@ -98,21 +102,22 @@ fun HomeScreen(vm: MainViewModel, padding: PaddingValues, onToggle: () -> Unit) 
         Panel(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Весь трафик через туннель", fontWeight = FontWeight.SemiBold)
+                    Text("Всё остальное", fontWeight = FontWeight.SemiBold)
                     Text(
-                        if (state.settings.everything == Settings.TUNNEL) "Всё идёт через туннель, кроме адресов в локальной сети."
-                        else "Через туннель идёт только то, что есть в правилах. Остальное — напрямую, скорость не страдает.",
+                        if (state.settings.rest.isEmpty()) "Идёт напрямую: через туннели только то, что названо в правилах. Скорость не страдает."
+                        else "Идёт через ${ConfigBuilder.titleOf(state.settings.rest, state.tunnels)}, кроме адресов в локальной сети.",
                         color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp),
                     )
                 }
-                Switch(checked = state.settings.everything == Settings.TUNNEL, onCheckedChange = vm::setEverything)
+                Spacer(Modifier.size(8.dp))
+                TunnelPicker(state.settings.rest, state.tunnels, vm::setRest, allowDirect = true)
             }
         }
 
         Panel(Modifier.fillMaxWidth()) {
             Text("Проверка соединения", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             Text(
-                "Спрашивает у Cloudflare, откуда виден запрос: через туннель и напрямую. Если страна не твоя, туннель работает.",
+                "Спрашивает у Cloudflare, откуда виден запрос: через каждый туннель и напрямую. Если страна не твоя, туннель работает.",
                 color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp),
             )
             Spacer(Modifier.height(12.dp))
@@ -123,14 +128,14 @@ fun HomeScreen(vm: MainViewModel, padding: PaddingValues, onToggle: () -> Unit) 
                 Spacer(Modifier.height(12.dp))
                 rows.forEach { r ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(r.road, fontWeight = FontWeight.SemiBold, color = if (r.road.startsWith("Через")) Palette.Accent else Palette.Blue, modifier = Modifier.weight(0.42f))
+                        Text(r.road, fontWeight = FontWeight.SemiBold, color = if (r.direct) Palette.Blue else Palette.Accent, modifier = Modifier.weight(0.5f).padding(end = 8.dp))
                         if (r.trace != null) {
-                            Column(Modifier.weight(0.58f)) {
+                            Column(Modifier.weight(0.5f)) {
                                 Text(r.trace.place, fontSize = 14.sp)
                                 Text(r.trace.ip, color = Palette.Dim, fontSize = 12.sp)
                             }
                         } else {
-                            Text(r.problem ?: "нет ответа", color = Palette.Danger, fontSize = 13.sp, modifier = Modifier.weight(0.58f))
+                            Text(r.problem ?: "нет ответа", color = Palette.Danger, fontSize = 13.sp, modifier = Modifier.weight(0.5f))
                         }
                     }
                 }

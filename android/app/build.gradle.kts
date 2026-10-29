@@ -22,8 +22,8 @@ android {
         applicationId = "io.github.vexorter42.tunor"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     signingConfigs {
@@ -64,6 +64,14 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    // The catalog of ready lists is the repository's own file, the one the desktop app carries too: a copy in the APK
+    // is what the app shows before it has asked the repository for a newer one, and without a network.
+    sourceSets {
+        getByName("main") {
+            assets.srcDir(rootProject.file("../catalog"))
+        }
     }
 
     compileOptions {

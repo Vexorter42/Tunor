@@ -21,6 +21,8 @@ import io.github.vexorter42.tunor.R
 import io.github.vexorter42.tunor.TunorApp
 import io.github.vexorter42.tunor.core.ConfigBuilder
 import io.github.vexorter42.tunor.core.ConfigProblem
+import io.github.vexorter42.tunor.core.Door
+import io.github.vexorter42.tunor.core.RuleSets
 import io.nekohasekai.libbox.BridgeOptions
 import io.nekohasekai.libbox.BridgeSession
 import io.nekohasekai.libbox.CommandServer
@@ -70,6 +72,10 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
             stopEngine()
             return START_NOT_STICKY
         }
+        if (intent?.action == Vpn.ACTION_RELOAD) {
+            scope.launch { reload() }
+            return START_NOT_STICKY
+        }
         foreground("Tunor", "Запускаю…")
         scope.launch { startEngine() }
         return START_NOT_STICKY
@@ -94,8 +100,9 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         Vpn.set(Phase.Starting)
 
         try {
-            val door = io.github.vexorter42.tunor.core.Door.fresh()
-            val config = ConfigBuilder.build(TunorApp.store.state.value, door)
+            val state = TunorApp.store.state.value
+            val door = Door.fresh(ConfigBuilder.live(state.tunnels).map { it.id })
+            val config = ConfigBuilder.build(state, door, have = RuleSets::path)
             Libbox.checkConfig(config)
             Vpn.door = door
 
@@ -301,13 +308,26 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         if (!stopping) stopEngine()
     }
 
-    override fun serviceReload() {
+    override fun serviceReload() { reload() }
+
+    /**
+     * Reads the setup again and gives it to the running engine. A setup that cannot run does not stop the one that
+     * does: the engine keeps what it has and the person is told why the change did not take.
+     */
+    private fun reload() {
         val s = server ?: return
+        if (stopping || Vpn.phase.value != Phase.Started) return
         try {
-            s.startOrReloadService(ConfigBuilder.build(TunorApp.store.state.value, Vpn.door), overrides())
+            val state = TunorApp.store.state.value
+            ConfigBuilder.problem(state)?.let { Vpn.note("Изменения не применились: $it"); return }
+            val door = Door.fresh(ConfigBuilder.live(state.tunnels).map { it.id })
+            val config = ConfigBuilder.build(state, door, have = RuleSets::path)
+            Libbox.checkConfig(config)
+            s.startOrReloadService(config, overrides())
+            Vpn.door = door
         } catch (e: Exception) {
             Log.e(TAG, "reload", e)
-            fail("настройки не применились: " + (e.message ?: ""))
+            Vpn.note("Изменения не применились: " + (e.message ?: e.javaClass.simpleName))
         }
     }
 
