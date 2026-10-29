@@ -597,7 +597,7 @@ def mux(name, voice, out, shots=None):
     print(f"готово: {final}  {os.path.getsize(final) / 1e6:.1f} МБ")
 
 
-def speech_intervals(voice, noise="-35dB", gap=0.5):
+def speech_intervals(voice, noise="-40dB", gap=0.5):
     """Where a recording is being spoken: what is left when the silences longer than `gap` are taken out."""
     r = subprocess.run(["ffmpeg", "-hide_banner", "-i", voice, "-af", f"silencedetect=noise={noise}:d={gap}", "-f", "null", "-"],
                        stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
@@ -617,19 +617,50 @@ def speech_intervals(voice, noise="-35dB", gap=0.5):
 def durations_for(name, voice):
     """How long each segment has to be so that each of its lines is said inside it.
 
-    The author reads the lines one after another with a breath between them; every stretch of speech
-    is one line. If the recording has more stretches than there are lines, the ones with the shortest
-    pause between them are taken for one (a breath in the middle of a sentence)."""
+    A person pauses to breathe inside a paragraph about as long as between two paragraphs, so the
+    longest pauses alone do not say where one line ends. What does is that a line takes as long to
+    say as it has letters, give or take: the recording is cut into one stretch per line so that every
+    stretch is about as fast as the others, and the cuts fall on the longer pauses when it is a close call."""
     story = SB.STORIES[name]
     lined = [i for i, s in enumerate(story.segs) if s.line]
-    spans = speech_intervals(voice)
-    while len(spans) > len(lined):
-        gaps = [spans[k + 1][0] - spans[k][1] for k in range(len(spans) - 1)]
-        k = gaps.index(min(gaps))
-        spans[k:k + 2] = [(spans[k][0], spans[k + 1][1])]
-    if len(spans) < len(lined):
-        raise SystemExit(f"В записи {len(spans)} кусков речи, а строк в сценарии {len(lined)}. "
+    chars = [len(story.segs[i].line) for i in lined]
+    stretches = speech_intervals(voice)
+    n, m = len(lined), len(stretches)
+    if m < n:
+        raise SystemExit(f"В записи {m} кусков речи, а строк в сценарии {n}. "
                          "Между строками нужна пауза хотя бы в секунду: прочитай по абзацу с вдохом между ними.")
+
+    # cost[i][j]: the stretches i..j-1 read as one line; gap[i]: the pause before stretch i
+    gap = [0.0] + [stretches[k][0] - stretches[k - 1][1] for k in range(1, m)]
+    total = stretches[-1][1] - stretches[0][0]
+    rate = total / sum(chars)                                 # seconds a letter takes, to begin with
+    for _ in range(4):
+        INF = float("inf")
+        best = [[INF] * (m + 1) for _ in range(n + 1)]
+        back = [[0] * (m + 1) for _ in range(n + 1)]
+        best[0][0] = 0.0
+        for k in range(1, n + 1):
+            for j in range(k, m - (n - k) + 1):
+                for i in range(k - 1, j):
+                    if best[k - 1][i] == INF:
+                        continue
+                    span = stretches[j - 1][1] - stretches[i][0]
+                    misfit = math.log(span / (rate * chars[k - 1])) ** 2
+                    reward = 0.25 * math.log(1 + gap[i]) if k > 1 else 0.0       # a cut on a longer pause is likelier
+                    c = best[k - 1][i] + misfit - reward
+                    if c < best[k][j]:
+                        best[k][j], back[k][j] = c, i
+        cuts, j = [], m
+        for k in range(n, 0, -1):
+            cuts.append((back[k][j], j))
+            j = back[k][j]
+        cuts.reverse()
+        spans = [(stretches[i][0], stretches[j - 1][1]) for i, j in cuts]
+        rate = sum(e - s for s, e in spans) / sum(chars)     # and now what they took
+
+    print("строка · начало · длина · знаков в секунду:")
+    for (s, e), c in zip(spans, chars):
+        print(f"   {s:6.1f}  {e - s:5.1f}  {c / (e - s):4.1f}")
 
     durs = [s.seconds() for s in story.segs]
     bounds = [0.0]
@@ -642,8 +673,40 @@ def durations_for(name, voice):
     return durs
 
 
-def fit(name, voice, out, shots, crf=22, workers=10):
-    durs = durations_for(name, voice)
+def clean_voice(name, recording, out, model, asr_python):
+    """The recording cut down to the best take of every sentence; returns (the new voice file, how long each segment is)."""
+    import edit as E
+    story = SB.STORIES[name]
+    lined = [i for i, s in enumerate(story.segs) if s.line]
+    lines = [story.segs[i].line for i in lined]
+    os.makedirs(out, exist_ok=True)
+    words_path = os.path.join(out, name + "-words.json")
+    subprocess.check_call([asr_python or sys.executable, "-I", os.path.join(HERE, "transcribe.py"), model, recording, words_path])
+    with open(words_path, encoding="utf-8") as f:
+        words = json.load(f)
+    runs, report = E.plan(lines, words)
+    voice = os.path.join(out, name + "-clean.wav")
+    blocks = E.assemble(recording, words, runs, voice)
+
+    print("предложение · где найдено · насколько совпало со сценарием:")
+    for li, si, sent, t0, t1, cover in report:
+        mark = "  " if cover >= 0.7 else "??"
+        print(f" {mark} строка {li + 1}.{si + 1}  {t0:6.1f}–{t1:6.1f} с  {cover:4.0%}  {sent[:60]}")
+    weak = [r for r in report if r[5] < 0.55]
+    if weak:
+        print(f"НАЙДЕНО ПЛОХО: {len(weak)} предложений; проверь на слух места, отмеченные «??»")
+
+    durs = [s.seconds() for s in story.segs]
+    for k, i in enumerate(lined):
+        durs[i] = round(blocks[k], 3)
+    return voice, durs
+
+
+def fit(name, voice, out, shots, crf=22, workers=10, model=None, asr_python=None):
+    if model:
+        voice, durs = clean_voice(name, voice, out, model, asr_python)
+    else:
+        durs = durations_for(name, voice)
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, name + "-durations.json")
     with open(path, "w", encoding="utf-8") as f:
@@ -664,6 +727,8 @@ def main():
     ap.add_argument("--workers", type=int, default=10)
     ap.add_argument("--durations", help="JSON: how long each segment is, when the real recording decides it")
     ap.add_argument("--limit", type=float, help="only the first N seconds (to try it)")
+    ap.add_argument("--asr", help="fit: folder of a Russian Vosk model; the recording is then cut to the best take of each sentence")
+    ap.add_argument("--asr-python", help="fit: the Python that has the vosk package (default: this one)")
     a = ap.parse_args()
     dur = load_durations(a.durations)
 
@@ -680,7 +745,7 @@ def main():
     elif a.cmd == "mux":
         mux(a.args[0], a.args[1], a.out)
     elif a.cmd == "fit":
-        fit(a.args[0], a.args[1], a.out, a.shots, a.crf, a.workers)
+        fit(a.args[0], a.args[1], a.out, a.shots, a.crf, a.workers, a.asr, a.asr_python)
 
 
 if __name__ == "__main__":
