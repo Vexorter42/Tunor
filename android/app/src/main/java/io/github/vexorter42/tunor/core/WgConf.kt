@@ -86,8 +86,9 @@ class WgConf private constructor(val iface: Map<String, String>, val peer: Map<S
 
     companion object {
         fun parse(text: String): WgConf {
-            val iface = LinkedHashMap<String, String>()
-            val peer = LinkedHashMap<String, String>()
+            // Key names are not case-sensitive in WireGuard: "JC" and "Jc" are the same parameter.
+            val iface = java.util.TreeMap<String, String>(String.CASE_INSENSITIVE_ORDER)
+            val peer = java.util.TreeMap<String, String>(String.CASE_INSENSITIVE_ORDER)
             var section: MutableMap<String, String>? = null
             for (raw in text.lineSequence()) {
                 val line = clean(raw)

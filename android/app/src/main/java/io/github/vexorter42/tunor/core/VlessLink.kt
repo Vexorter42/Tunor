@@ -3,7 +3,6 @@ package io.github.vexorter42.tunor.core
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.IDN
-import java.net.URI
 import java.net.URLDecoder
 
 /**
@@ -27,20 +26,34 @@ object VlessLink {
         val text = link.trim()
         if (!looksLike(text)) return bad("ссылка должна начинаться с vless://")
 
-        val uri = try { URI(text) } catch (e: Exception) { return bad("ссылку не разобрать: " + (e.message ?: "")) }
-        val uuid = decode(uri.rawUserInfo.orEmpty())
+        // By hand, not java.net.URI: providers write the name after # as it is — spaces, Cyrillic, emoji — and URI refuses all of it.
+        val rest = text.substringAfter("://")
+        val hash = rest.indexOf('#')
+        val fragment = if (hash >= 0) rest.substring(hash + 1) else ""
+        val beforeHash = if (hash >= 0) rest.substring(0, hash) else rest
+        val qMark = beforeHash.indexOf('?')
+        val rawQuery = if (qMark >= 0) beforeHash.substring(qMark + 1) else ""
+        val authority = (if (qMark >= 0) beforeHash.substring(0, qMark) else beforeHash).substringBefore('/')
+        val at = authority.lastIndexOf('@')
+        val userInfo = if (at >= 0) authority.substring(0, at) else ""
+        val hostPort = if (at >= 0) authority.substring(at + 1) else authority
+        val v6 = hostPort.startsWith("[")
+        val hostPart = if (v6) hostPort.substringAfter('[').substringBefore(']') else hostPort.substringBeforeLast(':', hostPort)
+        val portPart = if (v6) hostPort.substringAfter("]:", "") else if (':' in hostPort) hostPort.substringAfterLast(':') else ""
+
+        val uuid = decode(userInfo)
         if (uuid.isEmpty()) return bad("в ссылке нет идентификатора (часть до @)")
         if (!Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$").matches(uuid)) {
             return bad("идентификатор не похож на UUID: «${short(uuid)}»")
         }
-        val rawHost = uri.host.orEmpty().trim('[', ']')
+        val rawHost = hostPart.trim()
         if (rawHost.isEmpty()) return bad("в ссылке нет адреса сервера")
         val host = try { IDN.toASCII(rawHost) } catch (e: Exception) { rawHost }
-        val port = uri.port
+        val port = portPart.toIntOrNull() ?: -1
         if (port <= 0 || port > 65535) return bad("в ссылке нет порта сервера или он неправильный")
 
         val q = HashMap<String, String>()
-        for (pair in uri.rawQuery.orEmpty().split('&')) {
+        for (pair in rawQuery.split('&')) {
             if (pair.isEmpty()) continue
             val eq = pair.indexOf('=')
             val key = decode(if (eq < 0) pair else pair.substring(0, eq))
@@ -48,7 +61,7 @@ object VlessLink {
         }
         fun get(key: String) = q[key].orEmpty()
 
-        val name = decode(uri.rawFragment.orEmpty()).ifEmpty { host }
+        val name = decode(fragment).trim().ifEmpty { host }
         val o = JSONObject().put("type", "vless").put("server", host).put("server_port", port).put("uuid", uuid)
 
         // Xray writes encryption=none for plain VLESS; anything else is VLESS Encryption, which the engine supports.
