@@ -155,29 +155,38 @@ def _typed(text, fraction):
 
 # ---------------------------------------------------------------------------- drawing
 
-def render(scene, t, width=960, ss=2, background="deep", height=None):
+def render(scene, t, width=960, ss=2, background="deep", height=None, view=None):
     """One frame, width pixels wide, the scene's own proportions unless height is given
-    (then the scene is centred, for a video frame of another shape)."""
-    scale = width / scene["w"]
+    (then the scene is centred, for a video frame of another shape).
+
+    view=(x, y, w, h), in the scene's own units, shows only that part of it, as large as the
+    frame allows: a camera that has come closer."""
+    if view is None:
+        view = (0, 0, scene["w"], scene["h"])
+    vx, vy, vw, vh = view
+    scale = width / vw
     W = width
-    H = height or round(scene["h"] * scale)
-    off_y = (H - scene["h"] * scale) / 2
+    H = height or round(vh * scale)
+    if vh * scale > H:                       # a frame too short for the view: fit the height instead
+        scale = H / vh
+    ox = (W - vw * scale) / 2 - vx * scale
+    oy = (H - vh * scale) / 2 - vy * scale
     img = Image.new("RGBA", (W, H), rgba(background))
     for st in states(scene, t):
         if st["o"] <= 0.004:
             continue
-        _paint(img, st, scale, off_y, ss)
+        _paint(img, st, scale, ox, oy, ss)
     return img.convert("RGB")
 
 
-def _paint(img, st, scale, off_y, ss):
+def _paint(img, st, scale, ox, oy, ss):
     it = st["item"]
     kind = it["k"]
     sw = it.get("sw", 1.5)
     pad = 6 * scale + sw * scale
 
     if kind == "text":
-        _paint_text(img, st, scale, off_y, ss)
+        _paint_text(img, st, scale, ox, oy, ss)
         return
 
     # Work out the box this item covers, draw it supersampled on a layer of its own, shrink, mix in.
@@ -190,15 +199,15 @@ def _paint(img, st, scale, off_y, ss):
         ys = [p[1] for p in st["pts"]]
         x0, y0, x1, y1 = min(xs), min(ys), max(xs), max(ys)
 
-    bx0 = math.floor(x0 * scale - pad)
-    by0 = math.floor(y0 * scale + off_y - pad)
+    bx0 = math.floor(x0 * scale + ox - pad)
+    by0 = math.floor(y0 * scale + oy - pad)
     bw = math.ceil((x1 - x0) * scale + 2 * pad) + 1
     bh = math.ceil((y1 - y0) * scale + 2 * pad) + 1
     layer = Image.new("RGBA", (bw * ss, bh * ss), (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
 
     def px(x, y):
-        return ((x * scale - bx0) * ss, (y * scale + off_y - by0) * ss)
+        return ((x * scale + ox - bx0) * ss, (y * scale + oy - by0) * ss)
 
     fill = rgba(it.get("fill"))
     stroke = rgba(it.get("stroke"))
@@ -233,18 +242,19 @@ def _paint(img, st, scale, off_y, ss):
     if st["o"] < 1:
         alpha = layer.getchannel("A").point(lambda v: round(v * st["o"]))
         layer.putalpha(alpha)
-    img.alpha_composite(layer, (bx0, by0)) if (bx0 >= 0 and by0 >= 0 and bx0 + bw <= img.width and by0 + bh <= img.height) \
-        else _composite_clipped(img, layer, bx0, by0)
+    _composite_clipped(img, layer, bx0, by0)
 
 
 def _composite_clipped(img, layer, x, y):
-    # alpha_composite refuses a layer that hangs over the edge; paste with the layer as its own mask does not.
-    base = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    base.paste(layer, (x, y))
-    img.alpha_composite(base)
+    # alpha_composite refuses a layer that hangs over the edge: lay on only the part that is inside.
+    x0, y0 = max(0, x), max(0, y)
+    x1, y1 = min(img.width, x + layer.width), min(img.height, y + layer.height)
+    if x1 <= x0 or y1 <= y0:
+        return
+    img.alpha_composite(layer.crop((x0 - x, y0 - y, x1 - x, y1 - y)), (x0, y0))
 
 
-def _paint_text(img, st, scale, off_y, ss):
+def _paint_text(img, st, scale, ox, oy, ss):
     it = st["item"]
     text = st.get("text") or ""
     if not text:
@@ -261,8 +271,8 @@ def _paint_text(img, st, scale, off_y, ss):
     pad = 6 * scale
     bw = math.ceil(wmax + 2 * pad) + 1
     bh = math.ceil(total + 2 * pad) + 1
-    ax = st["x"] * scale
-    ay = st["y"] * scale + off_y
+    ax = st["x"] * scale + ox
+    ay = st["y"] * scale + oy
     if align == "c":
         bx0 = math.floor(ax - wmax / 2 - pad)
     elif align == "l":
