@@ -60,6 +60,8 @@
                 <TextBlock Text="О программе" Classes="h2"/>
                 <TextBlock x:Name="AboutText" Classes="dim" TextWrapping="Wrap"/>
                 <WrapPanel>
+                    <Button Classes="ghost" Content="Пройти обучение заново" Margin="0,0,8,6"
+                            Click="Tutorial_Click"/>
                     <Button Classes="ghost" Content="Лицензии" Margin="0,0,8,6"
                             Click="Licenses_Click"/>
                     <Button Classes="ghost" Content="Открыть папку приложения" Margin="0,0,8,6"

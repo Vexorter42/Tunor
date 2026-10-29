@@ -47,6 +47,9 @@
     <Resource Include="Assets\app.png" />
     <!-- The catalog of ready rule lists that comes with the program; a newer one is fetched from the repository. -->
     <EmbeddedResource Include="..\catalog\catalog.json" LogicalName="catalog.json" />
+    <!-- The tutorial: what it teaches and asks (one file for every front end) and the animated pictures that go with it. -->
+    <EmbeddedResource Include="..\tutorial\course.json" LogicalName="course.json" />
+    <EmbeddedResource Include="..\tutorial\scenes\*.json" LogicalName="scene-%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

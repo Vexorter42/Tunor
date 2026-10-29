@@ -1,0 +1,202 @@
+<v:DialogPanel x:Class="Tunor.Views.TutorialDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="clr-namespace:Tunor.Views"
+        Title="Обучение"
+        Width="660" Height="566"
+        Background="{StaticResource BgBrush}"
+        Foreground="{StaticResource TextBrush}">
+
+    <v:DialogPanel.Resources>
+        <!-- An answer to a question: a box that says which of them it is by its colour once chosen. -->
+        <Style x:Key="OptionButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource BgInputBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="16,11"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1.5"
+                                CornerRadius="12" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgHoverBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </v:DialogPanel.Resources>
+
+    <Grid Margin="26,18,26,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <Image Source="../Assets/app.png" Width="32" Height="32"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                <TextBlock x:Name="StepTitle" Style="{StaticResource H1}"/>
+                <TextBlock x:Name="StepSubtitle" Style="{StaticResource Dim}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Where in the course -->
+        <Grid Grid.Row="1" Margin="0,12,0,0">
+            <StackPanel x:Name="Progress" Orientation="Horizontal" VerticalAlignment="Center"/>
+            <TextBlock x:Name="ProgressText" Style="{StaticResource Dim}" HorizontalAlignment="Right"
+                       VerticalAlignment="Center"/>
+        </Grid>
+
+        <!-- The screens -->
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+
+            <!-- terms -->
+            <Border x:Name="PTerms" Style="{StaticResource Card}" Visibility="Collapsed">
+                <DockPanel>
+                    <CheckBox x:Name="ChkAccept" DockPanel.Dock="Bottom" Margin="0,14,0,0"
+                              Checked="Accept_Changed" Unchecked="Accept_Changed"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <TextBlock x:Name="AgreementText" TextWrapping="Wrap" LineHeight="20"
+                                   FontSize="12.5" Foreground="{StaticResource TextBrush}"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- a lesson -->
+            <Border x:Name="PLesson" Style="{StaticResource Card}" Padding="16,12" Visibility="Collapsed">
+                <DockPanel>
+                    <v:SceneView x:Name="LessonScene" DockPanel.Dock="Top" MaxWidth="392"
+                                 HorizontalAlignment="Center"/>
+                    <ProgressBar x:Name="LessonBar" DockPanel.Dock="Top" Minimum="0" Maximum="1" Height="3"
+                                 MaxWidth="392" Margin="0,5,0,0" Value="0"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                        <StackPanel x:Name="LessonPoints"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- the question after a lesson -->
+            <Border x:Name="PCheck" Style="{StaticResource Card}" Visibility="Collapsed">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock x:Name="CheckKicker" Style="{StaticResource Dim}"/>
+                        <TextBlock x:Name="CheckQuestion" Style="{StaticResource H2}" TextWrapping="Wrap"
+                                   Margin="0,6,0,16" LineHeight="22"/>
+                        <StackPanel x:Name="CheckOptions"/>
+                        <TextBlock x:Name="CheckFeedback" TextWrapping="Wrap" FontSize="12.5" LineHeight="19"
+                                   Margin="2,6,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- setting up -->
+            <Border x:Name="PSetup" Style="{StaticResource Card}" Visibility="Collapsed">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="1. Списки правил" Style="{StaticResource H2}"/>
+                        <TextBlock x:Name="SetupLists" TextWrapping="Wrap" LineHeight="18" FontSize="12.5"
+                                   Margin="0,5,0,0" Foreground="{StaticResource TextDimBrush}"/>
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="BtnDownloadLists" Content="Скачать списки" Style="{StaticResource SecondaryButton}"
+                                    Padding="18,8" MinWidth="190" Click="DownloadLists_Click"/>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
+                                <TextBlock x:Name="ListsStatus" Style="{StaticResource Dim}" TextWrapping="Wrap"/>
+                                <ProgressBar x:Name="ListsBar" Minimum="0" Maximum="100" Visibility="Collapsed" Height="3" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="2. Конфиг WARP" Style="{StaticResource H2}" Margin="0,18,0,0"/>
+                        <TextBlock x:Name="SetupBot" TextWrapping="Wrap" LineHeight="18" FontSize="12.5"
+                                   Margin="0,5,0,0" Foreground="{StaticResource TextDimBrush}"/>
+                        <TextBlock x:Name="SetupAdd" TextWrapping="Wrap" LineHeight="18" FontSize="12.5"
+                                   Margin="0,4,0,0" Foreground="{StaticResource TextDimBrush}"/>
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Content="Открыть бота в Telegram" Style="{StaticResource SecondaryButton}"
+                                    Padding="18,8" MinWidth="190" Click="OpenBot_Click"/>
+                            <TextBlock x:Name="WarpStatus" Grid.Column="1" FontWeight="SemiBold" FontSize="12.5"
+                                       VerticalAlignment="Center" Margin="14,0,0,0" TextWrapping="Wrap"/>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- an exam question -->
+            <Border x:Name="PExam" Style="{StaticResource Card}" Visibility="Collapsed">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock x:Name="ExamKicker" Style="{StaticResource Dim}"/>
+                        <TextBlock x:Name="ExamQuestion" Style="{StaticResource H2}" TextWrapping="Wrap"
+                                   Margin="0,6,0,16" LineHeight="22"/>
+                        <StackPanel x:Name="ExamOptions"/>
+                        <TextBlock x:Name="ExamFeedback" TextWrapping="Wrap" FontSize="12.5" LineHeight="19"
+                                   Margin="2,6,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- the result -->
+            <Border x:Name="PResult" Style="{StaticResource Card}" Visibility="Collapsed">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock x:Name="ResultHead" Style="{StaticResource H2}" TextWrapping="Wrap"/>
+                        <StackPanel x:Name="ResultBody" Margin="0,10,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- done -->
+            <Border x:Name="PDone" Style="{StaticResource Card}" Visibility="Collapsed">
+                <DockPanel>
+                    <v:SceneView x:Name="DoneScene" DockPanel.Dock="Top" MaxWidth="330" HorizontalAlignment="Center"
+                                 Margin="0,0,0,12"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="DonePoints"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- Navigation -->
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="NavHint" Grid.Column="0" Style="{StaticResource Dim}" VerticalAlignment="Center"
+                       TextWrapping="Wrap" Margin="0,0,16,0"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="BtnBack" Content="Назад" Style="{StaticResource SecondaryButton}"
+                        Click="Back_Click" MinWidth="100" Margin="0,0,10,0"/>
+                <Button x:Name="BtnNext" Content="Далее" Style="{StaticResource PrimaryButton}"
+                        Click="Next_Click" MinWidth="170"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</v:DialogPanel>

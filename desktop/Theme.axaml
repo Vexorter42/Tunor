@@ -116,6 +116,30 @@
         <Setter Property="FontSize" Value="12.5"/>
     </Style>
 
+    <!-- an answer to a question in the tutorial: it says which of them it is by its colour once chosen -->
+    <Style Selector="Button.option">
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="BorderThickness" Value="1.5"/>
+        <Setter Property="Padding" Value="16,11"/>
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+    <Style Selector="Button.option:pointerover /template/ ContentPresenter">
+        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+    </Style>
+    <Style Selector="Button.option.right">
+        <Setter Property="Background" Value="{StaticResource AccentSoftBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+    </Style>
+    <Style Selector="Button.option.wrong">
+        <Setter Property="Background" Value="#38FF6B6B"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
+    </Style>
+    <Style Selector="Button.option.muted">
+        <Setter Property="Foreground" Value="{StaticResource TextDimBrush}"/>
+    </Style>
+
     <!-- the sidebar entries -->
     <Style Selector="RadioButton.nav">
         <Setter Property="Foreground" Value="{StaticResource TextDimBrush}"/>

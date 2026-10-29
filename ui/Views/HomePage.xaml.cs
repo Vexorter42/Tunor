@@ -110,6 +110,7 @@ public partial class HomePage : UserControl
         BtnStop.IsEnabled = running;
         UpdateSetupWarning();
         UpdateDpiHint();
+        UpdateTutorialOffer();
     }
 
     // ------------------------------------------------------------ check
@@ -202,6 +203,25 @@ public partial class HomePage : UserControl
         if (direct?.Status == "fail" && warp?.Status == "ok")
             return "Напрямую сервер проверки не открылся — похоже, провайдер его ограничивает. Туннель при этом работает.";
         return "Всё работает.";
+    }
+
+    private void UpdateTutorialOffer()
+    {
+        try { TutorialCard.Visibility = TutorialState.Needed(SettingsService.Load(), Course.Load().Version) == TutorialNeed.Offer ? Visibility.Visible : Visibility.Collapsed; }
+        catch { TutorialCard.Visibility = Visibility.Collapsed; }
+    }
+
+    private void StartTutorial_Click(object sender, RoutedEventArgs e)
+    {
+        TutorialState.MarkOffered();
+        TutorialCard.Visibility = Visibility.Collapsed;
+        new TutorialDialog(required: false) { Owner = Window.GetWindow(this) }.ShowDialog();
+    }
+
+    private void SkipTutorial_Click(object sender, RoutedEventArgs e)
+    {
+        TutorialState.MarkOffered();
+        TutorialCard.Visibility = Visibility.Collapsed;
     }
 
     private void UpdateDpiHint()

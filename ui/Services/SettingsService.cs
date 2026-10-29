@@ -79,6 +79,24 @@ public class AppSettings : INotifyPropertyChanged
     [JsonPropertyName("lastSeenVersion")]
     public string LastSeenVersion { get => _lastSeenVersion; set => Set(ref _lastSeenVersion, value ?? ""); }
 
+    private int _tutorialPassed;
+
+    /// <summary>The version of the tutorial this person has passed; 0 — never.</summary>
+    [JsonPropertyName("tutorialPassed")]
+    public int TutorialPassed { get => _tutorialPassed; set => Set(ref _tutorialPassed, value); }
+
+    private bool _tutorialRequired;
+
+    /// <summary>A new install began the tutorial that has to be passed; until it is, closing and reopening the program does not get around it.</summary>
+    [JsonPropertyName("tutorialRequired")]
+    public bool TutorialRequired { get => _tutorialRequired; set => Set(ref _tutorialRequired, value); }
+
+    private bool _tutorialOffered;
+
+    /// <summary>Someone who already used the program has been asked once whether they want the tutorial.</summary>
+    [JsonPropertyName("tutorialOffered")]
+    public bool TutorialOffered { get => _tutorialOffered; set => Set(ref _tutorialOffered, value); }
+
     private bool _hideDpiHint;
 
     /// <summary>The person has read the note about zapret and TUN and does not want it on the Home page again.</summary>

@@ -46,6 +46,19 @@
             </StackPanel>
         </Border>
 
+        <!-- the tutorial, offered once to someone who used the program before it had one -->
+        <Border x:Name="TutorialCard" Classes="card" IsVisible="False">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Обучение за три минуты" Classes="h2"/>
+                <TextBlock Classes="dim" TextWrapping="Wrap"
+                           Text="Короткие анимации и вопросы: как работают правила, где взять конфиг и что делать, если что-то не открывается. Поможет и тем, кто давно пользуется."/>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primary" Content="Пройти" MinWidth="120" Click="StartTutorial_Click"/>
+                    <Button Classes="ghost" Content="Не сейчас" Click="SkipTutorial_Click"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
         <!-- zapret / GoodbyeDPI next to TUN: what they do to each other, and what to do -->
         <Border x:Name="DpiCard" Classes="card" IsVisible="False">
             <StackPanel Spacing="8">

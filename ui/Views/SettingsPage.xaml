@@ -62,13 +62,13 @@
                             HorizontalAlignment="Left" Margin="0,8,0,0" Click="OpenLogs_Click"/>
 
                     <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                        <Button Content="Условия использования и туториал"
+                        <Button Content="Пройти обучение заново"
                                 Style="{StaticResource SecondaryButton}" MinWidth="260"
                                 Click="ShowWizard_Click"/>
                         <Button Content="Лицензии" Style="{StaticResource GhostButton}"
                                 MinWidth="120" Margin="10,0,0,0" Click="Licenses_Click"/>
                     </StackPanel>
-                    <TextBlock Text="Условия, подсказки по настройке и лицензии сторонних компонентов (sing-box, GPL v3)"
+                    <TextBlock Text="Короткие анимации и вопросы о том, как устроен Tunor. Здесь же лицензии сторонних компонентов (sing-box, GPL v3)"
                                Style="{StaticResource Dim}" Margin="2,6,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>

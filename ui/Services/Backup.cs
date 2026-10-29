@@ -65,7 +65,7 @@ public static class Backup
     private const long MaxTotal = 64L * 1024 * 1024;
 
     /// <summary>Keys of settings.json that belong to this machine and never travel.</summary>
-    private static readonly string[] OwnSettings = { "accept", "paths", "controllerPort", "controllerSecret", "listsUpdatedAt", "lastSeenVersion" };
+    private static readonly string[] OwnSettings = { "accept", "paths", "controllerPort", "controllerSecret", "listsUpdatedAt", "lastSeenVersion", "tutorialPassed", "tutorialOffered", "tutorialRequired" };
 
     // update.json is deliberately not here: it says where updates are fetched from, and a file that
     // someone else made must not be able to change that.

@@ -51,6 +51,7 @@ internal static class Program
         ("Окно: точка WARP", () => new WarpEndpointWindow()),
         ("Окно: пароль к копии", () => PasswordWindow.ForSaving()),
         ("Окно: пароль к копии (открытие)", () => PasswordWindow.ForOpening("Пароль не подошёл")),
+        ("Окно: обучение", () => new TutorialWindow(false)),
         ("Окно: что нового", () => new WhatsNewWindow("2.2.0", WhatsNew.Format("Текст.\n\n---\n\n**Заголовок**\n\nАбзац."))),
     };
 
@@ -91,6 +92,8 @@ internal static class Program
                       DpiToolsChecks, failures);
                 Check("Пинг серверов подписки: адрес из ссылки, середина трёх замеров, не ответившие, один поиск имени, не больше восьми разом, остановка, порядок",
                       () => Task.Run(NodePingChecks).GetAwaiter().GetResult(), failures);
+                Check("Обучение: курс для каждой системы, сцены считаются верно, пропустить нельзя, экзамен перемешан и пересдаётся, кому обязательно",
+                      TutorialChecks, failures);
             })
             .SetupWithoutStarting();
 
@@ -1555,6 +1558,306 @@ internal static class Program
     /// answers, a server that did not answer or whose name is not found, a lookup shared by the servers of one host, at most
     /// eight at a time, a run that can be stopped, the order nearest-first with the dead ones last — and a real connection.
     /// </summary>
+    private static void TutorialChecks()
+    {
+        static void Throws<T>(Action act, string what) where T : Exception
+        {
+            try { act(); }
+            catch (T) { return; }
+            throw new Exception(what);
+        }
+
+        // ---- the shipped course reads in every wording, and every picture it names is in the program
+        var shipped = Scene.Shipped().ToHashSet();
+        var named = new HashSet<string>();
+        foreach (var os in Enum.GetValues<TutorialOs>())
+        {
+            var c = Course.Load(os);
+            named.Add(c.DoneScene);
+            foreach (var l in c.Lessons)
+            {
+                named.Add(l.Scene);
+                if (!shipped.Contains(l.Scene)) throw new Exception($"{os}: урок «{l.Id}» просит сцену «{l.Scene}», а её нет в программе");
+                if (l.Points.Length == 0) throw new Exception($"{os}: у урока «{l.Id}» нет текста");
+            }
+        }
+        foreach (var s in shipped)
+            if (!named.Contains(s)) throw new Exception($"сцена «{s}» лежит в программе и не нужна ни одному уроку");
+
+        var win = Course.Load(TutorialOs.Windows);
+        var mac = Course.Load(TutorialOs.Mac);
+        var linux = Course.Load(TutorialOs.Linux);
+        if (win.Lessons.First(l => l.Id == "start").Points.Length + 1 != mac.Lessons.First(l => l.Id == "start").Points.Length)
+            throw new Exception("про службу и TUN должно быть сказано только на Mac");
+        if (!mac.Lessons.First(l => l.Id == "tray").Points[0].Contains("строку меню")) throw new Exception("на Mac трей — это строка меню");
+        if (win.Lessons.First(l => l.Id == "tray").Points[0].Contains("меню") || linux.Lessons.First(l => l.Id == "tray").Points[0].Contains("меню"))
+            throw new Exception("слова про строку меню попали не на Mac");
+
+        // every picture can be worked out at every moment, and the numbers are numbers
+        foreach (var name in shipped)
+        {
+            var scene = Scene.Load(name);
+            ItemState[]? buf = null;
+            for (var t = 0.0; t <= scene.Duration + 0.5; t += 0.2)
+            {
+                buf = scene.At(t, buf);
+                for (var i = 0; i < buf.Length; i++)
+                {
+                    var s = buf[i];
+                    foreach (var v in new[] { s.X, s.Y, s.W, s.H, s.R, s.Size, s.Opacity })
+                        if (double.IsNaN(v) || double.IsInfinity(v)) throw new Exception($"{name}: «{scene.Items[i].Id}» в момент {t:0.0} — не число");
+                    if (scene.Items[i].Kind == SceneKind.Poly && (s.Points == null || s.Points.Length == 0))
+                        throw new Exception($"{name}: у линии «{scene.Items[i].Id}» в момент {t:0.0} нет точек");
+                }
+            }
+            if (scene.Duration < 3 || scene.Duration > 30) throw new Exception($"{name}: длительность {scene.Duration} с — не для обучения");
+        }
+
+        // ---- the arithmetic of a scene
+        var sc = Scene.Parse("t", """
+            { "w":100, "h":100, "dur":4,
+              "items":[
+                {"id":"a","k":"rect","x":0,"y":0,"w":40,"h":20,"r":4,"text":"abcd","size":10,"n":0,"fill":"panel"},
+                {"id":"b","k":"rect","x":0,"y":0,"w":40,"h":20,"o":0},
+                {"id":"p","k":"poly","x":0,"y":0,"pts":[[0,0],[10,0],[10,10]],"stroke":"accent","draw":0},
+                {"id":"c","k":"circle","x":10,"y":10,"r":5},
+                {"id":"d","k":"rect","x":0,"y":0,"w":40,"h":20},
+                {"id":"e","k":"text","x":50,"y":50,"text":"xyz","size":10}
+              ],
+              "tracks":[
+                {"i":"a","p":"x","k":[[0,0,"l"],[2,100]]},
+                {"i":"a","p":"n","k":[[0,0,"l"],[2,1]]},
+                {"i":"b","p":"o","k":[[1,0,"l"],[2,1]]},
+                {"i":"p","p":"draw","k":[[0,0,"l"],[2,1]]},
+                {"i":"c","p":"x","k":[[0,10],[2,50,"h"],[4,90]]},
+                {"i":"c","p":"y","k":[[0,0,"o"],[2,100]]},
+                {"i":"d","p":"s","k":[[0,1,"l"],[1,2]]},
+                {"i":"e","p":"y","k":[[0,0,"i"],[2,80]]}
+              ] }
+            """);
+        static void Near(double got, double want, string what)
+        {
+            if (Math.Abs(got - want) > 1e-6) throw new Exception($"{what}: {got}, ждали {want}");
+        }
+        var s0 = sc.At(0);
+        var s1 = sc.At(1);
+        var s15 = sc.At(1.5);
+        var s2 = sc.At(2);
+        var s3 = sc.At(3);
+        var s9 = sc.At(9);
+        Near(s1[0].X, 50, "равномерное движение к середине");
+        Near(sc.At(-5)[0].X, 0, "до первого ключа значение первого");
+        Near(s9[0].X, 100, "после последнего ключа значение последнего");
+        if (s0[0].Text != "" || s1[0].Text != "ab" || s2[0].Text != "abcd") throw new Exception($"набор текста: «{s0[0].Text}», «{s1[0].Text}», «{s2[0].Text}»");
+        Near(s0[1].Opacity, 0, "скрыт до ключа"); Near(s15[1].Opacity, 0.5, "полупрозрачный посередине"); Near(s2[1].Opacity, 1, "виден после");
+        var half = s1[2].Points!;
+        Near(half[^1].X, 10, "половина линии: конец по x"); Near(half[^1].Y, 0, "половина линии: конец по y");
+        var threeQuarters = sc.At(1.5)[2].Points!;
+        Near(threeQuarters[^1].X, 10, "три четверти линии: по x"); Near(threeQuarters[^1].Y, 5, "три четверти линии: по y");
+        if (sc.At(0)[2].Points!.Length != 1) throw new Exception("нарисованная на нуль линия должна быть точкой");
+        if (s3[3].X != 50) throw new Exception($"«держать» не держит: {s3[3].X}");
+        Near(sc.At(4)[3].X, 90, "после «держать» значение следующего ключа");
+        Near(sc.At(1)[3].Y, 100 * (1 - Math.Pow(1 - 0.5, 3)), "замедление к концу");
+        Near(sc.At(1)[5].Y, 80 * 0.125, "медленный старт");
+        Near(s1[4].X, -20, "увеличение вокруг центра: x"); Near(s1[4].Y, -10, "увеличение вокруг центра: y");
+        Near(s1[4].W, 80, "увеличение: ширина"); Near(s1[4].H, 40, "увеличение: высота");
+        Near(Scene.Ease('x', 0.5), 0.5, "плавное начало и конец посередине"); Near(Scene.Ease('x', 0.25), 0.0625, "плавное: четверть");
+        Near(Scene.Ease('b', 1), 1, "прыжок кончает там, где надо");
+        var overshoot = Enumerable.Range(1, 99).Select(i => Scene.Ease('b', i / 100.0)).Max();
+        if (overshoot <= 1) throw new Exception("прыжок не перелетает");
+
+        Throws<FormatException>(() => Scene.Parse("x", """{"w":10,"h":10,"dur":1,"items":[{"id":"a","k":"circle"}],"tracks":[{"i":"zz","p":"x","k":[[0,0]]}]}"""), "дорожка про несуществующий предмет принята");
+        Throws<FormatException>(() => Scene.Parse("x", """{"w":10,"h":10,"dur":1,"items":[{"id":"a","k":"circle"}],"tracks":[{"i":"a","p":"x","k":[[1,0],[0,1]]}]}"""), "ключи не по порядку приняты");
+        Throws<FormatException>(() => Scene.Parse("x", """{"w":10,"h":10,"dur":1,"items":[{"id":"a","k":"circle"}],"tracks":[{"i":"a","p":"fill","k":[[0,0]]}]}"""), "дорожка про то, что не анимируется, принята");
+        Throws<FormatException>(() => Scene.Parse("x", """{"w":10,"h":10,"dur":1,"items":[{"id":"a","k":"blob"}]}"""), "неизвестный вид принят");
+        Throws<FormatException>(() => Scene.Parse("x", """{"w":10,"h":10,"dur":1,"items":[{"id":"a","k":"circle"},{"id":"a","k":"circle"}]}"""), "два предмета с одним именем приняты");
+        Throws<FormatException>(() => Scene.Parse("x", """{"w":10,"h":10,"dur":0,"items":[]}"""), "сцена без длительности принята");
+        Throws<FormatException>(() => Scene.Parse("x", """{"w":10,"h":10,"dur":1,"items":[{"id":"a","k":"poly","pts":[[0,0]]}]}"""), "линия из одной точки принята");
+
+        if (SceneColors.Resolve("accent") != 0xFF3DDC5C) throw new Exception("цвет accent");
+        if (SceneColors.Resolve("#112233") != 0xFF112233) throw new Exception("цвет #RRGGBB");
+        if (SceneColors.Resolve("#80112233") != 0x80112233) throw new Exception("цвет #AARRGGBB");
+        if (SceneColors.Resolve("none") != null || SceneColors.Resolve(null) != null) throw new Exception("нет цвета");
+        Throws<FormatException>(() => SceneColors.Resolve("нет такого"), "неизвестный цвет принят");
+        foreach (var name in shipped)
+        {
+            var scene = Scene.Load(name);
+            foreach (var it in scene.Items) { SceneColors.Resolve(it.Fill); SceneColors.Resolve(it.Stroke); SceneColors.Resolve(it.TextColor); }
+        }
+
+        // ---- a bad course is refused rather than shown
+        string raw;
+        using (var rs = new StreamReader(typeof(Course).Assembly.GetManifestResourceStream("course.json")!)) raw = rs.ReadToEnd();
+        Throws<FormatException>(() => Course.Parse(raw.Replace("\"pass\": 5", "\"pass\": 9"), TutorialOs.Windows), "проходной балл больше числа вопросов принят");
+        Throws<FormatException>(() => Course.Parse(raw.Replace("\"ok\": 1,", "\"ok\": 7,"), TutorialOs.Windows), "верный ответ вне списка принят");
+        Throws<FormatException>(() => Course.Parse(raw.Replace("\"version\": 1", "\"version\": 0"), TutorialOs.Windows), "курс без версии принят");
+
+        // ---- answers are shuffled, and the right one is still found
+        var seenAt = new HashSet<int>();
+        for (var seed = 0; seed < 60; seed++)
+            foreach (var l in win.Lessons)
+                for (var qi = 0; qi < l.Questions.Length; qi++)
+                {
+                    var q = l.Questions[qi];
+                    var a = Asked.From(q, 0, "k", new Random(seed));
+                    if (a.Options[a.Correct] != q.Options[q.Correct]) throw new Exception($"{l.Id}#{qi}: верный ответ потерялся при перемешивании");
+                    if (!a.Options.OrderBy(x => x).SequenceEqual(q.Options.OrderBy(x => x))) throw new Exception($"{l.Id}#{qi}: ответы изменились");
+                    if (l.Id == "how" && qi == 0) seenAt.Add(a.Correct);
+                }
+        if (seenAt.Count < 3) throw new Exception("верный ответ всегда на одном из мест: " + string.Join(",", seenAt));
+
+        // ---- nothing can be skipped
+        TutorialSession Fresh(bool terms, int seed = 11) => new(win, terms, new Random(seed));
+        static void Watch(TutorialSession s) { if (s.Current.Kind == StepKind.Lesson) s.LessonWatched(s.Current.Lesson); }
+        static void Right(TutorialSession s)
+        {
+            var a = s.CheckQuestion(s.Current.Lesson);
+            if (!s.AnswerCheck(s.Current.Lesson, a.Correct)) throw new Exception("верный ответ не принят");
+        }
+        static void ToExam(TutorialSession s)
+        {
+            while (s.Current.Kind != StepKind.Exam)
+            {
+                if (s.Current.Kind == StepKind.Terms) s.TermsAccepted = true;
+                Watch(s);
+                if (s.Current.Kind == StepKind.Check) Right(s);
+                if (!s.Next()) throw new Exception("не дошли до экзамена: застряли на " + s.Current);
+            }
+        }
+
+        var t1 = Fresh(true);
+        if (t1.Current.Kind != StepKind.Terms || t1.CanAdvance || t1.Next()) throw new Exception("условия пропущены без согласия");
+        t1.TermsAccepted = true;
+        if (!t1.Next() || t1.Current.Kind != StepKind.Lesson) throw new Exception("после условий должен быть урок");
+        if (t1.CanAdvance || t1.Next()) throw new Exception("урок пропущен, не досмотрев");
+        t1.LessonWatched(0);
+        if (!t1.Next() || t1.Current.Kind != StepKind.Check) throw new Exception("после урока — вопрос");
+        var first = t1.CheckQuestion(0);
+        if (!ReferenceEquals(first, t1.CheckQuestion(0))) throw new Exception("вопрос при перерисовке стал другим");
+        var wrong = Enumerable.Range(0, first.Options.Length).First(i => i != first.Correct);
+        if (t1.AnswerCheck(0, wrong)) throw new Exception("неверный ответ принят");
+        if (t1.CanAdvance || t1.Next()) throw new Exception("неверный ответ пропустил дальше");
+        if (!t1.Tried(0).Contains(wrong)) throw new Exception("неверный ответ не запомнен");
+        if (!t1.AnswerCheck(0, first.Correct) || !t1.CanAdvance) throw new Exception("верный ответ не открыл дорогу");
+        if (!t1.CanGoBack) throw new Exception("перечитать урок должно быть можно");
+
+        var t2 = Fresh(false);
+        if (t2.Current.Kind != StepKind.Lesson) throw new Exception("без условий начинается с урока");
+        ToExam(t2);
+        if (t2.CanGoBack) throw new Exception("из экзамена нельзя возвращаться к урокам");
+        var exam = t2.Exam;
+        if (exam.Count != win.Lessons.Length) throw new Exception("в экзамене по вопросу из каждого урока");
+        if (exam.Select(e => e.Lesson).Distinct().Count() != win.Lessons.Length) throw new Exception("два вопроса из одного урока");
+        if (exam.Any(e => e.Key.EndsWith("#0"))) throw new Exception("на экзамен попал вопрос, заданный сразу после урока");
+        if (t2.CanAdvance) throw new Exception("экзамен пропущен без ответа");
+        t2.AnswerExam(0, t2.ExamQuestion(0).Correct);
+        var before = t2.ExamAnswer(0);
+        t2.AnswerExam(0, (t2.ExamQuestion(0).Correct + 1) % t2.ExamQuestion(0).Options.Length);
+        if (t2.ExamAnswer(0) != before) throw new Exception("ответ на экзамене можно менять");
+        if (!t2.CanAdvance || !t2.Next()) throw new Exception("после ответа — дальше");
+
+        // all wrong: the exam is failed, the lessons come back, the new exam has other questions
+        var failedKeys = t2.Exam.Select(e => e.Key).ToList();
+        for (var i = 1; i < t2.Exam.Count; i++)
+        {
+            var q = t2.ExamQuestion(i);
+            t2.AnswerExam(i, (q.Correct + 1) % q.Options.Length);
+            t2.Next();
+        }
+        if (t2.Current.Kind != StepKind.Result) throw new Exception("после вопросов — итог");
+        if (t2.Passed || t2.CanAdvance) throw new Exception("провал принят за зачёт");
+        if (t2.Score != 1) throw new Exception("счёт " + t2.Score);
+        var missed = t2.Missed();
+        if (missed.Count != win.Lessons.Length - 1) throw new Exception("пропущенных уроков " + missed.Count);
+        t2.Retake();
+        if (t2.Position != 0 || t2.Current.Kind != StepKind.Lesson || t2.Current.Lesson != missed[0]) throw new Exception("пересдача начинается с первого пропущенного урока");
+        if (t2.Steps.Count(s => s.Kind == StepKind.Lesson) != missed.Count) throw new Exception("повторять нужно только пропущенные уроки");
+        if (t2.CanAdvance) throw new Exception("пропущенный урок открыт без просмотра");
+        var again = t2.Exam.Select(e => e.Key).ToList();
+        foreach (var e in t2.Exam)
+            if (failedKeys.Contains(e.Key)) throw new Exception("на пересдаче тот же вопрос: " + e.Key);
+        ToExam(t2);
+        foreach (var e in t2.Exam) t2.AnswerExam(t2.Exam.ToList().IndexOf(e), e.Correct);
+        for (var i = 0; i < t2.Exam.Count; i++) { t2.Next(); }
+        if (t2.Current.Kind != StepKind.Result || !t2.Passed) throw new Exception("все верные — не зачёт");
+        if (!t2.Next() || t2.Current.Kind != StepKind.Done) throw new Exception("после зачёта — последняя страница");
+        if (t2.CanAdvance) throw new Exception("у последней страницы своя кнопка");
+
+        // five out of six passes, four does not
+        foreach (var (rightCount, pass) in new[] { (6, true), (5, true), (4, false), (0, false) })
+        {
+            var t = Fresh(false, 3 + rightCount);
+            ToExam(t);
+            for (var i = 0; i < t.Exam.Count; i++)
+            {
+                var q = t.ExamQuestion(i);
+                t.AnswerExam(i, i < rightCount ? q.Correct : (q.Correct + 1) % q.Options.Length);
+                t.Next();
+            }
+            if (t.Passed != pass) throw new Exception($"{rightCount} верных из {t.Exam.Count}: зачёт = {t.Passed}, ждали {pass}");
+        }
+
+        // exams do not run out of questions: after every one has been asked, they come round again
+        var t3 = Fresh(false, 5);
+        ToExam(t3);
+        for (var i = 0; i < t3.Exam.Count; i++) { t3.AnswerExam(i, 0); t3.Next(); }
+        for (var round = 0; round < 4; round++)
+        {
+            t3.Retake();
+            ToExam(t3);
+            if (t3.Exam.Count != win.Lessons.Length) throw new Exception("экзамен сократился на круге " + round);
+            for (var i = 0; i < t3.Exam.Count; i++) { t3.AnswerExam(i, 0); t3.Next(); }
+        }
+
+        // ---- who must sit the tutorial
+        AppSettings S(bool accept = false, string seen = "", int passed = 0, bool offered = false, bool required = false, bool lists = false)
+            => new()
+            {
+                Accept = accept, LastSeenVersion = seen, TutorialPassed = passed, TutorialOffered = offered,
+                TutorialRequired = required, ListsUpdatedAt = lists ? DateTime.UtcNow : null,
+            };
+        foreach (var (s, windows, want, why) in new (AppSettings, bool, TutorialNeed, string)[]
+                 {
+                     (S(), true, TutorialNeed.Required, "новая установка на Windows"),
+                     (S(), false, TutorialNeed.Required, "новая установка на Mac или Linux"),
+                     (S(accept: true), true, TutorialNeed.Offer, "Windows, принимал условия раньше"),
+                     (S(accept: true), false, TutorialNeed.Offer, "Mac или Linux, принял условия в обучении"),
+                     (S(seen: "2.2.0"), false, TutorialNeed.Offer, "Mac или Linux, запускал раньше"),
+                     (S(lists: true), false, TutorialNeed.Offer, "Mac или Linux, скачивал списки раньше"),
+                     (S(seen: "2.2.0"), true, TutorialNeed.Required, "Windows: «что нового» из чужих настроек не делает новичка старым"),
+                     (S(lists: true), true, TutorialNeed.Required, "Windows: скачанные списки из чужих настроек тоже"),
+                     (S(accept: true, offered: true), true, TutorialNeed.None, "предложено и отвечено"),
+                     (S(passed: 1), true, TutorialNeed.None, "курс пройден"),
+                     (S(accept: true, passed: 1), false, TutorialNeed.None, "курс пройден после принятия условий"),
+                     (S(accept: true, offered: false, seen: "2.2.1", lists: true), false, TutorialNeed.Offer, "всё сразу"),
+                     (S(required: true), false, TutorialNeed.Required, "начато как обязательное и не закончено"),
+                     (S(required: true, accept: true, seen: "2.2.1", lists: true), true, TutorialNeed.Required, "обязательное не обойти ни признаками старого пользователя, ни перезапуском"),
+                     (S(required: true, passed: 1), true, TutorialNeed.None, "обязательное пройдено"),
+                 })
+            if (TutorialState.Needed(s, 1, windows) != want) throw new Exception($"{why}: {TutorialState.Needed(s, 1, windows)}, ждали {want}");
+        if (TutorialState.Needed(S(accept: true, passed: 1, offered: true), 2, true) != TutorialNeed.None) throw new Exception("новый выпуск курса не должен снова загонять тех, кому уже предлагали");
+        if (TutorialState.Needed(S(), 2, true) != TutorialNeed.Required) throw new Exception("новому человеку — всегда обязательно");
+
+        var kept = SettingsService.Load();
+        try
+        {
+            var fresh = new AppSettings();
+            SettingsService.Save(fresh);
+            TutorialState.MarkRequired();
+            if (!SettingsService.Load().TutorialRequired) throw new Exception("«обязательно» не запомнилось");
+            TutorialState.Complete(1);
+            var done = SettingsService.Load();
+            if (!done.Accept || done.TutorialPassed != 1 || !done.TutorialOffered) throw new Exception("прохождение не запомнилось");
+            if (done.TutorialRequired) throw new Exception("после прохождения «обязательно» осталось");
+            if (TutorialState.Needed(done, 1) != TutorialNeed.None) throw new Exception("после прохождения опять просят пройти");
+
+            SettingsService.Save(new AppSettings { Accept = true });
+            TutorialState.MarkOffered();
+            if (!SettingsService.Load().TutorialOffered) throw new Exception("«предложено» не запомнилось");
+        }
+        finally { SettingsService.Save(kept); }
+    }
+
     private static void NodePingChecks()
     {
         static SubNode N(string host, int port, string name, string type = "tcp")

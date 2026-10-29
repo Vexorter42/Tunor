@@ -176,8 +176,8 @@ public partial class SettingsPage : UserControl
 
     private void ShowWizard_Click(object sender, RoutedEventArgs e)
     {
-        var w = new FirstRunWizard { Owner = Window.GetWindow(this) };
-        w.ShowDialog();
+        TutorialState.MarkOffered();
+        new TutorialDialog(required: false) { Owner = Window.GetWindow(this) }.ShowDialog();
     }
 
     private void Licenses_Click(object sender, RoutedEventArgs e)

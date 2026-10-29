@@ -57,6 +57,19 @@
                 </StackPanel>
             </Border>
 
+            <!-- the tutorial, offered once to someone who used the program before it had one -->
+            <Border x:Name="TutorialCard" Style="{StaticResource Card}" Margin="0,16,0,0" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="Обучение за три минуты" Style="{StaticResource H2}"/>
+                    <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0" TextWrapping="Wrap" LineHeight="18"
+                               Text="Короткие анимации и вопросы: как работают правила, где взять конфиг и что делать, если что-то не открывается. Поможет и тем, кто давно пользуется."/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Пройти" Style="{StaticResource PrimaryButton}" MinWidth="120" Click="StartTutorial_Click"/>
+                        <Button Content="Не сейчас" Style="{StaticResource GhostButton}" Margin="8,0,0,0" Click="SkipTutorial_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- zapret / GoodbyeDPI next to TUN: what they do to each other, and what to do -->
             <Border x:Name="DpiCard" Style="{StaticResource Card}" Margin="0,16,0,0" Visibility="Collapsed">
                 <StackPanel>
