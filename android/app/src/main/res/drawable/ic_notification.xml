@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- a ring with an arrow out of it: the sign of the app, in one colour as a notification wants it -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,3a9,9 0,1,0 8.5,6.1l-2.1,0.7A6.8,6.8 0,1,1 12,5.2V3z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M14,2h8v8l-3,-3 -5,5 -2,-2 5,-5z" />
+</vector>
