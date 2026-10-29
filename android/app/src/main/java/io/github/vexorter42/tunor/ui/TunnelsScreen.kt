@@ -41,7 +41,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.vexorter42.tunor.core.ConfigBuilder
 import io.github.vexorter42.tunor.core.Tunnel
+
+/** Where a config being added is going: [Tunnel.WARP], [Tunnel.GEO], or empty for one more of the person's own. */
+private typealias Slot = String
 
 @Composable
 fun TunnelsScreen(vm: MainViewModel, padding: PaddingValues) {
@@ -49,11 +53,15 @@ fun TunnelsScreen(vm: MainViewModel, padding: PaddingValues) {
     val busy by vm.busy.collectAsState()
     val ctx = LocalContext.current
     var linkDialog by remember { mutableStateOf(false) }
-    var pasteDialog by remember { mutableStateOf(false) }
+    var pasteFor by remember { mutableStateOf<Slot?>(null) }
+    var pickFor by remember { mutableStateOf<Slot>("") }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) readConf(ctx, uri, vm)
+        if (uri != null) readConf(ctx, uri, vm, pickFor)
     }
+    fun chooseFile(slot: Slot) { pickFor = slot; picker.launch(arrayOf("*/*")) }
+
+    val own = state.tunnels.filter { it.id != Tunnel.WARP && it.id != Tunnel.GEO }
 
     Column(
         Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
@@ -62,60 +70,37 @@ fun TunnelsScreen(vm: MainViewModel, padding: PaddingValues) {
         Text("Туннели", fontSize = 26.sp, fontWeight = FontWeight.Bold)
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
 
+        SlotPanel(
+            Tunnel.WARP, "WARP",
+            "Основной выход. Конфиг берётся у бота @warp_generator_bot в Telegram.",
+            state.tunnels, vm, onFile = { chooseFile(Tunnel.WARP) }, onPaste = { pasteFor = Tunnel.WARP },
+        )
+        SlotPanel(
+            Tunnel.GEO, "geo",
+            "Второй выход, в другой стране: для сайтов, которые не пускают российские адреса. Идёт внутри WARP, поэтому сначала нужен он.",
+            state.tunnels, vm, onFile = { chooseFile(Tunnel.GEO) }, onPaste = { pasteFor = Tunnel.GEO },
+        )
+
         Panel(Modifier.fillMaxWidth()) {
-            Text("Добавить", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text("Свой VPN", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             Text(
-                "Конфиг WARP или AmneziaWG берётся у бота @warp_generator_bot в Telegram. Подписка VPN — ссылкой.",
+                "Подписка или ссылка vless://, а также ещё один конфиг .conf. Адрес подписки — как пароль.",
                 color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
             )
-            Button(onClick = { picker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("Выбрать файл .conf") }
+            Button(onClick = { linkDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("Ссылка vless:// или подписка") }
             Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = { pasteDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("Вставить текст конфига") }
+            OutlinedButton(onClick = { chooseFile("") }, modifier = Modifier.fillMaxWidth()) { Text("Файл .conf") }
             Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = { linkDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("Ссылка vless:// или подписка") }
+            OutlinedButton(onClick = { pasteFor = "" }, modifier = Modifier.fillMaxWidth()) { Text("Текст конфига") }
         }
 
-        if (state.tunnels.isEmpty()) {
-            Text("Пока ни одного туннеля.", color = Palette.Dim, fontSize = 14.sp)
-        }
-        state.tunnels.forEach { t ->
-            val active = t.id == (state.settings.active.ifEmpty { state.tunnels.first().id })
-            Panel(Modifier.fillMaxWidth()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = active, onClick = { vm.use(t.id) })
-                    Column(Modifier.weight(1f)) {
-                        Text(t.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                        Text(
-                            when (t.kind) {
-                                Tunnel.WG -> "WireGuard / AmneziaWG"
-                                Tunnel.LINK -> "vless"
-                                else -> "подписка · серверов ${t.nodes.size}"
-                            },
-                            color = Palette.Dim, fontSize = 13.sp,
-                        )
-                    }
-                    if (t.kind == Tunnel.SUB) IconButton(onClick = { vm.refreshSub(t.id) }) { Icon(Icons.Default.Refresh, "Обновить") }
-                    IconButton(onClick = { vm.delete(t.id) }) { Icon(Icons.Default.Delete, "Удалить", tint = Palette.Danger) }
-                }
-                if (t.kind == Tunnel.SUB && active) {
-                    Spacer(Modifier.height(6.dp))
-                    t.nodes.forEachIndexed { i, node ->
-                        Row(
-                            Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(selected = i == t.chosen, onClick = { vm.chooseNode(t.id, i) })
-                            Text(node.name, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-        }
+        own.forEach { t -> OwnTunnel(t, state.tunnels, vm) }
     }
 
-    if (pasteDialog) {
+    pasteFor?.let { slot ->
         var text by remember { mutableStateOf("") }
         AlertDialog(
-            onDismissRequest = { pasteDialog = false },
+            onDismissRequest = { pasteFor = null },
             title = { Text("Текст конфига") },
             text = {
                 Column {
@@ -126,8 +111,8 @@ fun TunnelsScreen(vm: MainViewModel, padding: PaddingValues) {
                     TextButton(onClick = { text = clipboard(ctx) }) { Text("Взять из буфера обмена") }
                 }
             },
-            confirmButton = { Button(onClick = { if (vm.addConf(text, "WARP")) pasteDialog = false }) { Text("Добавить") } },
-            dismissButton = { TextButton(onClick = { pasteDialog = false }) { Text("Отмена") } },
+            confirmButton = { Button(onClick = { if (vm.addConf(text, slot.ifEmpty { "VPN" }, slot)) pasteFor = null }) { Text("Добавить") } },
+            dismissButton = { TextButton(onClick = { pasteFor = null }) { Text("Отмена") } },
         )
     }
 
@@ -152,20 +137,118 @@ fun TunnelsScreen(vm: MainViewModel, padding: PaddingValues) {
     }
 }
 
+/** WARP and geo: two places that are always on the page, filled or not, because the catalog's lists name them. */
+@Composable
+private fun SlotPanel(
+    slot: Slot, title: String, hint: String, tunnels: List<Tunnel>, vm: MainViewModel,
+    onFile: () -> Unit, onPaste: () -> Unit,
+) {
+    val t = tunnels.firstOrNull { it.id == slot }
+    Panel(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Status(t, tunnels)
+            }
+            if (t != null) IconButton(onClick = { vm.delete(t.id) }) { Icon(Icons.Default.Delete, "Удалить", tint = Palette.Danger) }
+        }
+        Text(hint, color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp, bottom = 10.dp))
+        if (t != null && slot == Tunnel.GEO) {
+            Via(t, tunnels, vm)
+            Spacer(Modifier.height(10.dp))
+        }
+        Row {
+            Button(onClick = onFile, modifier = Modifier.weight(1f)) { Text("Файл .conf") }
+            Spacer(Modifier.padding(4.dp))
+            OutlinedButton(onClick = onPaste, modifier = Modifier.weight(1f)) { Text("Вставить текст") }
+        }
+    }
+}
+
+/** One of the person's own tunnels: a config, a link or a subscription. */
+@Composable
+private fun OwnTunnel(t: Tunnel, tunnels: List<Tunnel>, vm: MainViewModel) {
+    Panel(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(t.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Status(t, tunnels)
+            }
+            if (t.kind == Tunnel.SUB) IconButton(onClick = { vm.refreshSub(t.id) }) { Icon(Icons.Default.Refresh, "Обновить") }
+            IconButton(onClick = { vm.delete(t.id) }) { Icon(Icons.Default.Delete, "Удалить", tint = Palette.Danger) }
+        }
+        Spacer(Modifier.height(6.dp))
+        Via(t, tunnels, vm)
+        if (t.kind == Tunnel.SUB) {
+            Spacer(Modifier.height(6.dp))
+            Text("Сервер", color = Palette.Dim, fontSize = 13.sp)
+            t.nodes.forEachIndexed { i, node ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = i == t.chosen, onClick = { vm.chooseNode(t.id, i) })
+                    Text(node.name, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+/** Whether the tunnel can carry traffic, and if not, what is wrong, in words. */
+@Composable
+private fun Status(t: Tunnel?, tunnels: List<Tunnel>) {
+    if (t == null) {
+        Text("не добавлен", color = Palette.Dim, fontSize = 13.sp)
+        return
+    }
+    val problem = ConfigBuilder.problemOf(t, tunnels)
+    if (problem == null) {
+        Text("готов · " + kindName(t), color = Palette.Accent, fontSize = 13.sp)
+    } else {
+        Text(problem, color = Palette.Danger, fontSize = 13.sp)
+    }
+}
+
+private fun kindName(t: Tunnel) = when (t.kind) {
+    Tunnel.WG -> "WireGuard / AmneziaWG"
+    Tunnel.LINK -> "vless"
+    else -> "подписка, серверов ${t.nodes.size}"
+}
+
+/** "Goes through": the tunnel this one rides inside, if any. */
+@Composable
+private fun Via(t: Tunnel, tunnels: List<Tunnel>, vm: MainViewModel) {
+    // Not itself, and not one that already rides inside this one: that would go round in a circle.
+    val options = tunnels.filter { it.id != t.id && !ConfigBuilder.rides(it, t.id, tunnels) }
+    var open by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Идёт через", color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        androidx.compose.foundation.layout.Box {
+            OutlinedButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp)) {
+                Text((if (t.via.isEmpty()) "ни через что" else ConfigBuilder.titleOf(t.via, tunnels)) + " ▾", fontSize = 13.sp, maxLines = 1)
+            }
+            androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                androidx.compose.material3.DropdownMenuItem(text = { Text("ни через что: сам по себе") }, onClick = { vm.setVia(t.id, ""); open = false })
+                ConfigBuilder.ordered(options).forEach { o ->
+                    androidx.compose.material3.DropdownMenuItem(text = { Text(o.title) }, onClick = { vm.setVia(t.id, o.id); open = false })
+                }
+            }
+        }
+    }
+}
+
 private fun clipboard(ctx: Context): String {
     val cm = ctx.getSystemService(ClipboardManager::class.java)
     return cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(ctx)?.toString().orEmpty()
 }
 
-private fun readConf(ctx: Context, uri: Uri, vm: MainViewModel) {
+private fun readConf(ctx: Context, uri: Uri, vm: MainViewModel, slot: Slot) {
     val name = ctx.contentResolver.query(uri, null, null, null, null)?.use { c ->
         val i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
         if (c.moveToFirst() && i >= 0) c.getString(i) else null
-    } ?: "WARP"
+    } ?: "VPN"
     val text = try {
         ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
     } catch (e: Exception) { "" }
     // A file this large is not a .conf; reading it whole would only fill the phone's memory.
-    if (text.length > 100_000 || text.isBlank()) { vm.addConf("", name); return }
-    vm.addConf(text, name)
+    if (text.length > 100_000 || text.isBlank()) { vm.addConf("", name, slot); return }
+    vm.addConf(text, name, slot)
 }
