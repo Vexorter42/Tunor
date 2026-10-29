@@ -36,6 +36,8 @@ redist/
 warp.conf
 geo.conf
 config.json
+# ...but the tutorial's lesson about the config has a scene of that name, and the program is built without it if it is left out
+!tutorial/scenes/config.json
 
 # macOS build artefacts and the downloaded engine (72 MB, fetched at package time)
 mac/out/
