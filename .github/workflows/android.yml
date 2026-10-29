@@ -1,0 +1,37 @@
+name: Android
+
+# The Android app builds from its own folder and needs a 120 MB engine library that is fetched, not stored.
+on:
+  push:
+    paths: ['android/**', '.github/workflows/android.yml']
+  pull_request:
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # The runner has an Android SDK; make sure it has the platform the app is built against.
+      - name: Android platform
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-36" "build-tools;36.0.0" > /dev/null
+
+      - name: Engine library
+        run: python3 android/fetch-libbox.py
+
+      - name: Build
+        working-directory: android
+        run: ./gradlew :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tunor-android
+          path: android/app/build/outputs/apk/**/*.apk
+          retention-days: 7

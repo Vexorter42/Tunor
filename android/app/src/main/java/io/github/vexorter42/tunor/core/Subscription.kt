@@ -44,16 +44,21 @@ object Subscription {
     fun parse(body: String, title: String = ""): Result {
         val text = unwrap(body)
         val nodes = ArrayList<Node>()
-        var skipped = 0
+        var other = 0
+        var firstProblem: String? = null
         for (raw in text.lineSequence()) {
             val line = raw.trim()
             if (line.isEmpty()) continue
-            if (!VlessLink.looksLike(line)) { skipped++; continue }
+            if (!VlessLink.looksLike(line)) { other++; continue }
             val parsed = VlessLink.parse(line)
-            if (parsed.ok) nodes += Node(parsed.name, line) else skipped++
+            if (parsed.ok) nodes += Node(parsed.name, line) else if (firstProblem == null) firstProblem = parsed.problem
         }
         if (nodes.isEmpty()) {
-            return Result(emptyList(), title, if (skipped > 0) "в списке нет серверов, которые поймёт движок (нужны vless://)" else "список пуст")
+            return Result(emptyList(), title, when {
+                firstProblem != null -> "ссылки vless:// в списке не разобрать: $firstProblem"
+                other > 0 -> "в списке нет серверов, которые поймёт движок (нужны ссылки vless://)"
+                else -> "список пуст"
+            })
         }
         return Result(nodes, title, null)
     }

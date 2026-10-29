@@ -3,6 +3,7 @@ package io.github.vexorter42.tunor.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +30,7 @@ import io.nekohasekai.libbox.Libbox
 fun MoreScreen(padding: PaddingValues) {
     val ctx = LocalContext.current
     var terms by remember { mutableStateOf(false) }
+    var log by remember { mutableStateOf<String?>(null) }
     fun open(url: String) = ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
     if (terms) {
@@ -38,6 +40,26 @@ fun MoreScreen(padding: PaddingValues) {
             Text(TERMS, fontSize = 14.sp, lineHeight = 21.sp)
             Spacer(Modifier.height(14.dp))
             OutlinedButton(onClick = { terms = false }, modifier = Modifier.fillMaxWidth()) { Text("Назад") }
+        }
+        return
+    }
+
+    log?.let { text ->
+        Column(Modifier.padding(padding).padding(20.dp)) {
+            Text("Журнал движка", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("Последние строки. Если что-то не открывается, причина чаще всего написана здесь.", color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState(), reverseScrolling = true)) {
+                Text(text.ifBlank { "Журнал пуст: движок ещё не запускался." }, fontSize = 11.sp, lineHeight = 15.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+            }
+            Spacer(Modifier.height(10.dp))
+            Row {
+                OutlinedButton(onClick = { log = null }, modifier = Modifier.weight(1f)) { Text("Назад") }
+                Spacer(Modifier.padding(4.dp))
+                OutlinedButton(
+                    onClick = { ctx.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("Tunor", text)) },
+                    modifier = Modifier.weight(1f),
+                ) { Text("Скопировать") }
+            }
         }
         return
     }
@@ -58,9 +80,26 @@ fun MoreScreen(padding: PaddingValues) {
             Spacer(Modifier.height(12.dp))
             OutlinedButton(onClick = { open("https://github.com/Vexorter42/Tunor") }, modifier = Modifier.fillMaxWidth()) { Text("Исходный код и релизы") }
             Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = { log = readLog(ctx) }, modifier = Modifier.fillMaxWidth()) { Text("Журнал движка") }
+            Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = { terms = true }, modifier = Modifier.fillMaxWidth()) { Text("Условия использования") }
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = { open("https://t.me/warp_generator_bot") }, modifier = Modifier.fillMaxWidth()) { Text("Бот для конфига WARP") }
         }
+    }
+}
+
+/** The last of the engine's log: enough to see why something did not open, not enough to fill the phone's memory. */
+private fun readLog(ctx: android.content.Context): String {
+    val f = java.io.File(ctx.filesDir, "engine/box.log")
+    if (!f.exists()) return ""
+    java.io.RandomAccessFile(f, "r").use { r ->
+        val take = minOf(r.length(), 48_000L)
+        r.seek(r.length() - take)
+        val bytes = ByteArray(take.toInt())
+        r.readFully(bytes)
+        // Cut at a line start, and keep the engine's own colour codes out of the text.
+        val text = String(bytes, Charsets.UTF_8).substringAfter('\n', "").replace(Regex("\u001B\\[[0-9;]*m"), "")
+        return text.lines().filterNot { "failed to search process" in it }.takeLast(400).joinToString("\n")
     }
 }
