@@ -22,7 +22,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -37,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.vexorter42.tunor.core.AppRule
 import io.github.vexorter42.tunor.core.CatalogEntry
 import io.github.vexorter42.tunor.core.ConfigBuilder
 import io.github.vexorter42.tunor.core.Pick
@@ -181,7 +181,7 @@ private fun Sites(vm: MainViewModel) {
                     else "Что не названо в списках и сайтах, идёт через ${ConfigBuilder.titleOf(state.settings.rest, state.tunnels)}. Адреса в локальной сети всегда идут напрямую.",
                     color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
                 )
-                TunnelPicker(state.settings.rest, state.tunnels, vm::setRest, allowDirect = true)
+                TunnelPicker(state.settings.rest, state.tunnels, vm::setRest, extra = listOf("" to "Напрямую"))
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
@@ -196,19 +196,24 @@ private fun Apps(vm: MainViewModel) {
     val apps by vm.apps.collectAsState()
     var query by remember { mutableStateOf("") }
 
-    val chosen = state.settings.apps.toSet()
-    val shown = apps.filter { query.isBlank() || it.label.contains(query, true) || it.pkg.contains(query, true) }
+    val routes = state.rules.apps.associate { it.pkg to it.tunnel }
+    // Through a tunnel by app needs the system to say whose a connection is, which it does from Android 10.
+    val perApp = android.os.Build.VERSION.SDK_INT >= 29
+    val shown = apps
+        .filter { query.isBlank() || it.label.contains(query, true) || it.pkg.contains(query, true) }
+        .sortedWith(compareBy({ it.pkg !in routes }, { it.label.lowercase() }))
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Panel(Modifier.fillMaxWidth()) {
                 Text("Приложения", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 Text(
-                    if (chosen.isEmpty()) "Сейчас VPN используют все приложения. Отметь нужные, и остальные будут ходить мимо него."
-                    else "VPN используют только отмеченные приложения (${chosen.size}). Остальные ходят мимо него, напрямую.",
+                    "Для каждого приложения можно выбрать, через что пойдёт его трафик: по правилам, как у всех; напрямую, мимо VPN " +
+                        "совсем; или через один из туннелей, что бы оно ни открывало." +
+                        if (perApp) "" else " Через туннель можно с Android 10, на этом телефоне есть только «напрямую».",
                     color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
                 )
-                if (chosen.isNotEmpty()) TextButton(onClick = vm::clearApps) { Text("Снять все отметки") }
+                if (routes.isNotEmpty()) Text("Настроено приложений: ${routes.size}", color = Palette.Accent, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
                 OutlinedTextField(
                     value = query, onValueChange = { query = it }, singleLine = true,
                     label = { Text("Найти приложение") }, modifier = Modifier.fillMaxWidth(),
@@ -217,11 +222,15 @@ private fun Apps(vm: MainViewModel) {
         }
         items(shown, key = { it.pkg }) { app ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = app.pkg in chosen, onCheckedChange = { vm.setApp(app.pkg, it) })
-                Column(Modifier.weight(1f)) {
+                Column(Modifier.weight(1f).padding(end = 8.dp)) {
                     Text(app.label, fontSize = 15.sp)
-                    Text(app.pkg, color = Palette.Dim, fontSize = 11.sp)
+                    Text(app.pkg, color = Palette.Dim, fontSize = 11.sp, maxLines = 1)
                 }
+                TunnelPicker(
+                    routes[app.pkg].orEmpty(), state.tunnels, { vm.setAppRoute(app.pkg, it) },
+                    extra = listOf("" to "По правилам", AppRule.DIRECT to "Напрямую"),
+                    withTunnels = perApp,
+                )
             }
         }
         item { Spacer(Modifier.height(24.dp)) }

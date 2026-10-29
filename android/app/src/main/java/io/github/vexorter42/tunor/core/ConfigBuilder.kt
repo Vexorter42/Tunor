@@ -36,7 +36,8 @@ object ConfigBuilder {
     fun selfProblem(t: Tunnel): String? = when (t.kind) {
         Tunnel.WG -> WgConf.parse(t.conf).problem()
         Tunnel.LINK -> VlessLink.parse(t.link).problem
-        Tunnel.SUB -> t.nodes.getOrNull(t.chosen)?.let { VlessLink.parse(it.url).problem } ?: "в подписке нет серверов: обнови её"
+        // A server that is fine has no problem, which is null too: "no server" has to be told apart before asking about it.
+        Tunnel.SUB -> t.nodes.getOrNull(t.chosen).let { node -> if (node == null) "в подписке нет серверов: обнови её" else VlessLink.parse(node.url).problem }
         else -> "неизвестный вид туннеля «${t.kind}»"
     }
 
@@ -147,6 +148,21 @@ object ConfigBuilder {
         // Going direct only means something when the rest does not.
         val worthIt = { tag: String -> tag != DIRECT || finalTag != DIRECT }
 
+        // An app named by hand goes where it was told, before any list or site: "this program goes there" beats what it connects to.
+        // Which app a connection belongs to is asked of the system by the service (see findConnectionOwner), so the engine is
+        // told to look only when there is a rule that needs it.
+        val apps = LinkedHashMap<String, ArrayList<String>>().also { m -> order.forEach { m[it] = ArrayList() } }
+        for (a in state.rules.apps) {
+            if (a.tunnel.isEmpty() || a.tunnel == AppRule.DIRECT) continue
+            apps.getValue(dest(a.tunnel)).add(a.pkg)
+        }
+        var findProcess = false
+        for ((tag, packages) in apps) {
+            if (packages.isEmpty() || !worthIt(tag)) continue
+            findProcess = true
+            rules.put(JSONObject().put("action", "route").put("outbound", tag).put("package_name", JSONArray(packages.distinct())))
+        }
+
         // Sites typed by hand come before the lists: a name written down on purpose beats a big list that happens to hold it.
         val sites = LinkedHashMap<String, LinkedHashSet<String>>().also { m -> order.forEach { m[it] = LinkedHashSet() } }
         for (s in state.rules.sites) {
@@ -198,7 +214,7 @@ object ConfigBuilder {
             .put("rules", rules)
             .put("final", finalTag)
             .put("auto_detect_interface", true)
-            .put("find_process", false)
+            .put("find_process", findProcess)
             .put("default_domain_resolver", "main-dns")
         if (ruleSets.length() > 0) route.put("rule_set", ruleSets)
 
@@ -223,6 +239,9 @@ object ConfigBuilder {
     }
 
     private fun listTag(p: Pick) = "list-" + p.id
+
+    /** The apps that go straight out: the system keeps them out of the VPN altogether, so nothing of theirs even reaches the engine. */
+    fun directApps(state: State): List<String> = state.rules.apps.filter { it.tunnel == AppRule.DIRECT }.map { it.pkg }.distinct()
 
     // ------------------------------------------------------------------ one tunnel inside another
 

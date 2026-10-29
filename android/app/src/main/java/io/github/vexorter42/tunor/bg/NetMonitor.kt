@@ -30,17 +30,20 @@ object NetMonitor {
     private var listener: InterfaceUpdateListener? = null
     private var running = false
 
+    /** Told when the phone moves to another network; for what has to look again at what is reachable from the new one. */
+    @Volatile var onChanged: (() -> Unit)? = null
+
     private val request: NetworkRequest = NetworkRequest.Builder()
         .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
         .build()
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(n: Network) { network = n; report() }
+        override fun onAvailable(n: Network) { network = n; report(); onChanged?.invoke() }
         override fun onCapabilitiesChanged(n: Network, c: NetworkCapabilities) { if (n == network) report() }
         override fun onLinkPropertiesChanged(n: Network, p: LinkProperties) { if (n == network) report() }
         override fun onLost(n: Network) {
-            if (n == network) { network = null; report() }
+            if (n == network) { network = null; report(); onChanged?.invoke() }
         }
     }
 

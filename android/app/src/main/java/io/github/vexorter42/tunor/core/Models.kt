@@ -30,6 +30,11 @@ data class Tunnel(
     val chosen: Int = 0,
     /** The id of the tunnel this one rides inside; empty — it goes out on its own. */
     val via: String = "",
+    /**
+     * For a subscription whose server the app changed by itself (the usual ones were not answering): the link of the
+     * server that was in use before, so that it can go back to it when it answers again. Empty — the person's own choice stands.
+     */
+    val autoFrom: String = "",
 ) {
     companion object {
         const val WG = "wg"
@@ -50,11 +55,23 @@ data class Site(val domain: String, val tunnel: String = "")
 @Serializable
 data class Pick(val id: String, val title: String, val url: String, val tunnel: String)
 
+/**
+ * An app and where its traffic goes: a tunnel's id, or [DIRECT] for straight out without ever entering the VPN.
+ * An app that is not here goes by the rules like everything else.
+ */
+@Serializable
+data class AppRule(val pkg: String, val tunnel: String) {
+    companion object {
+        const val DIRECT = "direct"
+    }
+}
+
 /** What goes where. Everything not named here goes the way [Settings.rest] says. */
 @Serializable
 data class Rules(
     val sites: List<Site> = emptyList(),
     val lists: List<Pick> = emptyList(),
+    val apps: List<AppRule> = emptyList(),
     /** Before sites could choose their tunnel, one list for the only tunnel. Read once and moved into [sites]. */
     val domains: List<String> = emptyList(),
 )
@@ -67,12 +84,18 @@ data class Settings(
     val everything: String = DIRECT,
     /** Where traffic that no rule names goes: a tunnel's id, or empty for straight out. */
     val rest: String = "",
-    /** Only these apps use the VPN at all; empty — all of them do. */
+    /** Before apps could be sent each its own way: the ones that alone used the VPN. No longer read; kept so that an old file still loads. */
     val apps: List<String> = emptyList(),
     val termsAccepted: Boolean = false,
     val tutorialPassed: Int = 0,
     /** When the lists were last fetched, in milliseconds since 1970; 0 — never. */
     val listsFetchedAt: Long = 0,
+    /** When none of a subscription's usual servers answers, move to one of its servers meant for that (see [Bypass]). */
+    val autoBypass: Boolean = true,
+    /** Look for a newer version of the app now and then. */
+    val autoUpdateCheck: Boolean = true,
+    /** When that was last done, in milliseconds since 1970; 0 — never. */
+    val updateCheckedAt: Long = 0,
 ) {
     companion object {
         const val DIRECT = "direct"
