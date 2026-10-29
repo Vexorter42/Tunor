@@ -45,9 +45,16 @@ import io.nekohasekai.libbox.TunOptions
 import io.nekohasekai.libbox.WIFIState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import io.nekohasekai.libbox.NetworkInterface as BoxInterface
 
@@ -64,6 +71,13 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     private var server: CommandServer? = null
     private var tun: ParcelFileDescriptor? = null
     @Volatile private var stopping = false
+
+    /** What the engine was last given, so that a change that comes to the same thing does not restart it. */
+    private var lastConfig: String? = null
+    private var lastExcluded: List<String> = emptyList()
+
+    private var watch: Job? = null
+    private val checkSoon = Channel<Unit>(Channel.CONFLATED)
 
     override fun onBind(intent: Intent?): IBinder? = super.onBind(intent)
 
@@ -105,7 +119,11 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
             val config = ConfigBuilder.build(state, door, have = RuleSets::path)
             Libbox.checkConfig(config)
             Vpn.door = door
+            Vpn.service = this
+            lastConfig = config
+            lastExcluded = ConfigBuilder.directApps(state)
 
+            NetMonitor.onChanged = { checkSoon.trySend(Unit) }
             NetMonitor.start(this)
             val s = CommandServer(this, this)
             s.start()
@@ -114,6 +132,7 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
 
             Vpn.set(Phase.Started)
             foreground("Tunor", "Туннель работает")
+            startWatch()
         } catch (e: ConfigProblem) {
             fail(e.message ?: "настройки не подходят")
         } catch (e: Exception) {
@@ -122,10 +141,34 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         }
     }
 
-    /** Which apps use the VPN: all, or only the ones the person chose (and this app, so that its own check goes the same way). */
+    /** The apps the person sent straight out are kept out of the VPN altogether: nothing of theirs even reaches the engine. */
     private fun overrides(): OverrideOptions = OverrideOptions().apply {
-        val apps = TunorApp.store.state.value.settings.apps
-        if (apps.isNotEmpty()) includePackage = Strings((apps + packageName).distinct().iterator())
+        val direct = ConfigBuilder.directApps(TunorApp.store.state.value)
+        if (direct.isNotEmpty()) excludePackage = Strings(direct.iterator())
+    }
+
+    // ------------------------------------------------------------------------ looking after the servers
+
+    /**
+     * While the tunnel runs: a look at the subscriptions a few seconds after the start, then every few minutes, and
+     * again a little after the phone changes networks, which is when a network that lets only some sites through shows up.
+     */
+    private fun startWatch() {
+        watch?.cancel()
+        watch = scope.launch {
+            var wait = 8_000L
+            while (isActive) {
+                val early = withTimeoutOrNull(wait) { checkSoon.receive() } != null
+                if (early) delay(4_000)
+                wait = Health.period(this@TunorVpnService)
+                if (Vpn.phase.value != Phase.Started) continue
+                val said = try { Health.run(this@TunorVpnService) } catch (e: Exception) { Log.w(TAG, "health", e); emptyList() }
+                if (said.isEmpty()) continue
+                said.forEach { Vpn.note(it) }
+                foreground("Tunor", said.last())
+                reload()
+            }
+        }
     }
 
     private fun fail(why: String) {
@@ -149,6 +192,10 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         try { server?.close() } catch (e: Exception) { Log.w(TAG, "close", e) }
         server = null
         Vpn.door = null
+        Vpn.service = null
+        watch?.cancel()
+        watch = null
+        NetMonitor.onChanged = null
         NetMonitor.stop()
         try { tun?.close() } catch (_: Exception) { }
         tun = null
@@ -288,7 +335,19 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     override fun registerMyInterface(name: String?) {}
     override fun startNeighborMonitor(listener: NeighborUpdateListener?) {}
     override fun closeNeighborMonitor(listener: NeighborUpdateListener?) {}
-    override fun findConnectionOwner(ip: Int, sa: String?, sp: Int, da: String?, dp: Int): ConnectionOwner = error("не поддерживается")
+
+    /** Which app a connection belongs to, asked of the system: what lets one app go through one tunnel and another through another. */
+    override fun findConnectionOwner(ip: Int, sa: String?, sp: Int, da: String?, dp: Int): ConnectionOwner {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) error("нужен Android 10 или новее")
+        val cm = getSystemService(android.net.ConnectivityManager::class.java)
+        val uid = cm.getConnectionOwnerUid(ip, InetSocketAddress(InetAddress.getByName(sa), sp), InetSocketAddress(InetAddress.getByName(da), dp))
+        if (uid == android.os.Process.INVALID_UID) error("владелец соединения не найден")
+        val names = packageManager.getPackagesForUid(uid).orEmpty()
+        return ConnectionOwner().also {
+            it.userId = uid
+            it.setAndroidPackageNames(Strings(names.iterator()))
+        }
+    }
     override fun usePlatformShell() = false
     override fun checkPlatformShell() { error("не поддерживается") }
     override fun lookupUser(name: String?): PlatformUser = error("не поддерживается")
@@ -320,11 +379,17 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         try {
             val state = TunorApp.store.state.value
             ConfigBuilder.problem(state)?.let { Vpn.note("Изменения не применились: $it"); return }
-            val door = Door.fresh(ConfigBuilder.live(state.tunnels).map { it.id })
+            val ids = ConfigBuilder.live(state.tunnels).map { it.id }
+            // The same entrances as before when the tunnels are the same, so that a change that comes to nothing is seen to be one.
+            val door = Vpn.door?.takeIf { it.tunnels.keys == ids.toSet() } ?: Door.fresh(ids)
             val config = ConfigBuilder.build(state, door, have = RuleSets::path)
+            val excluded = ConfigBuilder.directApps(state)
+            if (config == lastConfig && excluded == lastExcluded) return
             Libbox.checkConfig(config)
             s.startOrReloadService(config, overrides())
             Vpn.door = door
+            lastConfig = config
+            lastExcluded = excluded
         } catch (e: Exception) {
             Log.e(TAG, "reload", e)
             Vpn.note("Изменения не применились: " + (e.message ?: e.javaClass.simpleName))

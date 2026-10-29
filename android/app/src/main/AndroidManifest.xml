@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- To hand its own update to the system's installer; the person still has to allow it, once, in settings. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".TunorApp"
@@ -40,5 +42,22 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="vpn" />
         </service>
+
+        <!-- The tile in the quick settings: the tunnel on and off from the notification shade. -->
+        <service
+            android:name=".bg.TunorTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_notification"
+            android:label="Tunor"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- What the system's installer says about an update the app has handed it. -->
+        <receiver
+            android:name=".bg.InstallReceiver"
+            android:exported="false" />
     </application>
 </manifest>

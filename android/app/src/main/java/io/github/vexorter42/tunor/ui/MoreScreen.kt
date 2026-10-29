@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,11 +26,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.vexorter42.tunor.BuildConfig
+import io.github.vexorter42.tunor.core.Updater
 import io.nekohasekai.libbox.Libbox
 
 @Composable
-fun MoreScreen(padding: PaddingValues) {
+fun MoreScreen(vm: MainViewModel, padding: PaddingValues) {
     val ctx = LocalContext.current
+    val state by vm.state.collectAsState()
+    val update by vm.update.collectAsState()
     var terms by remember { mutableStateOf(false) }
     var log by remember { mutableStateOf<String?>(null) }
     fun open(url: String) = ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -69,6 +74,30 @@ fun MoreScreen(padding: PaddingValues) {
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
     ) {
         Text("Ещё", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+
+        Panel(Modifier.fillMaxWidth()) {
+            Text("Обновления", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text("Сейчас Tunor ${BuildConfig.VERSION_NAME}", color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+            Spacer(Modifier.height(10.dp))
+            UpdateBody(update, vm)
+            Spacer(Modifier.height(6.dp))
+            SwitchRow("Проверять самому", "Раз в полдня, пока приложение открывают.", state.settings.autoUpdateCheck, vm::setAutoUpdateCheck)
+        }
+
+        Panel(Modifier.fillMaxWidth()) {
+            Text("Автоматика", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            SwitchRow(
+                "Искать сервер для обхода глушилок",
+                "Если ни один обычный сервер подписки не отвечает, взять из неё сервер со словами «обход», «глушилка» или «LTE» " +
+                    "с самым быстрым откликом, а когда обычные вернутся, вернуться на прежний.",
+                state.settings.autoBypass, vm::setAutoBypass,
+            )
+            Text(
+                "Включать и выключать туннель можно и из шторки быстрых настроек: добавь в неё плитку «Tunor».",
+                color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp),
+            )
+        }
+
         Panel(Modifier.fillMaxWidth()) {
             Text("О программе", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             Text("Tunor ${BuildConfig.VERSION_NAME}", modifier = Modifier.padding(top = 8.dp))
@@ -101,5 +130,58 @@ private fun readLog(ctx: android.content.Context): String {
         // Cut at a line start, and keep the engine's own colour codes out of the text.
         val text = String(bytes, Charsets.UTF_8).substringAfter('\n', "").replace(Regex("\u001B\\[[0-9;]*m"), "")
         return text.lines().filterNot { "failed to search process" in it }.takeLast(400).joinToString("\n")
+    }
+}
+
+@Composable
+private fun SwitchRow(title: String, about: String, on: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.padding(top = 8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, fontSize = 15.sp)
+            Text(about, color = Palette.Dim, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+        }
+        androidx.compose.material3.Switch(checked = on, onCheckedChange = onChange)
+    }
+}
+
+/** What the update is doing, and the one button that moves it on. */
+@Composable
+private fun UpdateBody(update: Updater.State, vm: MainViewModel) {
+    when (update) {
+        Updater.State.Idle, Updater.State.UpToDate -> {
+            if (update == Updater.State.UpToDate) Text("Установлена последняя версия.", color = Palette.Accent, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
+            OutlinedButton(onClick = vm::checkUpdate, modifier = Modifier.fillMaxWidth()) { Text("Проверить обновления") }
+        }
+        Updater.State.Checking -> Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            Text("  Спрашиваю у GitHub…", color = Palette.Dim, fontSize = 13.sp)
+        }
+        is Updater.State.Available -> {
+            Text("Доступна версия ${update.info.version}", fontWeight = FontWeight.SemiBold, color = Palette.Accent)
+            if (update.info.notes.isNotEmpty()) Text(update.info.notes, color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
+            androidx.compose.material3.Button(onClick = vm::installUpdate, modifier = Modifier.fillMaxWidth()) { Text("Скачать и установить") }
+        }
+        is Updater.State.Downloading -> {
+            val part = if (update.total > 0) update.done.toFloat() / update.total else 0f
+            Text(
+                "Скачиваю ${update.info.version}: ${update.done / 1_048_576} из ${if (update.total > 0) (update.total / 1_048_576).toString() else "?"} МБ",
+                fontSize = 13.sp,
+            )
+            Spacer(Modifier.height(6.dp))
+            if (update.total > 0) androidx.compose.material3.LinearProgressIndicator(progress = { part }, modifier = Modifier.fillMaxWidth())
+            else androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+        }
+        is Updater.State.Installing -> Text(
+            "Версия ${update.info.version} передана системе: подтверди установку в открывшемся окне. После неё Tunor закроется, открой его снова.",
+            fontSize = 13.sp,
+        )
+        is Updater.State.Failed -> {
+            Text(update.why, color = Palette.Danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
+            Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                // With a file in question: try it again, or ask afresh what the newest is; without one, only the second.
+                if (update.info != null) OutlinedButton(onClick = vm::installUpdate, modifier = Modifier.weight(1f)) { Text("Повторить") }
+                OutlinedButton(onClick = vm::checkUpdate, modifier = Modifier.weight(1f)) { Text("Проверить заново") }
+            }
+        }
     }
 }

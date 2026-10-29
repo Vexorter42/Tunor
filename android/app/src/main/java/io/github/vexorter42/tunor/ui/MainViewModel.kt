@@ -7,18 +7,24 @@ import android.content.pm.PackageManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.vexorter42.tunor.TunorApp
+import io.github.vexorter42.tunor.bg.Health
 import io.github.vexorter42.tunor.bg.Phase
 import io.github.vexorter42.tunor.bg.Vpn
+import io.github.vexorter42.tunor.core.AppRule
+import io.github.vexorter42.tunor.core.Bypass
 import io.github.vexorter42.tunor.core.Catalog
 import io.github.vexorter42.tunor.core.CatalogEntry
 import io.github.vexorter42.tunor.core.ConfigBuilder
+import io.github.vexorter42.tunor.core.NodePing
 import io.github.vexorter42.tunor.core.Pick
+import io.github.vexorter42.tunor.core.PingResult
 import io.github.vexorter42.tunor.core.RuleSets
 import io.github.vexorter42.tunor.core.Site
 import io.github.vexorter42.tunor.core.Subscription
 import io.github.vexorter42.tunor.core.Trace
 import io.github.vexorter42.tunor.core.Tracer
 import io.github.vexorter42.tunor.core.Tunnel
+import io.github.vexorter42.tunor.core.Updater
 import io.github.vexorter42.tunor.core.VlessLink
 import io.github.vexorter42.tunor.core.WgConf
 import kotlinx.coroutines.Deferred
@@ -299,12 +305,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------ apps
 
-    fun setApp(pkg: String, on: Boolean) = store.update {
-        val list = if (on) (it.settings.apps + pkg).distinct() else it.settings.apps - pkg
-        it.copy(settings = it.settings.copy(apps = list))
+    /** Where an app's traffic goes: a tunnel's id, [AppRule.DIRECT] for around the VPN altogether, or empty to go by the rules like everything else. */
+    fun setAppRoute(pkg: String, tunnel: String) = store.update { s ->
+        val others = s.rules.apps.filterNot { it.pkg == pkg }
+        s.copy(rules = s.rules.copy(apps = if (tunnel.isEmpty()) others else others + AppRule(pkg, tunnel)))
     }
-
-    fun clearApps() = store.update { it.copy(settings = it.settings.copy(apps = emptyList())) }
 
     private val _apps = MutableStateFlow<List<AppItem>>(emptyList())
     val apps: StateFlow<List<AppItem>> = _apps.asStateFlow()
@@ -324,6 +329,91 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             _apps.value = list
         }
+    }
+
+    // ------------------------------------------------------------------ ping
+
+    private val _pings = MutableStateFlow<Map<String, Map<Int, PingResult>>>(emptyMap())
+    /** How the servers of each subscription answered the last time they were timed, by the tunnel's id and the server's place in its list. */
+    val pings: StateFlow<Map<String, Map<Int, PingResult>>> = _pings.asStateFlow()
+
+    private val _pinging = MutableStateFlow<Map<String, Pair<Int, Int>>>(emptyMap())
+    /** The subscriptions being timed now, with how many servers are done of how many. */
+    val pinging: StateFlow<Map<String, Pair<Int, Int>>> = _pinging.asStateFlow()
+
+    /** Times every server of a subscription. If none of the usual ones answers, moves to the nearest of its own for that, as the app does by itself. */
+    fun ping(id: String) {
+        val t = store.state.value.tunnels.firstOrNull { it.id == id && it.kind == Tunnel.SUB } ?: return
+        if (id in _pinging.value) return
+        viewModelScope.launch {
+            _pinging.value = _pinging.value + (id to (0 to t.nodes.size))
+            val answers = NodePing.measureAll(t.nodes.map { it.url }) { done, all -> _pinging.value = _pinging.value + (id to (done to all)) }
+            _pinging.value = _pinging.value - id
+            _pings.value = _pings.value + (id to answers)
+
+            if (answers.values.none { it.answered }) {
+                _message.value = "Ни один сервер не отвечает: " +
+                    if (Health.hasNetwork(getApplication())) "проверь адрес подписки или попробуй позже." else "нет сети."
+            }
+            if (!store.state.value.settings.autoBypass) return@launch
+            val move = Bypass.decide(t, answers) ?: return@launch
+            var done = false
+            store.update { s ->
+                s.copy(tunnels = s.tunnels.map { if (it.id == id && it.chosen == t.chosen && it.nodes == t.nodes) { done = true; Bypass.apply(it, move) } else it })
+            }
+            if (done) {
+                val name = t.nodes[move.index].name
+                _message.value = if (move.back) "Обычные серверы снова отвечают: вернулся на «$name»."
+                else "Обычные серверы не отвечают: переключился на «$name» (${move.ms} мс)."
+            }
+        }
+    }
+
+    /** Takes the server that answered fastest. */
+    fun chooseFastest(id: String) {
+        val answers = _pings.value[id] ?: return
+        val best = answers.filter { it.value.answered }.minByOrNull { it.value.ms!! }?.key
+        if (best == null) { _message.value = "Ни один сервер не ответил."; return }
+        // The person's own choice: the app will not take it back on its own.
+        store.update { s -> s.copy(tunnels = s.tunnels.map { if (it.id == id) it.copy(chosen = best, autoFrom = "") else it }) }
+        _message.value = "Выбран самый быстрый: ${store.state.value.tunnels.first { it.id == id }.nodes[best].name} (${answers.getValue(best).ms} мс)."
+    }
+
+    fun setAutoBypass(on: Boolean) = store.update { it.copy(settings = it.settings.copy(autoBypass = on)) }
+
+    // ------------------------------------------------------------------ updates
+
+    val update: StateFlow<Updater.State> = Updater.state
+
+    fun setAutoUpdateCheck(on: Boolean) = store.update { it.copy(settings = it.settings.copy(autoUpdateCheck = on)) }
+
+    fun checkUpdate() {
+        viewModelScope.launch {
+            Updater.check(getApplication())
+            store.update { it.copy(settings = it.settings.copy(updateCheckedAt = System.currentTimeMillis())) }
+        }
+    }
+
+    /** Downloads the new version and hands it to the system's installer, which asks the person to confirm. */
+    fun installUpdate() {
+        val info = (Updater.state.value as? Updater.State.Available)?.info ?: (Updater.state.value as? Updater.State.Failed)?.info ?: return
+        val ctx = getApplication<Application>()
+        if (!Updater.mayInstall(ctx)) {
+            _message.value = "Разреши Tunor устанавливать приложения: включи переключатель на открывшемся экране и вернись сюда."
+            ctx.startActivity(
+                Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:" + ctx.packageName))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            return
+        }
+        viewModelScope.launch { Updater.install(ctx, info) }
+    }
+
+    /** Looks for a new version when the app opens, at most twice a day. */
+    private fun checkUpdateAtStart() {
+        val s = store.state.value.settings
+        if (!s.autoUpdateCheck || System.currentTimeMillis() - s.updateCheckedAt < 12L * 3600 * 1000) return
+        checkUpdate()
     }
 
     // ------------------------------------------------------------------ the check
@@ -378,7 +468,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // A running engine follows the setup: a tick on a list, a site, a tunnel's server reaches it without a restart by hand.
         viewModelScope.launch {
             store.state
-                .map { Triple(it.tunnels, it.rules, it.settings.rest to it.settings.apps) }
+                .map { Triple(it.tunnels, it.rules, it.settings.rest) }
                 .distinctUntilChanged()
                 .drop(1)
                 .debounce(700)
@@ -387,5 +477,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { Vpn.notes.collect { say(it) } }
         refreshFiles()
         refreshStale()
+        checkUpdateAtStart()
     }
 }

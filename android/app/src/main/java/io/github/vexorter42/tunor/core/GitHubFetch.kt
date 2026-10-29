@@ -51,6 +51,59 @@ object GitHubFetch {
         throw Failed(why.joinToString("; "), unreachable = !answered)
     }
 
+    /**
+     * A big file, straight to [dest] and not through memory, with [progress] told how much of it has come (and how much
+     * there is, 0 when the place does not say). A try that fails part-way leaves nothing behind and the next place starts over.
+     */
+    suspend fun download(url: String, dest: java.io.File, maxBytes: Long, progress: (Long, Long) -> Unit): Unit = withContext(Dispatchers.IO) {
+        val why = ArrayList<String>()
+        var answered = false
+        for ((name, address) in ways(url)) {
+            val tmp = java.io.File(dest.parentFile, dest.name + ".part")
+            try {
+                val c = URL(address).openConnection() as HttpURLConnection
+                try {
+                    c.connectTimeout = CONNECT_MS
+                    c.readTimeout = READ_MS
+                    c.setRequestProperty("User-Agent", "Tunor-Android/1")
+                    if (c.responseCode != 200) throw Refused(c.responseCode)
+                    val total = c.contentLengthLong.coerceAtLeast(0)
+                    if (total > maxBytes) throw java.io.IOException("файл больше $maxBytes байт")
+                    var done = 0L
+                    progress(0, total)
+                    c.inputStream.use { body ->
+                        tmp.outputStream().use { out ->
+                            val buffer = ByteArray(64 * 1024)
+                            while (true) {
+                                val n = body.read(buffer)
+                                if (n < 0) break
+                                out.write(buffer, 0, n)
+                                done += n
+                                if (done > maxBytes) throw java.io.IOException("файл больше $maxBytes байт")
+                                progress(done, total)
+                            }
+                        }
+                    }
+                    if (total > 0 && done != total) throw java.io.IOException("получено $done из $total байт")
+                } finally {
+                    c.disconnect()
+                }
+                dest.delete()
+                if (!tmp.renameTo(dest)) throw java.io.IOException("не удалось сохранить файл")
+                lastGood = name
+                return@withContext
+            } catch (e: Refused) {
+                answered = true
+                why += "$name: ${e.message}"
+            } catch (e: Exception) {
+                why += "$name: ${reason(e)}"
+            } finally {
+                tmp.delete()
+            }
+        }
+        throw Failed(why.joinToString("; "), unreachable = !answered)
+    }
+
     suspend fun text(url: String, maxBytes: Int): String = bytes(url, maxBytes).toString(Charsets.UTF_8).trimStart('\uFEFF')
 
     private fun once(address: String, maxBytes: Int): ByteArray {

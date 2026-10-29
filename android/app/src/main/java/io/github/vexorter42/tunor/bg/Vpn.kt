@@ -24,7 +24,20 @@ object Vpn {
     private val flow = MutableStateFlow<Phase>(Phase.Stopped)
     val phase: StateFlow<Phase> = flow.asStateFlow()
 
-    internal fun set(p: Phase) { flow.value = p }
+    internal fun set(p: Phase) {
+        flow.value = p
+        TunorTileService.refresh()
+    }
+
+    /** The running service, so that code of this app that opens its own connections can keep them out of the tunnel. */
+    @Volatile internal var service: android.net.VpnService? = null
+
+    /** Keeps a socket out of the tunnel while one is up, so that what it measures is the way round it. Says whether it is: with no tunnel up there is nothing to keep it out of, and that is a yes. */
+    fun protect(socket: java.net.Socket): Boolean = try {
+        service?.protect(socket) ?: true
+    } catch (_: Exception) {
+        false
+    }
 
     /** The doors of the running engine, with this run's password; null while it is not running. */
     @Volatile var door: Door? = null

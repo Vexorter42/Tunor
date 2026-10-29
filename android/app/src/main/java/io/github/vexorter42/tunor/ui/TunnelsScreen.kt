@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -41,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.vexorter42.tunor.core.Bypass
 import io.github.vexorter42.tunor.core.ConfigBuilder
 import io.github.vexorter42.tunor.core.Tunnel
 
@@ -179,15 +182,51 @@ private fun OwnTunnel(t: Tunnel, tunnels: List<Tunnel>, vm: MainViewModel) {
         }
         Spacer(Modifier.height(6.dp))
         Via(t, tunnels, vm)
-        if (t.kind == Tunnel.SUB) {
-            Spacer(Modifier.height(6.dp))
-            Text("Сервер", color = Palette.Dim, fontSize = 13.sp)
-            t.nodes.forEachIndexed { i, node ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = i == t.chosen, onClick = { vm.chooseNode(t.id, i) })
-                    Text(node.name, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                }
+        if (t.kind == Tunnel.SUB) Servers(t, vm)
+    }
+}
+
+/** The servers of a subscription: which one is in use, how fast each answers, and the buttons to time them and take the fastest. */
+@Composable
+private fun Servers(t: Tunnel, vm: MainViewModel) {
+    val pings by vm.pings.collectAsState()
+    val pinging by vm.pinging.collectAsState()
+    val answers = pings[t.id].orEmpty()
+    val progress = pinging[t.id]
+
+    Spacer(Modifier.height(10.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Сервер", color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        OutlinedButton(onClick = { vm.ping(t.id) }, enabled = progress == null) {
+            if (progress != null) {
+                androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("${progress.first}/${progress.second}", fontSize = 13.sp)
+            } else Text("Проверить пинг", fontSize = 13.sp)
+        }
+        if (answers.isNotEmpty()) {
+            Spacer(Modifier.width(8.dp))
+            Button(onClick = { vm.chooseFastest(t.id) }, enabled = answers.values.any { it.answered }) { Text("Быстрейший", fontSize = 13.sp) }
+        }
+    }
+    if (t.autoFrom.isNotEmpty()) {
+        Text(
+            "Сервер выбран приложением: обычные не отвечали. Как только они ответят, оно вернётся на прежний.",
+            color = Palette.Warn, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp),
+        )
+    }
+    // The nearest first once they have been timed; the ones that did not answer last, in the provider's order.
+    val order = t.nodes.indices.sortedWith(compareBy({ answers[it]?.ms ?: Int.MAX_VALUE }, { it }))
+    order.forEach { i ->
+        val node = t.nodes[i]
+        val r = answers[i]
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = i == t.chosen, onClick = { vm.chooseNode(t.id, i) })
+            Column(Modifier.weight(1f)) {
+                Text(node.name, fontSize = 14.sp)
+                if (Bypass.isSpecial(node.name)) Text("для обхода", color = Palette.Dim, fontSize = 11.sp)
             }
+            if (r != null) Text(r.text, color = if (r.answered) Palette.Accent else Palette.Dim, fontSize = 13.sp)
         }
     }
 }

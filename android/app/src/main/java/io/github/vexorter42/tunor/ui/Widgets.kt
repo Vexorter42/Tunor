@@ -20,8 +20,10 @@ import io.github.vexorter42.tunor.core.Tunnel
 /**
  * A button that says which tunnel something goes through and lets the person pick another.
  *
- * @param current the tunnel's id; empty — [allowDirect] says "directly", otherwise the first that works
- * @param allowDirect offer "directly" as well: for the traffic that nothing names
+ * @param current the tunnel's id, or one of the [extra] values; empty with no such value — the first tunnel that works
+ * @param extra choices that are not a tunnel, as value to words and shown before the tunnels: "directly" for the traffic
+ *              that nothing names, "by the rules" for an app that has no way of its own
+ * @param withTunnels whether the tunnels are offered at all
  */
 @Composable
 fun TunnelPicker(
@@ -29,15 +31,15 @@ fun TunnelPicker(
     tunnels: List<Tunnel>,
     onPick: (String) -> Unit,
     modifier: Modifier = Modifier,
-    allowDirect: Boolean = false,
+    extra: List<Pair<String, String>> = emptyList(),
+    withTunnels: Boolean = true,
 ) {
     var open by remember { mutableStateOf(false) }
-    val ids = ConfigBuilder.ordered(tunnels).map { it.id }.let { have ->
+    val ids = if (!withTunnels) emptyList() else ConfigBuilder.ordered(tunnels).map { it.id }.let { have ->
         // What was picked stays in the list even if its tunnel has since gone, so that the button says what it will do.
-        if (current.isNotEmpty() && current !in have) listOf(current) + have else have
+        if (current.isNotEmpty() && extra.none { it.first == current } && current !in have) listOf(current) + have else have
     }
-    val label = when {
-        current.isEmpty() && allowDirect -> "Напрямую"
+    val label = extra.firstOrNull { it.first == current }?.second ?: when {
         current.isEmpty() -> ConfigBuilder.live(tunnels).firstOrNull()?.title ?: "—"
         else -> ConfigBuilder.titleOf(current, tunnels)
     }
@@ -46,7 +48,7 @@ fun TunnelPicker(
             Text("$label ▾", fontSize = 13.sp, maxLines = 1)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            if (allowDirect) DropdownMenuItem(text = { Text("Напрямую") }, onClick = { onPick(""); open = false })
+            extra.forEach { (value, words) -> DropdownMenuItem(text = { Text(words) }, onClick = { onPick(value); open = false }) }
             ids.forEach { id ->
                 val missing = tunnels.none { it.id == id }
                 DropdownMenuItem(

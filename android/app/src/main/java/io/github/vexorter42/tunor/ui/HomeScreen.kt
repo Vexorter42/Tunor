@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import io.github.vexorter42.tunor.bg.Phase
 import io.github.vexorter42.tunor.bg.Vpn
 import io.github.vexorter42.tunor.core.ConfigBuilder
+import io.github.vexorter42.tunor.core.Updater
 
 @Composable
 fun HomeScreen(vm: MainViewModel, padding: PaddingValues, onToggle: () -> Unit) {
@@ -99,6 +100,16 @@ fun HomeScreen(vm: MainViewModel, padding: PaddingValues, onToggle: () -> Unit) 
             }
         }
 
+        val update by vm.update.collectAsState()
+        (update as? Updater.State.Available)?.let { a ->
+            Panel(Modifier.fillMaxWidth()) {
+                Text("Доступно обновление ${a.info.version}", fontWeight = FontWeight.SemiBold, color = Palette.Accent)
+                if (a.info.notes.isNotEmpty()) Text(a.info.notes, color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(onClick = vm::installUpdate) { Text("Скачать и установить") }
+            }
+        }
+
         Panel(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -110,7 +121,7 @@ fun HomeScreen(vm: MainViewModel, padding: PaddingValues, onToggle: () -> Unit) 
                     )
                 }
                 Spacer(Modifier.size(8.dp))
-                TunnelPicker(state.settings.rest, state.tunnels, vm::setRest, allowDirect = true)
+                TunnelPicker(state.settings.rest, state.tunnels, vm::setRest, extra = listOf("" to "Напрямую"))
             }
         }
 

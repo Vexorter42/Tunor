@@ -64,7 +64,7 @@ fun App(vm: MainViewModel, onToggle: () -> Unit) {
             0 -> HomeScreen(vm, padding, onToggle)
             1 -> TunnelsScreen(vm, padding)
             2 -> RulesScreen(vm, padding)
-            else -> MoreScreen(padding)
+            else -> MoreScreen(vm, padding)
         }
     }
 }
