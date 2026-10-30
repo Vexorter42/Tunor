@@ -21,18 +21,22 @@
 
 <br>
 
+<p align="center">
+  <img src="docs/screens/home.png" width="860" alt="Главная: состояние, проверка соединения через каждый туннель, стабильность за сутки">
+</p>
+
 <table>
   <tr>
-    <td width="34%" valign="top"><img src="docs/screens/home.png" alt="Главная: проверка соединения через каждый туннель"></td>
-    <td width="33%" valign="top"><img src="docs/screens/rules.png" alt="Правила: группы маршрутизации и проверка «Куда пойдёт»"></td>
-    <td width="33%" valign="top"><img src="docs/screens/apps.png" alt="Приложения: какая программа в какой туннель"></td>
+    <td width="50%" valign="top"><img src="docs/screens/rules.png" alt="Правила: группы маршрутизации и проверка «Куда пойдёт»"></td>
+    <td width="50%" valign="top"><img src="docs/screens/apps.png" alt="Приложения: какая программа через какой туннель и куда она ходит"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Проверка каждого туннеля</sub></td>
     <td align="center"><sub>Правила и «Куда пойдёт»</sub></td>
     <td align="center"><sub>Программы по туннелям</sub></td>
   </tr>
 </table>
+
+<p align="center"><sub>Окно версии для macOS и Linux; на Windows то же самое. Снимки сделаны с демонстрационными данными: адреса из диапазонов, отведённых для примеров.</sub></p>
 
 ## Скачать
 
@@ -189,6 +193,12 @@ sudo setcap cap_net_admin,cap_net_raw+ep ~/.config/tunor/build/sing-box
 | AWG 3.1 | `RandomTrailers`, `DisableCookies` | ✅ |
 
 ## Android
+
+<p align="center">
+  <img src="docs/screens/android-home.png" width="250" alt="Android: запасной путь для мобильной сети включён, весь трафик идёт через подписку">&nbsp;&nbsp;
+  <img src="docs/screens/android-tunnels.png" width="250" alt="Android: подписка с автовыбором сервера, серверы для обхода помечены">&nbsp;&nbsp;
+  <img src="docs/screens/android-more.png" width="250" alt="Android: настройки автоматики и запасного пути">
+</p>
 
 Приложение для телефона на том же движке с AmneziaWG: WARP и geo (geo идёт внутри WARP), свои VPN, тот же каталог готовых списков, свои сайты.
 
