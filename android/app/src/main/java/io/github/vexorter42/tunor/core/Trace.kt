@@ -36,9 +36,10 @@ object Tracer {
     private const val URL_TRACE = "https://www.cloudflare.com/cdn-cgi/trace"
 
     /** @param port the loopback port of a door, or null to ask without one — the way an app of the phone would. */
-    suspend fun ask(door: Door?, port: Int?): Result<Trace> = withContext(Dispatchers.IO) {
+    suspend fun ask(door: Door?, port: Int?, timeoutMs: Int = 8_000): Result<Trace> = withContext(Dispatchers.IO) {
+        var c: HttpURLConnection? = null
         try {
-            val c = if (door != null && port != null) {
+            c = if (door != null && port != null) {
                 Authenticator.setDefault(object : Authenticator() {
                     override fun getPasswordAuthentication() = PasswordAuthentication(door.user, door.password.toCharArray())
                 })
@@ -46,8 +47,10 @@ object Tracer {
             } else {
                 URL(URL_TRACE).openConnection() as HttpURLConnection
             }
-            c.connectTimeout = 8_000
-            c.readTimeout = 8_000
+            c.connectTimeout = timeoutMs
+            c.readTimeout = timeoutMs
+            // Not kept for the next time: the engine may be restarted between two looks, and a kept connection to it would be dead.
+            c.setRequestProperty("Connection", "close")
             if (c.responseCode != 200) return@withContext Result.failure(Exception("ответ ${c.responseCode}"))
             val fields = c.inputStream.bufferedReader().readLines().mapNotNull {
                 val i = it.indexOf('=')
@@ -58,6 +61,8 @@ object Tracer {
             Result.success(Trace(fields["ip"].orEmpty(), name, fields["colo"].orEmpty()))
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            try { c?.disconnect() } catch (_: Exception) { }
         }
     }
 }

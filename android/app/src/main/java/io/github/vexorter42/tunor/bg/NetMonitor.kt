@@ -73,6 +73,21 @@ object NetMonitor {
         listener = null
     }
 
+    /** What the phone is on, in a word for the person and the report: "Wi-Fi", "мобильная сеть", "другая сеть" or "нет сети". */
+    fun kind(): String {
+        val n = network ?: return "нет сети"
+        if (!running) return "нет сети"
+        val caps = cm.getNetworkCapabilities(n) ?: return "нет сети"
+        return when {
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "мобильная сеть"
+            else -> "другая сеть"
+        }
+    }
+
+    /** Whether the network the phone is really on is the mobile one. */
+    fun isCellular() = kind() == "мобильная сеть"
+
     fun setListener(l: InterfaceUpdateListener?) {
         listener = l
         report()

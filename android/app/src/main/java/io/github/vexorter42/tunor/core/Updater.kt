@@ -98,10 +98,13 @@ object Updater {
             val info = parse(text, Build.SUPPORTED_ABIS.toList(), strict = !isDebugOverride(ctx))
             if (info != null && info.code > BuildConfig.VERSION_CODE) State.Available(info) else State.UpToDate
         } catch (e: GitHubFetch.Failed) {
+            AppLog.w("update", "поиск обновления: не удалось связаться с GitHub и зеркалами")
             State.Failed("не удалось связаться с GitHub и зеркалами")
         } catch (e: Exception) {
+            AppLog.w("update", "поиск обновления не удался", e)
             State.Failed(e.message ?: e.javaClass.simpleName)
         }
+        if (result is State.Available) AppLog.i("update", "есть версия ${result.info.version}")
         flow.value = result
         return result
     }
@@ -123,21 +126,26 @@ object Updater {
 
             val actual = withContext(Dispatchers.IO) { sha256(file) }
             if (!actual.equals(info.sha256, true)) {
+                AppLog.w("update", "контрольная сумма скачанного файла не совпала: отклонён")
                 file.delete()
                 flow.value = State.Failed("контрольная сумма не совпала: файл подменён или повреждён, установка отклонена", info)
                 return
             }
             packageProblem(ctx, file)?.let {
+                AppLog.w("update", "файл не годится: $it")
                 file.delete()
                 flow.value = State.Failed(it, info)
                 return
             }
             flow.value = State.Installing(info)
+            AppLog.i("update", "версия ${info.version} передана установщику системы")
             withContext(Dispatchers.IO) { handOff(ctx, file) }
         } catch (e: GitHubFetch.Failed) {
+            AppLog.w("update", "не удалось скачать версию ${info.version}", e)
             file.delete()
             flow.value = State.Failed("не удалось скачать: " + (e.message ?: ""), info)
         } catch (e: Exception) {
+            AppLog.w("update", "установка версии ${info.version} не удалась", e)
             file.delete()
             flow.value = State.Failed(e.message ?: e.javaClass.simpleName, info)
         }
@@ -145,6 +153,7 @@ object Updater {
 
     /** The system's installer said it did not take it. */
     fun failed(why: String?, info: Info? = null) {
+        AppLog.w("update", "система не установила обновление: ${why.orEmpty()}")
         flow.value = State.Failed(why?.takeIf { it.isNotBlank() } ?: "система не установила обновление", (flow.value as? State.Installing)?.info ?: info)
     }
 
@@ -203,6 +212,8 @@ object Updater {
             val intent = Intent(ctx, InstallReceiver::class.java).setAction(InstallReceiver.ACTION)
             // The installer adds to it what it has to say, so it cannot be an immutable one.
             val pending = PendingIntent.getBroadcast(ctx, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+            // The app is about to be replaced under a running tunnel: when it ends, that is no fault and wants no report.
+            Crashes.noteUpdate(ctx)
             session.commit(pending.intentSender)
         }
     }

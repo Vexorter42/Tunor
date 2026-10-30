@@ -101,13 +101,13 @@ object NodePing {
      * Times every server, some at a time. [done] is told after each with how many are done so far.
      * The answers are by the server's place in the list.
      */
-    suspend fun measureAll(urls: List<String>, done: (Int, Int) -> Unit = { _, _ -> }): Map<Int, PingResult> = coroutineScope {
+    suspend fun measureAll(urls: List<String>, samples: Int = SAMPLES, done: (Int, Int) -> Unit = { _, _ -> }): Map<Int, PingResult> = coroutineScope {
         val resolved = HashMap<String, InetAddress?>()
         val gate = Semaphore(IN_PARALLEL)
         val finished = java.util.concurrent.atomic.AtomicInteger()
         val answers = urls.mapIndexed { i, url ->
             async(Dispatchers.IO) {
-                val r = gate.withPermit { measure(url, SAMPLES, resolved) }
+                val r = gate.withPermit { measure(url, samples, resolved) }
                 done(finished.incrementAndGet(), urls.size)
                 i to r
             }

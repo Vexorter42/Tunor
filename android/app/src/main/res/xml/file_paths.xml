@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Where a report can be handed to another app from: the reports folder and nothing else of the app's own files. -->
+<paths>
+    <files-path name="reports" path="reports/" />
+</paths>

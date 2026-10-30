@@ -10,6 +10,7 @@ import io.github.vexorter42.tunor.TunorApp
 import io.github.vexorter42.tunor.bg.Health
 import io.github.vexorter42.tunor.bg.Phase
 import io.github.vexorter42.tunor.bg.Vpn
+import io.github.vexorter42.tunor.core.AppLog
 import io.github.vexorter42.tunor.core.AppRule
 import io.github.vexorter42.tunor.core.Bypass
 import io.github.vexorter42.tunor.core.Catalog
@@ -18,6 +19,8 @@ import io.github.vexorter42.tunor.core.ConfigBuilder
 import io.github.vexorter42.tunor.core.NodePing
 import io.github.vexorter42.tunor.core.Pick
 import io.github.vexorter42.tunor.core.PingResult
+import io.github.vexorter42.tunor.core.Pool
+import io.github.vexorter42.tunor.core.Reports
 import io.github.vexorter42.tunor.core.RuleSets
 import io.github.vexorter42.tunor.core.Site
 import io.github.vexorter42.tunor.core.Subscription
@@ -117,9 +120,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _busy.value = true
                 val r = Subscription.fetch(t)
                 _busy.value = false
-                if (!r.ok) { _message.value = "Подписка не подошла: ${r.problem}."; return@launch }
-                add(Tunnel(newId(), r.title.ifBlank { hostOf(t) }, Tunnel.SUB, sub = t, nodes = r.nodes))
+                if (!r.ok) { AppLog.w("sub", "подписка не подошла: ${r.problem}"); _message.value = "Подписка не подошла: ${r.problem}."; return@launch }
+                val fresh = Tunnel(newId(), r.title.ifBlank { hostOf(t) }, Tunnel.SUB, sub = t, nodes = r.nodes)
+                add(fresh)
                 _message.value = "Подписка добавлена: серверов ${r.nodes.size}."
+                fillPool(fresh.id)
             }
             else -> _message.value = "Это не конфиг .conf, не ссылка vless:// и не адрес подписки."
         }
@@ -131,16 +136,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _busy.value = true
             val r = Subscription.fetch(t.sub)
             _busy.value = false
-            if (!r.ok) { _message.value = "Подписку не обновить: ${r.problem}."; return@launch }
+            if (!r.ok) { AppLog.w("sub", "«${t.title}»: подписку не обновить: ${r.problem}"); _message.value = "Подписку не обновить: ${r.problem}."; return@launch }
             val keep = t.nodes.getOrNull(t.chosen)?.url
             val chosen = r.nodes.indexOfFirst { it.url == keep }.takeIf { it >= 0 } ?: 0
-            store.update { s -> s.copy(tunnels = s.tunnels.map { if (it.id == id) it.copy(nodes = r.nodes, chosen = chosen) else it }) }
+            store.update { s ->
+                s.copy(tunnels = s.tunnels.map {
+                    if (it.id == id) it.copy(nodes = r.nodes, chosen = chosen, pool = it.pool.filter { link -> r.nodes.any { n -> n.url == link } }) else it
+                })
+            }
+            AppLog.i("sub", "«${t.title}»: подписка обновлена, серверов ${r.nodes.size}")
             _message.value = "Подписка обновлена: серверов ${r.nodes.size}."
+            if (store.state.value.tunnels.firstOrNull { it.id == id }?.let { it.auto && it.pool.isEmpty() } == true) fillPool(id)
         }
     }
 
-    fun chooseNode(id: String, index: Int) = store.update { s ->
-        s.copy(tunnels = s.tunnels.map { if (it.id == id) it.copy(chosen = index) else it })
+    /** A server taken by hand: it is the person's choice, so the app stops choosing for this subscription. */
+    fun chooseNode(id: String, index: Int) {
+        val was = store.state.value.tunnels.firstOrNull { it.id == id }?.auto == true
+        store.update { s -> s.copy(tunnels = s.tunnels.map { if (it.id == id) it.copy(chosen = index, auto = false, autoFrom = "") else it }) }
+        if (was) _message.value = "Автовыбор выключен: сервер выбран вручную."
+    }
+
+    /** Lets the app look after the servers of a subscription, or leaves it on the one chosen. */
+    fun setAuto(id: String, on: Boolean) {
+        store.update { s -> s.copy(tunnels = s.tunnels.map { if (it.id == id) it.copy(auto = on, autoFrom = if (on) "" else it.autoFrom) else it }) }
+        if (on) fillPool(id)
+    }
+
+    /** Times the servers of a subscription and gives the engine the nearest few to choose among. */
+    private fun fillPool(id: String) {
+        val t = store.state.value.tunnels.firstOrNull { it.id == id && it.kind == Tunnel.SUB } ?: return
+        viewModelScope.launch {
+            val next = Pool.measure(t)
+            if (next.isEmpty()) { AppLog.w("pool", "«${t.title}»: ни один сервер не ответил"); return@launch }
+            store.update { s -> s.copy(tunnels = s.tunnels.map { if (it.id == id && it.nodes == t.nodes && it.auto) it.copy(pool = next) else it }) }
+            AppLog.i("pool", "«${t.title}»: выбрано серверов ${next.size}")
+        }
     }
 
     /** Sets which tunnel [id] rides inside; empty — none. */
@@ -151,7 +182,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun delete(id: String) = store.update { s ->
         s.copy(
             tunnels = s.tunnels.filterNot { it.id == id },
-            settings = if (s.settings.rest == id) s.settings.copy(rest = "") else s.settings,
+            settings = s.settings.copy(
+                rest = if (s.settings.rest == id) "" else s.settings.rest,
+                mobileRescueSub = if (s.settings.mobileRescueSub == id) "" else s.settings.mobileRescueSub,
+            ),
         )
     }
 
@@ -355,6 +389,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _message.value = "Ни один сервер не отвечает: " +
                     if (Health.hasNetwork(getApplication())) "проверь адрес подписки или попробуй позже." else "нет сети."
             }
+            if (t.auto) {
+                val next = Pool.daily(t, answers)
+                if (next.isNotEmpty() && next != t.pool) {
+                    store.update { s -> s.copy(tunnels = s.tunnels.map { if (it.id == id && it.nodes == t.nodes && it.auto) it.copy(pool = next) else it }) }
+                    _message.value = "Для движка выбрано серверов: ${next.size}."
+                }
+                return@launch
+            }
             if (!store.state.value.settings.autoBypass) return@launch
             val move = Bypass.decide(t, answers) ?: return@launch
             var done = false
@@ -380,6 +422,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setAutoBypass(on: Boolean) = store.update { it.copy(settings = it.settings.copy(autoBypass = on)) }
+
+    fun setMobileRescue(on: Boolean) = store.update { it.copy(settings = it.settings.copy(mobileRescue = on)) }
+
+    fun setMobileRescueSub(id: String) = store.update { it.copy(settings = it.settings.copy(mobileRescueSub = id)) }
+
+    // ------------------------------------------------------------------ reports
+
+    private val _reports = MutableStateFlow<List<Reports.Item>>(emptyList())
+    /** The reports on the phone, the newest first. */
+    val reports: StateFlow<List<Reports.Item>> = _reports.asStateFlow()
+
+    fun loadReports() {
+        val ctx = getApplication<Application>()
+        viewModelScope.launch { _reports.value = withContext(Dispatchers.IO) { Reports.list(ctx) } }
+    }
+
+    /** Collects a report now, at the person's asking. Says the file to [then], or tells why it could not. */
+    fun makeReport(then: (java.io.File) -> Unit) {
+        val ctx = getApplication<Application>()
+        viewModelScope.launch {
+            val f = withContext(Dispatchers.IO) { Reports.create(ctx, Reports.MANUAL, "Отчёт по просьбе пользователя") }
+            loadReports()
+            if (f == null) _message.value = "Отчёт не удалось записать." else then(f)
+        }
+    }
+
+    fun deleteReport(item: Reports.Item) {
+        val ctx = getApplication<Application>()
+        viewModelScope.launch { withContext(Dispatchers.IO) { Reports.delete(ctx, item) }; loadReports() }
+    }
+
+    fun deleteReports() {
+        val ctx = getApplication<Application>()
+        viewModelScope.launch { withContext(Dispatchers.IO) { Reports.deleteAll(ctx) }; loadReports() }
+    }
+
+    /** The waiting report has been shown. */
+    fun reportSeen() = Reports.markSeen(getApplication())
 
     // ------------------------------------------------------------------ updates
 

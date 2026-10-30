@@ -35,6 +35,14 @@ data class Tunnel(
      * server that was in use before, so that it can go back to it when it answers again. Empty — the person's own choice stands.
      */
     val autoFrom: String = "",
+    /**
+     * For a subscription: the app times the servers itself and hands the engine the fastest few to choose among
+     * (see [Pool]), instead of the one server in [chosen]. The engine tries each with a real request and passes over
+     * the ones that do not work, which a server's answer to a connection alone does not tell.
+     */
+    val auto: Boolean = true,
+    /** The links of the servers the engine chooses among when [auto] is on, fastest first; empty until the app has timed them. */
+    val pool: List<String> = emptyList(),
 ) {
     companion object {
         const val WG = "wg"
@@ -92,6 +100,10 @@ data class Settings(
     val listsFetchedAt: Long = 0,
     /** When none of a subscription's usual servers answers, move to one of its servers meant for that (see [Bypass]). */
     val autoBypass: Boolean = true,
+    /** On the mobile network, when no tunnel answers, send everything through a subscription's servers made for that (see MobileRescue). */
+    val mobileRescue: Boolean = false,
+    /** The subscription for that: its id; empty — the first one that has such servers. */
+    val mobileRescueSub: String = "",
     /** Look for a newer version of the app now and then. */
     val autoUpdateCheck: Boolean = true,
     /** When that was last done, in milliseconds since 1970; 0 — never. */
@@ -122,3 +134,10 @@ data class State(
         return s
     }
 }
+
+/**
+ * A way out put in place of the usual ones while the mobile network will not carry them: everything goes through
+ * the subscription [tunnelId], and the engine chooses among [servers], links, the nearest first.
+ * It lives only while it is needed and is never written down.
+ */
+data class Rescue(val tunnelId: String, val servers: List<String>)
