@@ -5,14 +5,15 @@ package io.github.vexorter42.tunor.core
  *
  * Mobile internet is sometimes cut down to a short list of allowed sites, and every usual server stops answering
  * while the provider's special ones, made for exactly that, still do. Providers say so in the name of those
- * servers: "обход", "глушилка", "LTE". So when not one usual server answers, the subscription's own special ones
+ * servers: "обход", "глушилка", "LTE", "оператор". So when not one usual server answers, the subscription's own special ones
  * are timed and the nearest is taken; and when the usual ones answer again, the one that was in use before is taken back.
  *
  * Only a subscription that has both kinds is touched, and only to move between its own servers.
  */
 object Bypass {
     // Word starts, not anywhere in a word: "lte" is inside "filter", and "обход" inside "необходимо".
-    private val WORDS = Regex("""(?<![\p{L}])(?:обход|глушилк)|(?<![\p{L}])lte(?![\p{L}])""", RegexOption.IGNORE_CASE)
+    // "оператор" also covers "операторы", "оператора": providers name such servers after the carrier they are meant for.
+    private val WORDS = Regex("""(?<![\p{L}])(?:обход|глушилк|оператор)|(?<![\p{L}])lte(?![\p{L}])""", RegexOption.IGNORE_CASE)
 
     fun isSpecial(name: String) = WORDS.containsMatchIn(name)
 

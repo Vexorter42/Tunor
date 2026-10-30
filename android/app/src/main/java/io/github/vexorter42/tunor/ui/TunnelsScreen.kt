@@ -196,7 +196,19 @@ private fun Servers(t: Tunnel, vm: MainViewModel) {
 
     Spacer(Modifier.height(10.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Сервер", color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text("Выбирать сервер самому", fontSize = 14.sp)
+            Text(
+                if (t.auto) "Tunor меряет серверы и отдаёт движку ближайшие: он проверяет их настоящим запросом и обходит те, что не работают. Сейчас в работе: ${t.pool.size}."
+                else "Используется сервер, который выбрал ты.",
+                color = Palette.Dim, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        androidx.compose.material3.Switch(checked = t.auto, onCheckedChange = { vm.setAuto(t.id, it) })
+    }
+    Spacer(Modifier.height(10.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(if (t.auto) "Серверы" else "Сервер", color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.weight(1f))
         OutlinedButton(onClick = { vm.ping(t.id) }, enabled = progress == null) {
             if (progress != null) {
                 androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
@@ -204,12 +216,12 @@ private fun Servers(t: Tunnel, vm: MainViewModel) {
                 Text("${progress.first}/${progress.second}", fontSize = 13.sp)
             } else Text("Проверить пинг", fontSize = 13.sp)
         }
-        if (answers.isNotEmpty()) {
+        if (answers.isNotEmpty() && !t.auto) {
             Spacer(Modifier.width(8.dp))
             Button(onClick = { vm.chooseFastest(t.id) }, enabled = answers.values.any { it.answered }) { Text("Быстрейший", fontSize = 13.sp) }
         }
     }
-    if (t.autoFrom.isNotEmpty()) {
+    if (t.autoFrom.isNotEmpty() && !t.auto) {
         Text(
             "Сервер выбран приложением: обычные не отвечали. Как только они ответят, оно вернётся на прежний.",
             color = Palette.Warn, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp),
@@ -221,10 +233,14 @@ private fun Servers(t: Tunnel, vm: MainViewModel) {
         val node = t.nodes[i]
         val r = answers[i]
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = i == t.chosen, onClick = { vm.chooseNode(t.id, i) })
+            RadioButton(selected = !t.auto && i == t.chosen, onClick = { vm.chooseNode(t.id, i) })
             Column(Modifier.weight(1f)) {
                 Text(node.name, fontSize = 14.sp)
-                if (Bypass.isSpecial(node.name)) Text("для обхода", color = Palette.Dim, fontSize = 11.sp)
+                val tags = listOfNotNull(
+                    if (Bypass.isSpecial(node.name)) "для обхода" else null,
+                    if (t.auto && node.url in t.pool) "в работе" else null,
+                )
+                if (tags.isNotEmpty()) Text(tags.joinToString(" · "), color = Palette.Dim, fontSize = 11.sp)
             }
             if (r != null) Text(r.text, color = if (r.answered) Palette.Accent else Palette.Dim, fontSize = 13.sp)
         }

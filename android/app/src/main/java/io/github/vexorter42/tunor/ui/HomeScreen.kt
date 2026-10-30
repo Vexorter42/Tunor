@@ -29,9 +29,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import io.github.vexorter42.tunor.bg.MobileRescue
+import io.github.vexorter42.tunor.bg.NetMonitor
 import io.github.vexorter42.tunor.bg.Phase
 import io.github.vexorter42.tunor.bg.Vpn
 import io.github.vexorter42.tunor.core.ConfigBuilder
+import io.github.vexorter42.tunor.core.Reports
 import io.github.vexorter42.tunor.core.Updater
 
 @Composable
@@ -97,6 +101,37 @@ fun HomeScreen(vm: MainViewModel, padding: PaddingValues, onToggle: () -> Unit) 
             ) {
                 if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Palette.OnAccent)
                 else Text(if (running) "Остановить" else "Запустить", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            }
+        }
+
+        // The tunnel is going round the mobile network's cut-off by its own decision: said at the top, where it is seen at once.
+        val rescue by MobileRescue.plan.collectAsState()
+        rescue?.let { r ->
+            Panel(Modifier.fillMaxWidth()) {
+                Text("Мобильная сеть: запасной путь", fontWeight = FontWeight.SemiBold, color = Palette.Warn)
+                Text(
+                    "Обычные пути не отвечают, и весь трафик идёт через «${ConfigBuilder.titleOf(r.tunnelId, state.tunnels)}»: " +
+                        "серверов для обхода ${r.servers.size}, движок сам берёт рабочий. На Wi-Fi или когда WARP снова ответит, всё вернётся как было.",
+                    color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
+
+        // Something broke since the person last looked, and the app has written it down.
+        val ctx = LocalContext.current
+        val fresh by Reports.fresh.collectAsState()
+        fresh?.let { r ->
+            Panel(Modifier.fillMaxWidth()) {
+                Text(r.title, fontWeight = FontWeight.SemiBold, color = Palette.Danger)
+                Text(
+                    "Tunor записал отчёт: что это было и что происходило перед этим. Его можно отправить тому, кто разберётся; ключей и адресов подписок в нём нет.",
+                    color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp),
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.Button(onClick = { shareReport(ctx, r.file); vm.reportSeen() }) { Text("Поделиться") }
+                    OutlinedButton(onClick = vm::reportSeen) { Text("Скрыть") }
+                }
             }
         }
 

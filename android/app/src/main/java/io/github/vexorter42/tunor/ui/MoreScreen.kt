@@ -26,6 +26,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.vexorter42.tunor.BuildConfig
+import io.github.vexorter42.tunor.bg.MobileRescue
+import io.github.vexorter42.tunor.core.Pool
+import io.github.vexorter42.tunor.core.Tunnel
 import io.github.vexorter42.tunor.core.Updater
 import io.nekohasekai.libbox.Libbox
 
@@ -36,6 +39,7 @@ fun MoreScreen(vm: MainViewModel, padding: PaddingValues) {
     val update by vm.update.collectAsState()
     var terms by remember { mutableStateOf(false) }
     var log by remember { mutableStateOf<String?>(null) }
+    var reports by remember { mutableStateOf(false) }
     fun open(url: String) = ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
     if (terms) {
@@ -46,6 +50,11 @@ fun MoreScreen(vm: MainViewModel, padding: PaddingValues) {
             Spacer(Modifier.height(14.dp))
             OutlinedButton(onClick = { terms = false }, modifier = Modifier.fillMaxWidth()) { Text("Назад") }
         }
+        return
+    }
+
+    if (reports) {
+        ReportsView(vm, padding, onBack = { reports = false })
         return
     }
 
@@ -88,14 +97,47 @@ fun MoreScreen(vm: MainViewModel, padding: PaddingValues) {
             Text("Автоматика", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             SwitchRow(
                 "Искать сервер для обхода глушилок",
-                "Если ни один обычный сервер подписки не отвечает, взять из неё сервер со словами «обход», «глушилка» или «LTE» " +
-                    "с самым быстрым откликом, а когда обычные вернутся, вернуться на прежний.",
+                "Если ни один обычный сервер подписки не отвечает, взять из неё сервер со словами «обход», «глушилка», «LTE» " +
+                    "или «оператор» с самым быстрым откликом, а когда обычные вернутся, вернуться на прежний.",
                 state.settings.autoBypass, vm::setAutoBypass,
             )
+            SwitchRow(
+                "Мобильная сеть: запасной путь",
+                "Если в мобильной сети ни WARP, ни geo не отвечают десять секунд, пустить всё через серверы подписки со словами «обход», " +
+                    "«глушилка», «LTE» или «оператор». Как только обычные пути ответят снова, или на Wi-Fi, всё вернётся как было. " +
+                    "Приложения, которым ты поставил «напрямую», остаются напрямую.",
+                state.settings.mobileRescue, vm::setMobileRescue,
+            )
+            if (state.settings.mobileRescue) {
+                val subs = state.tunnels.filter { it.kind == Tunnel.SUB && Pool.split(it).first.isNotEmpty() }
+                Row(Modifier.padding(top = 8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("Подписка", fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    if (subs.isEmpty()) {
+                        Text("нет подписки с такими серверами", color = Palette.Warn, fontSize = 13.sp)
+                    } else {
+                        TunnelPicker(
+                            state.settings.mobileRescueSub, subs, vm::setMobileRescueSub,
+                            extra = listOf("" to "Первая подходящая"),
+                        )
+                    }
+                }
+            }
             Text(
                 "Включать и выключать туннель можно и из шторки быстрых настроек: добавь в неё плитку «Tunor».",
                 color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp),
             )
+        }
+
+        Panel(Modifier.fillMaxWidth()) {
+            Text("Если что-то не работает", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(
+                "Когда приложение падает или туннель обрывается, Tunor записывает отчёт сам. Его можно прочитать и отправить: в нём нет ключей, адресов подписок и твоих сайтов.",
+                color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+            androidx.compose.material3.Button(onClick = { vm.makeReport { shareReport(ctx, it) } }, modifier = Modifier.fillMaxWidth()) { Text("Собрать отчёт и поделиться") }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = { reports = true }, modifier = Modifier.fillMaxWidth()) { Text("Все отчёты") }
         }
 
         Panel(Modifier.fillMaxWidth()) {

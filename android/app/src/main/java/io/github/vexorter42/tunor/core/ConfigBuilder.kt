@@ -32,12 +32,18 @@ object ConfigBuilder {
 
     // ------------------------------------------------------------------ which tunnels can run
 
+    /** The servers the engine chooses among for a subscription left to look after itself: the ones in its pool that can be read. */
+    fun poolOf(t: Tunnel): List<String> =
+        if (t.kind == Tunnel.SUB && t.auto) t.pool.filter { VlessLink.parse(it).ok }.distinct() else emptyList()
+
     /** Why this tunnel's own setup cannot run, in words, or null. */
     fun selfProblem(t: Tunnel): String? = when (t.kind) {
         Tunnel.WG -> WgConf.parse(t.conf).problem()
         Tunnel.LINK -> VlessLink.parse(t.link).problem
         // A server that is fine has no problem, which is null too: "no server" has to be told apart before asking about it.
-        Tunnel.SUB -> t.nodes.getOrNull(t.chosen).let { node -> if (node == null) "в подписке нет серверов: обнови её" else VlessLink.parse(node.url).problem }
+        Tunnel.SUB ->
+            if (poolOf(t).isNotEmpty()) null
+            else t.nodes.getOrNull(t.chosen).let { node -> if (node == null) "в подписке нет серверов: обнови её" else VlessLink.parse(node.url).problem }
         else -> "неизвестный вид туннеля «${t.kind}»"
     }
 
@@ -96,12 +102,15 @@ object ConfigBuilder {
      * @param door the loopback entrances for the connection check, or null when no check is wanted
      * @param have where the file of a catalog list is on the phone, or null when it has not been fetched:
      *             the engine refuses to start over a list it cannot find, so such a list is left out
+     * @param rescue a way out that takes everything while the mobile network will not carry the usual ones; the
+     *               tunnels stay in the file, so that the doors still lead to each and the usual ones can be looked at
      */
     fun build(
         state: State,
         door: Door? = null,
         have: (Pick) -> String? = { null },
         logLevel: String = if (io.github.vexorter42.tunor.BuildConfig.DEBUG) "debug" else "warn",
+        rescue: Rescue? = null,
     ): String {
         problem(state)?.let { throw ConfigProblem(it) }
         val liveList = live(state.tunnels)
@@ -110,7 +119,14 @@ object ConfigBuilder {
         val target = targets(state.tunnels, liveIds)
         // A name that is no tunnel (the catalog says "geo" and there is none) goes to the first one that works.
         val fallback = target[liveList.first().id]!!
-        fun dest(id: String) = target[id] ?: fallback
+
+        // A rescue for a tunnel that is not there, or with no server that can be read, is no rescue: the usual setup stands.
+        val rescueServers = rescue?.servers.orEmpty().filter { VlessLink.parse(it).ok }.distinct()
+        val rescueTunnel = rescue?.takeIf { rescueServers.isNotEmpty() }?.let { r -> liveList.firstOrNull { it.id == r.tunnelId && it.kind == Tunnel.SUB } }
+        val rescueTag = rescueTunnel?.let { tagOf(it) }
+        fun dest(id: String) = rescueTag ?: target[id] ?: fallback
+        // With everything going one way the rules say nothing more; what the person named goes the same way as the rest.
+        val rules0 = if (rescueTag != null) Rules() else state.rules
 
         val outbounds = JSONArray().put(JSONObject().put("type", "direct").put("tag", DIRECT))
         val endpoints = ArrayList<JSONObject>()
@@ -119,16 +135,18 @@ object ConfigBuilder {
             when (t.kind) {
                 Tunnel.WG -> endpoints += WgConf.parse(t.conf).toEndpoint(tagOf(t), detour)
                 else -> {
-                    val url = if (t.kind == Tunnel.LINK) t.link else t.nodes[t.chosen].url
-                    val o = VlessLink.parse(url).outbound!!.put("tag", tagOf(t))
-                    if (detour != null) o.put("detour", detour)
-                    outbounds.put(o)
+                    val links = when {
+                        t === rescueTunnel -> rescueServers
+                        t.kind == Tunnel.LINK -> listOf(t.link)
+                        else -> poolOf(t).ifEmpty { listOf(t.nodes[t.chosen].url) }
+                    }
+                    addServers(outbounds, tagOf(t), links, detour)
                 }
             }
         }
         fitNested(endpoints)
 
-        val finalTag = state.settings.rest.takeIf { it.isNotEmpty() }?.let { target[it] } ?: DIRECT
+        val finalTag = rescueTag ?: state.settings.rest.takeIf { it.isNotEmpty() }?.let { target[it] } ?: DIRECT
 
         val rules = JSONArray()
         // The doors first: what comes in by one goes where the door leads, whatever else is written below.
@@ -152,7 +170,7 @@ object ConfigBuilder {
         // Which app a connection belongs to is asked of the system by the service (see findConnectionOwner), so the engine is
         // told to look only when there is a rule that needs it.
         val apps = LinkedHashMap<String, ArrayList<String>>().also { m -> order.forEach { m[it] = ArrayList() } }
-        for (a in state.rules.apps) {
+        for (a in rules0.apps) {
             if (a.tunnel.isEmpty() || a.tunnel == AppRule.DIRECT) continue
             apps.getValue(dest(a.tunnel)).add(a.pkg)
         }
@@ -165,7 +183,7 @@ object ConfigBuilder {
 
         // Sites typed by hand come before the lists: a name written down on purpose beats a big list that happens to hold it.
         val sites = LinkedHashMap<String, LinkedHashSet<String>>().also { m -> order.forEach { m[it] = LinkedHashSet() } }
-        for (s in state.rules.sites) {
+        for (s in rules0.sites) {
             val entry = domainEntry(s.domain)
             if (entry.isNotEmpty()) sites.getValue(dest(s.tunnel)).add(entry)
         }
@@ -177,7 +195,7 @@ object ConfigBuilder {
         val ruleSets = JSONArray()
         val lists = LinkedHashMap<String, ArrayList<String>>().also { m -> order.forEach { m[it] = ArrayList() } }
         val seen = HashSet<String>()
-        for (p in state.rules.lists) {
+        for (p in rules0.lists) {
             val tag = dest(p.tunnel)
             if (!worthIt(tag) || !seen.add(p.id)) continue
             val path = have(p) ?: continue
@@ -239,6 +257,36 @@ object ConfigBuilder {
     }
 
     private fun listTag(p: Pick) = "list-" + p.id
+
+    /** What the engine asks to see to call a server working: Cloudflare's own address for this, which answers with nothing and is up. */
+    private const val TEST_URL = "https://cp.cloudflare.com/generate_204"
+
+    /**
+     * Puts the servers into the outbounds under the tunnel's name. One server is just that; several are a group the
+     * engine tests with real requests and picks among, so that a server that has stopped working is passed over by the
+     * engine itself, a minute after, and taken back when it works again.
+     */
+    private fun addServers(outbounds: JSONArray, tag: String, links: List<String>, detour: String?) {
+        fun one(link: String, name: String): JSONObject {
+            val o = VlessLink.parse(link).outbound!!.put("tag", name)
+            if (detour != null) o.put("detour", detour)
+            return o
+        }
+        if (links.size == 1) {
+            outbounds.put(one(links[0], tag))
+            return
+        }
+        val members = JSONArray()
+        links.forEachIndexed { i, link ->
+            val name = "$tag-$i"
+            outbounds.put(one(link, name))
+            members.put(name)
+        }
+        outbounds.put(
+            JSONObject().put("type", "urltest").put("tag", tag).put("outbounds", members)
+                .put("url", TEST_URL).put("interval", "1m").put("tolerance", 100).put("idle_timeout", "10m"),
+        )
+    }
 
     /** The apps that go straight out: the system keeps them out of the VPN altogether, so nothing of theirs even reaches the engine. */
     fun directApps(state: State): List<String> = state.rules.apps.filter { it.tunnel == AppRule.DIRECT }.map { it.pkg }.distinct()

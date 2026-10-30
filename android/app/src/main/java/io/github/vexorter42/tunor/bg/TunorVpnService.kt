@@ -16,12 +16,16 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import io.github.vexorter42.tunor.BuildConfig
 import io.github.vexorter42.tunor.MainActivity
 import io.github.vexorter42.tunor.R
 import io.github.vexorter42.tunor.TunorApp
+import io.github.vexorter42.tunor.core.AppLog
 import io.github.vexorter42.tunor.core.ConfigBuilder
 import io.github.vexorter42.tunor.core.ConfigProblem
+import io.github.vexorter42.tunor.core.Crashes
 import io.github.vexorter42.tunor.core.Door
+import io.github.vexorter42.tunor.core.Reports
 import io.github.vexorter42.tunor.core.RuleSets
 import io.nekohasekai.libbox.BridgeOptions
 import io.nekohasekai.libbox.BridgeSession
@@ -53,6 +57,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
@@ -112,11 +117,14 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         if (Vpn.phase.value is Phase.Starting || Vpn.phase.value is Phase.Started) return
         stopping = false
         Vpn.set(Phase.Starting)
+        MobileRescue.reset()
+        AppLog.trimEngineLog(this)
+        AppLog.i("service", "запуск туннеля, сеть: " + NetMonitor.kind())
 
         try {
             val state = TunorApp.store.state.value
             val door = Door.fresh(ConfigBuilder.live(state.tunnels).map { it.id })
-            val config = ConfigBuilder.build(state, door, have = RuleSets::path)
+            val config = ConfigBuilder.build(state, door, have = RuleSets::path, rescue = MobileRescue.plan.value)
             Libbox.checkConfig(config)
             Vpn.door = door
             Vpn.service = this
@@ -131,12 +139,14 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
             s.startOrReloadService(config, overrides())
 
             Vpn.set(Phase.Started)
-            foreground("Tunor", "Туннель работает")
+            Crashes.markTunnel(this, true)
+            AppLog.i("service", "туннель работает")
+            foreground("Tunor", statusText())
             startWatch()
         } catch (e: ConfigProblem) {
             fail(e.message ?: "настройки не подходят")
         } catch (e: Exception) {
-            Log.e(TAG, "start", e)
+            AppLog.e("service", "движок не запустился", e)
             fail("движок не запустился: " + (e.message ?: e.javaClass.simpleName))
         }
     }
@@ -157,21 +167,56 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         watch?.cancel()
         watch = scope.launch {
             var wait = 8_000L
+            var lastNet = ""
             while (isActive) {
                 val early = withTimeoutOrNull(wait) { checkSoon.receive() } != null
-                if (early) delay(4_000)
-                wait = Health.period(this@TunorVpnService)
+                if (early) delay(3_000)
+                if (BuildConfig.DEBUG) debugCrash()
+                val net = NetMonitor.kind()
+                if (net != lastNet) {
+                    AppLog.i("net", "сеть: $net")
+                    lastNet = net
+                }
+                // On a mobile network that may cut the way out at any moment, the look is every minute instead of every five.
+                val quick = TunorApp.store.state.value.settings.mobileRescue && net == "мобильная сеть"
+                wait = Health.period(this@TunorVpnService, quick)
                 if (Vpn.phase.value != Phase.Started) continue
-                val said = try { Health.run(this@TunorVpnService) } catch (e: Exception) { Log.w(TAG, "health", e); emptyList() }
-                if (said.isEmpty()) continue
-                said.forEach { Vpn.note(it) }
-                foreground("Tunor", said.last())
-                reload()
+                // The way round the mobile network first: it is the quick one, and the person is waiting for the tunnel to work.
+                val rescue = try { MobileRescue.look(this@TunorVpnService) } catch (e: Exception) { AppLog.e("rescue", "проверка не удалась", e); Health.Outcome() }
+                val health = try { Health.run(this@TunorVpnService) } catch (e: Exception) { AppLog.e("health", "проверка не удалась", e); Health.Outcome() }
+                val done = rescue + health
+                done.said.forEach { Vpn.note(it) }
+                if (done.changed) {
+                    foreground("Tunor", done.said.lastOrNull() ?: statusText())
+                    reload()
+                }
             }
         }
     }
 
+    /**
+     * Debug builds only, to see what the app does when it falls over: a file `crash-now.txt` in the app's folder, holding
+     * "java" or "go", makes it fall over that way at the next look. Like the other files a debug build reads for testing.
+     */
+    private fun debugCrash() {
+        val f = File(filesDir, "crash-now.txt")
+        if (!f.isFile) return
+        val how = f.readText().trim()
+        f.delete()
+        AppLog.w("debug", "падение по просьбе: $how")
+        when (how) {
+            "go" -> Libbox.triggerGoPanic()
+            else -> throw IllegalStateException("проверочная ошибка")
+        }
+    }
+
+    /** What the notification says while all is well. */
+    private fun statusText(): String = if (MobileRescue.plan.value != null) "Мобильная сеть: всё идёт через подписку" else "Туннель работает"
+
     private fun fail(why: String) {
+        AppLog.e("service", "туннель не запустился: $why")
+        Reports.create(this, Reports.FAILED, "Туннель не запустился: $why")
+        Crashes.markTunnel(this, false)
         closeEverything()
         Vpn.set(Phase.Failed(why))
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -181,6 +226,9 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     private fun stopEngine(quiet: Boolean = false) {
         if (stopping) return
         stopping = true
+        AppLog.i("service", "туннель остановлен")
+        Crashes.markTunnel(this, false)
+        MobileRescue.reset()
         closeEverything()
         if (!quiet) Vpn.set(Phase.Stopped)
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -364,7 +412,11 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
 
     /** The engine closed itself. */
     override fun serviceStop() {
-        if (!stopping) stopEngine()
+        if (!stopping) {
+            AppLog.e("service", "движок остановился сам")
+            Reports.create(this, Reports.ENGINE, "Движок остановился сам, когда его никто не просил")
+            stopEngine()
+        }
     }
 
     override fun serviceReload() { reload() }
@@ -373,6 +425,7 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
      * Reads the setup again and gives it to the running engine. A setup that cannot run does not stop the one that
      * does: the engine keeps what it has and the person is told why the change did not take.
      */
+    @Synchronized
     private fun reload() {
         val s = server ?: return
         if (stopping || Vpn.phase.value != Phase.Started) return
@@ -382,16 +435,17 @@ class TunorVpnService : VpnService(), PlatformInterface, CommandServerHandler {
             val ids = ConfigBuilder.live(state.tunnels).map { it.id }
             // The same entrances as before when the tunnels are the same, so that a change that comes to nothing is seen to be one.
             val door = Vpn.door?.takeIf { it.tunnels.keys == ids.toSet() } ?: Door.fresh(ids)
-            val config = ConfigBuilder.build(state, door, have = RuleSets::path)
+            val config = ConfigBuilder.build(state, door, have = RuleSets::path, rescue = MobileRescue.plan.value)
             val excluded = ConfigBuilder.directApps(state)
             if (config == lastConfig && excluded == lastExcluded) return
             Libbox.checkConfig(config)
+            AppLog.i("service", "движок читает настройки заново" + if (MobileRescue.plan.value != null) " (запасной путь для мобильной сети)" else "")
             s.startOrReloadService(config, overrides())
             Vpn.door = door
             lastConfig = config
             lastExcluded = excluded
         } catch (e: Exception) {
-            Log.e(TAG, "reload", e)
+            AppLog.e("service", "изменения не применились", e)
             Vpn.note("Изменения не применились: " + (e.message ?: e.javaClass.simpleName))
         }
     }

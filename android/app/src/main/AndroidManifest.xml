@@ -55,6 +55,17 @@
             </intent-filter>
         </service>
 
+        <!-- Lets a report be sent from the app to a messenger or mail: only files of the reports folder, only to the one that was chosen. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.reports"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- What the system's installer says about an update the app has handed it. -->
         <receiver
             android:name=".bg.InstallReceiver"
