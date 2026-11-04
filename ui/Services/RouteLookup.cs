@@ -12,7 +12,8 @@ public sealed class LookupHit
 {
     public string Group { get; init; } = "";
     public string How { get; init; } = "";
-    public bool IsGeo { get; init; }
+    /// <summary>The slot the matching group feeds: a tunnel id, or "direct".</summary>
+    public string Slot { get; init; } = "";
 }
 
 public sealed class LookupResult
@@ -26,10 +27,11 @@ public sealed class LookupResult
 
 /// <summary>
 /// "Where will this go?" Answers with the same rules, in the same order, that
-/// ConfigGenerator writes into config.json: private addresses go direct; then every
-/// warp group is one rule and every geo group the next, so a warp match wins over a
-/// geo match; anything left falls through to the default route. Downloaded .srs lists
-/// are asked of the engine itself, so the answer is the engine's, not an imitation.
+/// ConfigGenerator writes into config.json: private addresses go direct; then the rule
+/// groups, the direct slot before the tunnels and the tunnels in list order, so a direct
+/// match wins over any tunnel's list; anything left falls through to the default route.
+/// Downloaded .srs lists are asked of the engine itself, so the answer is the engine's,
+/// not an imitation.
 /// </summary>
 public static class RouteLookup
 {
@@ -42,10 +44,22 @@ public static class RouteLookup
         var isProcess = input.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
         var isIp = IPAddress.TryParse(input, out var ip);
 
-        var warpOk = ConfigGenerator.WarpConfigured;
-        var geoOk = ConfigGenerator.GeoConfigured;
-        var warpRoute = warpOk ? "через WARP" : "напрямую — WARP не настроен";
-        var geoRoute = geoOk ? "через geo" : warpOk ? "через WARP — geo не настроен" : warpRoute;
+        var tunnels = TunnelService.Load();
+        var live = ConfigGenerator.LiveTunnels(tunnels);
+
+        // What a slot means for the user, fallback included: a tunnel that is not set up
+        // passes its traffic to what it rides inside, exactly as the generated config does.
+        string Label(string slot)
+        {
+            if (slot == TunnelService.Direct) return "напрямую";
+            var t = tunnels.FirstOrDefault(x => string.Equals(x.Id, slot, StringComparison.OrdinalIgnoreCase));
+            if (t == null) return "напрямую";
+            if (live.Contains(t.Id)) return "через " + t.Title;
+            var via = tunnels.FirstOrDefault(x => string.Equals(x.Id, t.Detour, StringComparison.OrdinalIgnoreCase));
+            return via != null && live.Contains(via.Id)
+                ? $"через {via.Title} — {t.Title} не настроен"
+                : $"напрямую — {t.Title} не настроен";
+        }
 
         if (isIp && IsPrivate(ip!))
         {
@@ -58,7 +72,7 @@ public static class RouteLookup
         foreach (var g in RulesService.Load())
         {
             if (string.IsNullOrWhiteSpace(g.Tag)) continue;
-            var geo = g.Tag.StartsWith("geo-", StringComparison.OrdinalIgnoreCase);
+            var slot = TunnelService.SlotOf(g.Tag, tunnels) ?? TunnelService.Warp;
 
             if (g.IsInline)
             {
@@ -75,7 +89,7 @@ public static class RouteLookup
                         {
                             Group = g.Tag,
                             How = wantProcess ? "имя программы" : "домен в списке",
-                            IsGeo = geo,
+                            Slot = slot,
                         });
             }
             else if (g.IsLocal && !isProcess)
@@ -91,7 +105,7 @@ public static class RouteLookup
                         {
                             Group = group.Tag,
                             How = "список " + Path.GetFileName(file),
-                            IsGeo = geo,
+                            Slot = slot,
                         });
                 }));
             }
@@ -102,30 +116,30 @@ public static class RouteLookup
         }
         await Task.WhenAll(checks);
 
-        // Same precedence as the generated route: all warp groups, then all geo groups.
-        var warpHit = result.Hits.FirstOrDefault(h => !h.IsGeo);
-        var geoHit = result.Hits.FirstOrDefault(h => h.IsGeo);
-        if (warpHit != null)
+        // Same precedence as the generated route: the direct slot first, then the
+        // tunnels in list order.
+        int Rank(LookupHit h)
         {
-            result.Route = warpRoute;
-            result.Why = $"совпало с группой {warpHit.Group} ({warpHit.How})";
-            if (geoHit != null)
-                result.Why += $"; группа {geoHit.Group} тоже подходит, но правила WARP проверяются раньше";
+            if (h.Slot == TunnelService.Direct) return 0;
+            var at = tunnels.FindIndex(t => string.Equals(t.Id, h.Slot, StringComparison.OrdinalIgnoreCase));
+            return at < 0 ? int.MaxValue - 1 : 10 + at;
         }
-        else if (geoHit != null)
+
+        var best = result.Hits.OrderBy(Rank).FirstOrDefault();
+        if (best != null)
         {
-            result.Route = geoRoute;
-            result.Why = $"совпало с группой {geoHit.Group} ({geoHit.How})";
+            result.Route = Label(best.Slot);
+            result.Why = $"совпало с группой {best.Group} ({best.How})";
+            var beaten = result.Hits.Where(h => !ReferenceEquals(h, best)).OrderBy(Rank).ToList();
+            if (beaten.Count == 1)
+                result.Why += $"; группа {beaten[0].Group} тоже подходит, но {best.Group} проверяется раньше";
+            else if (beaten.Count > 1)
+                result.Why += $"; ещё подходят {string.Join(", ", beaten.Select(h => h.Group))}, но {best.Group} проверяется раньше";
         }
         else
         {
-            var final = SettingsService.Load().Final;
-            result.Route = final switch
-            {
-                "geo" => geoRoute,
-                "proxy" => warpRoute,
-                _ => "напрямую",
-            };
+            var slot = ConfigGenerator.FinalSlot(SettingsService.Load().Final);
+            result.Route = slot.Length == 0 ? "напрямую" : Label(slot);
             result.Why = "ни одно правило не подошло — действует маршрут по умолчанию";
         }
         return result;

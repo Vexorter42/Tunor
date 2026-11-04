@@ -12,7 +12,7 @@
 
         <StackPanel Grid.Row="0">
             <TextBlock Text="Правила" Style="{StaticResource H1}"/>
-            <TextBlock Text="Группы маршрутизации из data/rules.json" Style="{StaticResource Dim}" Margin="0,4,0,16"/>
+            <TextBlock Text="Группы маршрутизации из data/rules.json. Группа с именем direct-… отправляет своё напрямую, мимо туннелей — так пишется «всё через туннель, кроме»" Style="{StaticResource Dim}" Margin="0,4,0,16" TextWrapping="Wrap"/>
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="0,0,0,12">

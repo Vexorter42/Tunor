@@ -16,7 +16,10 @@ public static class RouteEditor
     public const string Warp = TunnelService.Warp;
     public const string Geo = TunnelService.Geo;
 
-    /// <summary>Where a process rule currently sends this program: warp, geo or null.</summary>
+    /// <summary>
+    /// Where a process rule currently sends this program: a tunnel id, "direct" for a
+    /// group that sends it straight out, or null when no app rule matches.
+    /// </summary>
     public static string? ProcessRoute(string exe) => ProcessRoute(exe, RulesService.Load());
 
     /// <summary>Same, against rules already loaded — for checking many programs at once.</summary>
@@ -26,24 +29,27 @@ public static class RouteEditor
     /// <summary>Same, against a tunnel list already loaded — for checking many at once.</summary>
     public static string? ProcessRoute(string exe, IEnumerable<RuleGroup> groups, List<Tunnel> tunnels)
     {
-        // Same precedence as the generated config, which routes tunnel by tunnel in list
-        // order: the earliest tunnel with a matching rule is the one that gets the traffic.
+        // Same precedence as the generated config, which routes the direct slot before
+        // the tunnels and then tunnel by tunnel in list order: the earliest match is the
+        // one that gets the traffic.
         string? found = null;
         var foundAt = int.MaxValue;
         foreach (var g in groups.Where(IsProcessGroup))
         {
             if (!g.Items.Any(i => ConfigGenerator.ProcessMatches(i, exe))) continue;
             var slot = TunnelService.SlotOf(g.Tag, tunnels) ?? Warp;
-            var at = tunnels.FindIndex(t => string.Equals(t.Id, slot, StringComparison.OrdinalIgnoreCase));
-            if (at < 0) at = int.MaxValue - 1;
+            var at = slot == TunnelService.Direct ? -1
+                : tunnels.FindIndex(t => string.Equals(t.Id, slot, StringComparison.OrdinalIgnoreCase));
+            if (at < 0 && slot != TunnelService.Direct) at = int.MaxValue - 1;
             if (at < foundAt) { found = slot; foundAt = at; }
         }
         return found;
     }
 
     /// <summary>
-    /// Sends all of a program's traffic to WARP or geo, or (null) removes its app rule
-    /// so the domain lists decide again. The program is taken out of every other process
+    /// Sends all of a program's traffic into a tunnel — or, for the "direct" route,
+    /// straight out past every tunnel — or (null) removes its app rule so the domain
+    /// lists decide again. The program is taken out of every other process
     /// group first, so it never ends up in two places — which also clears duplicates
     /// that differ only in case ("telegram.exe" next to "Telegram.exe").
     /// </summary>
@@ -64,15 +70,16 @@ public static class RouteEditor
         ConfigGenerator.Generate();
     }
 
-    /// <summary>Adds a domain to the WARP or geo custom list (once).</summary>
+    /// <summary>Adds a domain to a tunnel's custom list (once), or to the direct
+    /// exceptions when route is "direct".</summary>
     public static void AddDomain(string domain, string route)
     {
         var d = ConfigGenerator.DomainEntry(domain);
         if (d.Length == 0) return;
 
         var groups = RulesService.Load();
-        // Leave the other side's custom list, or the WARP one would always win. Compared
-        // in normalised form, so "*.site.com" and "site.com" count as the same entry.
+        // Leave no copy in any other custom list, or the earliest one would always win.
+        // Compared in normalised form, so "*.site.com" and "site.com" count as the same entry.
         foreach (var g in groups.Where(g => g.IsInline && g.ItemKind == RuleItemKind.Domain))
             foreach (var item in g.Items.Where(i => ConfigGenerator.DomainEntry(i) == d).ToList())
                 g.Items.Remove(item);

@@ -59,7 +59,9 @@ public partial class RulesView : UserControl
 
         if (TunnelBox.ItemsSource == null)
         {
-            TunnelBox.ItemsSource = tunnels.Select(t => new TunnelChoice(t.Id, t.Title)).ToList();
+            // Every tunnel, then "напрямую" — the exceptions list, for what must go out plain.
+            TunnelBox.ItemsSource = tunnels.Select(t => new TunnelChoice(t.Id, t.Title))
+                .Concat(new[] { new TunnelChoice(TunnelService.Direct, "Напрямую") }).ToList();
             TunnelBox.SelectedIndex = 0;
             KindBox.ItemsSource = new[] { "домен", "программа" };
             KindBox.SelectedIndex = 0;
@@ -75,8 +77,9 @@ public partial class RulesView : UserControl
             return Palette.TunnelBrush(i < 0 ? "" : tunnels[i].Id, i);
         }
 
-        string NameOf(string id) =>
-            tunnels.FirstOrDefault(t => string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase))?.Title ?? id;
+        string NameOf(string id) => id == TunnelService.Direct
+            ? "Напрямую"
+            : tunnels.FirstOrDefault(t => string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase))?.Title ?? id;
 
         var q = Query;
         var custom = new List<GroupRow>();

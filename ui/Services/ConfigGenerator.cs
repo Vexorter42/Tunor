@@ -464,12 +464,16 @@ public static class ConfigGenerator
         var geoTarget = target.GetValueOrDefault(TunnelService.Geo, warpTarget);
         var groups = RulesService.Load();
         var ruleSet = new JsonArray();
-        // Rule groups per tunnel, keyed by its id. A tag naming no tunnel goes to WARP,
-        // which is where everything that was not "geo-" went before tunnels were a list.
-        var domainTags = tunnels.ToDictionary(t => t.Id, _ => new List<string>(), StringComparer.OrdinalIgnoreCase);
+        // The slots a group can feed: "direct" — straight out, past every tunnel, which
+        // is how "everything tunnelled except these" is written — and every tunnel after
+        // it, in list order. A tag naming no tunnel goes to WARP, which is where
+        // everything that was not "geo-" went before tunnels were a list.
+        var slots = new List<string> { TunnelService.Direct };
+        slots.AddRange(tunnels.Select(t => t.Id));
+        var domainTags = slots.ToDictionary(s => s, _ => new List<string>(), StringComparer.OrdinalIgnoreCase);
         // Process groups get rules of their own, ahead of the domain lists: "send this
         // app to geo" must win even when one of its domains sits in a WARP list.
-        var procTags = tunnels.ToDictionary(t => t.Id, _ => new List<string>(), StringComparer.OrdinalIgnoreCase);
+        var procTags = slots.ToDictionary(s => s, _ => new List<string>(), StringComparer.OrdinalIgnoreCase);
         string Slot(string tag) => TunnelService.SlotOf(tag, tunnels) ?? TunnelService.Warp;
 
         foreach (var g in groups)
@@ -546,14 +550,16 @@ public static class ConfigGenerator
                 ["action"] = "route", ["outbound"] = target[t.Id], ["inbound"] = t.InboundTag,
             });
         // Order is precedence: apps first (an explicit "this program goes there" beats a
-        // domain list), then WARP lists before geo lists, as before.
+        // domain list), and inside each kind the direct slot first — an explicit "this
+        // one goes out plain" beats the tunnel lists, which is what exceptions are for.
+        string Outbound(string slot) => slot == TunnelService.Direct ? "direct-out" : target[slot];
         void Route(List<string> tags, string outbound)
         {
             if (tags.Count > 0)
                 rules.Add(new JsonObject { ["action"] = "route", ["outbound"] = outbound, ["rule_set"] = ToArray(tags) });
         }
-        foreach (var t in tunnels) Route(procTags[t.Id], target[t.Id]);
-        foreach (var t in tunnels) Route(domainTags[t.Id], target[t.Id]);
+        foreach (var slot in slots) Route(procTags[slot], Outbound(slot));
+        foreach (var slot in slots) Route(domainTags[slot], Outbound(slot));
 
         return new JsonObject
         {

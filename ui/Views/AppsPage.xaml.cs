@@ -141,9 +141,9 @@ public partial class AppsPage : UserControl
         foreach (var row in _apps)
         {
             var route = RouteEditor.ProcessRoute(row.Exe, groups, allTunnels);
-            var at = route == null ? -1
+            var at = route == null || route == TunnelService.Direct ? -1
                 : allTunnels.FindIndex(t => string.Equals(t.Id, route, StringComparison.OrdinalIgnoreCase));
-            row.Badge = at < 0 ? "правила" : allTunnels[at].Title;
+            row.Badge = route == TunnelService.Direct ? "напрямую" : at < 0 ? "правила" : allTunnels[at].Title;
             row.BadgeBrush = at < 0 ? Ui.Brush("TextDimBrush") : Ui.TunnelBrush(allTunnels[at].Id, at);
             var stat = stats.FirstOrDefault(s => string.Equals(s.Exe, row.Exe, StringComparison.OrdinalIgnoreCase));
             row.Summary = stat == null
@@ -224,7 +224,8 @@ public partial class AppsPage : UserControl
         => b.Style = Ui.Style(active ? "PrimaryButton" : "SecondaryButton") ?? b.Style;
 
     /// <summary>
-    /// One button per tunnel, in list order, then "по общим правилам". Rebuilt on every
+    /// One button per tunnel, in list order, then "напрямую" — an exception that sends
+    /// the program's traffic out plain — then "по общим правилам". Rebuilt on every
     /// selection: the user can add a tunnel while this page is open.
     /// </summary>
     private void BuildRouteButtons(List<Tunnel> tunnels, string? route)
@@ -232,6 +233,7 @@ public partial class AppsPage : UserControl
         RouteButtons.Children.Clear();
         foreach (var t in tunnels)
             Add("через " + t.Title, t.Id, string.Equals(route, t.Id, StringComparison.OrdinalIgnoreCase));
+        Add("напрямую", TunnelService.Direct, route == TunnelService.Direct);
         Add("по общим правилам", null, route == null);
 
         void Add(string text, string? id, bool active)
@@ -259,6 +261,9 @@ public partial class AppsPage : UserControl
     {
         if (route == null)
             return "Отдельного правила нет: каждый адрес решают списки доменов и маршрут по умолчанию.";
+
+        if (route == TunnelService.Direct)
+            return "Весь трафик программы идёт напрямую, мимо туннелей — какие бы адреса она ни открывала.";
 
         var t = tunnels.FirstOrDefault(x => string.Equals(x.Id, route, StringComparison.OrdinalIgnoreCase));
         if (t == null)
@@ -322,7 +327,9 @@ public partial class AppsPage : UserControl
             RouteEditor.SetProcessRoute(exe, route);
             StatusText.Text = (route == null
                 ? $"{exe}: правило снято, решают списки доменов"
-                : $"{exe} → весь трафик через {TitleOf(route)}")
+                : route == TunnelService.Direct
+                    ? $"{exe} → весь трафик напрямую, мимо туннелей"
+                    : $"{exe} → весь трафик через {TitleOf(route)}")
                 + (ProcessService.IsRunning ? " · применится через секунду" : " · применится при запуске");
             ScheduleRestart();
             Refresh();
@@ -333,7 +340,8 @@ public partial class AppsPage : UserControl
         }
     }
 
-    /// <summary>Offers the tunnels this address can be sent into, one menu item each.</summary>
+    /// <summary>Offers the routes this address can take: one menu item per tunnel,
+    /// and "напрямую" for an exception.</summary>
     private void HostRoute_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string host } btn) return;
@@ -346,6 +354,9 @@ public partial class AppsPage : UserControl
             item.Click += (_, _) => AddHost(host, id);
             menu.Items.Add(item);
         }
+        var plain = new MenuItem { Header = "напрямую (в исключения)" };
+        plain.Click += (_, _) => AddHost(host, TunnelService.Direct);
+        menu.Items.Add(plain);
         menu.IsOpen = true;
     }
 
@@ -354,8 +365,10 @@ public partial class AppsPage : UserControl
         try
         {
             RouteEditor.AddDomain(host, route);
-            StatusText.Text = $"{host} добавлен в список {TitleOf(route)}" +
-                              (ProcessService.IsRunning ? " · применится через секунду" : "");
+            StatusText.Text = (route == TunnelService.Direct
+                    ? $"{host} добавлен в исключения — пойдёт напрямую"
+                    : $"{host} добавлен в список {TitleOf(route)}")
+                + (ProcessService.IsRunning ? " · применится через секунду" : "");
             ScheduleRestart();
         }
         catch (Exception ex)

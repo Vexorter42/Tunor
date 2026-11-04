@@ -65,13 +65,13 @@ public partial class AppsView : UserControl
         foreach (var exe in names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
         {
             var route = RouteEditor.ProcessRoute(exe, groups, tunnels);
-            var at = route == null ? -1
+            var at = route == null || route == TunnelService.Direct ? -1
                 : tunnels.FindIndex(t => string.Equals(t.Id, route, StringComparison.OrdinalIgnoreCase));
             var stat = stats.FirstOrDefault(s => string.Equals(s.Exe, exe, StringComparison.OrdinalIgnoreCase));
 
             rows.Add(new AppRow(
                 exe,
-                at < 0 ? "правила" : tunnels[at].Title,
+                route == TunnelService.Direct ? "напрямую" : at < 0 ? "правила" : tunnels[at].Title,
                 at < 0 ? Palette.Brush("TextDimBrush") : Palette.TunnelBrush(tunnels[at].Id, at),
                 stat == null
                     ? (route != null ? "правило есть, трафика пока нет" : "трафика пока нет")
@@ -111,12 +111,14 @@ public partial class AppsView : UserControl
             : $"Куда ходит за этот сеанс — {hosts.Count} адресов";
     }
 
-    /// <summary>One button per tunnel, then "по общим правилам".</summary>
+    /// <summary>One button per tunnel, then "напрямую" — an exception out plain — then
+    /// "по общим правилам".</summary>
     private void BuildRouteButtons(List<Tunnel> tunnels, string? route)
     {
         RouteButtons.Children.Clear();
         foreach (var t in tunnels)
             Add("через " + t.Title, t.Id, string.Equals(route, t.Id, StringComparison.OrdinalIgnoreCase));
+        Add("напрямую", TunnelService.Direct, route == TunnelService.Direct);
         Add("по общим правилам", null, route == null);
 
         void Add(string text, string? id, bool active)
@@ -139,6 +141,9 @@ public partial class AppsView : UserControl
         if (route == null)
             return "Отдельного правила нет: каждый адрес решают списки доменов и маршрут по умолчанию.";
 
+        if (route == TunnelService.Direct)
+            return "Весь трафик программы идёт напрямую, мимо туннелей — какие бы адреса она ни открывала.";
+
         var t = tunnels.FirstOrDefault(x => string.Equals(x.Id, route, StringComparison.OrdinalIgnoreCase));
         if (t == null) return $"Трафик отправлен в туннель «{route}», но такого туннеля больше нет.";
         if (ConfigGenerator.LiveTunnels(tunnels).Contains(t.Id))
@@ -158,7 +163,9 @@ public partial class AppsView : UserControl
             RouteEditor.SetProcessRoute(_chosen, route);
             StatusText.Text = (route == null
                 ? $"{_chosen}: правило снято"
-                : $"{_chosen} → весь трафик через {TitleOf(route)}")
+                : route == TunnelService.Direct
+                    ? $"{_chosen} → весь трафик напрямую, мимо туннелей"
+                    : $"{_chosen} → весь трафик через {TitleOf(route)}")
                 + ". Перезапусти движок, чтобы применить.";
             Refresh();
         }
@@ -168,7 +175,8 @@ public partial class AppsView : UserControl
     private static string TitleOf(string id) =>
         TunnelService.Load().FirstOrDefault(t => string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase))?.Title ?? id;
 
-    /// <summary>Sends one address into a tunnel, chosen from a menu of them.</summary>
+    /// <summary>Sends one address into a tunnel — or straight out, as an exception —
+    /// chosen from a menu.</summary>
     private void HostRoute_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string host } btn) return;
@@ -179,21 +187,28 @@ public partial class AppsView : UserControl
         {
             var item = new MenuItem { Header = $"в список {t.Title}" };
             var id = t.Id;
-            item.Click += (_, _) =>
-            {
-                try
-                {
-                    RouteEditor.AddDomain(host, id);
-                    StatusText.Text = $"{host} добавлен в список {TitleOf(id)}. "
-                                      + "Перезапусти движок, чтобы применить.";
-                    Refresh();
-                }
-                catch (Exception ex) { StatusText.Text = "Не удалось добавить: " + ex.Message; }
-            };
+            item.Click += (_, _) => AddHost(host, id);
             menu.Items.Add(item);
         }
+        var plain = new MenuItem { Header = "напрямую (в исключения)" };
+        plain.Click += (_, _) => AddHost(host, TunnelService.Direct);
+        menu.Items.Add(plain);
         btn.ContextMenu = menu;
         menu.Open(btn);
+
+        void AddHost(string host, string id)
+        {
+            try
+            {
+                RouteEditor.AddDomain(host, id);
+                StatusText.Text = (id == TunnelService.Direct
+                        ? $"{host} добавлен в исключения — пойдёт напрямую. "
+                        : $"{host} добавлен в список {TitleOf(id)}. ")
+                    + "Перезапусти движок, чтобы применить.";
+                Refresh();
+            }
+            catch (Exception ex) { StatusText.Text = "Не удалось добавить: " + ex.Message; }
+        }
     }
 
     // ---------------------------------------------------------------- naming a program

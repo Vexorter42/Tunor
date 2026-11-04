@@ -20,6 +20,7 @@ public partial class GroupWindow : DialogPanel
     private readonly List<RuleGroup> _all;
     private readonly RuleGroup? _editing;
     private readonly List<Tunnel> _tunnels;
+    private readonly List<TunnelChoice> _choices = new();
     private bool _suppress;
 
     public bool Saved { get; private set; }
@@ -52,7 +53,11 @@ public partial class GroupWindow : DialogPanel
         HeadText.Text = editing == null ? "Новая группа" : "Группа «" + editing.Tag + "»";
         BtnDelete.IsVisible = editing != null;
 
-        TunnelBox.ItemsSource = _tunnels.Select(t => new TunnelChoice(t.Id, t.Title)).ToList();
+        // Every tunnel, then the direct slot — "no tunnel at all", for groups of
+        // exceptions that go out plain.
+        _choices.AddRange(_tunnels.Select(t => new TunnelChoice(t.Id, t.Title)));
+        _choices.Add(new TunnelChoice(TunnelService.Direct, "Напрямую"));
+        TunnelBox.ItemsSource = _choices;
         TypeBox.ItemsSource = Types.Select(t => t.Title).ToList();
         KindBox.ItemsSource = new[] { "домены", "программы" };
 
@@ -83,8 +88,14 @@ public partial class GroupWindow : DialogPanel
 
         _suppress = true;
         TunnelBox.SelectedIndex = slot == null ? -1
-            : _tunnels.FindIndex(t => string.Equals(t.Id, slot, StringComparison.OrdinalIgnoreCase));
+            : _choices.FindIndex(c => string.Equals(c.Id, slot, StringComparison.OrdinalIgnoreCase));
         _suppress = false;
+
+        if (slot == TunnelService.Direct)
+        {
+            TagHint.Text = "Пойдёт напрямую, мимо туннелей — так решает начало имени.";
+            return;
+        }
 
         var known = slot == null ? null : _tunnels.FirstOrDefault(
             t => string.Equals(t.Id, slot, StringComparison.OrdinalIgnoreCase));

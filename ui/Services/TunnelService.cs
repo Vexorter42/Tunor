@@ -100,6 +100,13 @@ public static class TunnelService
     public const string Warp = "warp";
     public const string Geo = "geo";
 
+    /// <summary>
+    /// Not a tunnel, but a slot a rule group can name: a group tagged "direct-..." sends
+    /// what it matches straight out, which is how "everything through a tunnel except
+    /// these" is written. It can never be a tunnel id — FreeId renames one away.
+    /// </summary>
+    public const string Direct = "direct";
+
     private static readonly JsonSerializerOptions Opts = new()
     {
         WriteIndented = true,
@@ -212,13 +219,18 @@ public static class TunnelService
     /// <summary>
     /// Which tunnel a rule group belongs to, by its tag prefix: "geo-custom-domains" is
     /// geo's. Longest id first, so an id that starts with another id still resolves to
-    /// itself. Null when the tag names no tunnel.
+    /// itself. A "direct-..." tag names the direct slot — straight out, past every tunnel.
+    /// Null when the tag names no tunnel.
     /// </summary>
     public static string? SlotOf(string tag, IEnumerable<Tunnel> tunnels)
     {
         foreach (var t in tunnels.OrderByDescending(t => t.Id.Length))
             if (tag.StartsWith(t.Id + "-", StringComparison.OrdinalIgnoreCase))
                 return t.Id;
+        // After the tunnels, so a tunnel whose id itself starts with "direct" keeps its
+        // own groups; the prefix alone means "no tunnel at all".
+        if (tag.StartsWith(Direct + "-", StringComparison.OrdinalIgnoreCase))
+            return Direct;
         return null;
     }
 }
