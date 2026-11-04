@@ -32,7 +32,7 @@ APP = os.path.join(OUT, "Tunor.app")
 EXE = "TunorDesktop"                       # what the publish produced
 ICON_SRC = os.path.join(os.path.dirname(HERE), "ui", "Assets", "app.png")
 
-VERSION = "2.3.0"
+VERSION = "2.4.0"
 BUNDLE_ID = "com.vexorter.tunor"
 
 
