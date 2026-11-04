@@ -124,7 +124,9 @@ object ConfigBuilder {
         val rescueServers = rescue?.servers.orEmpty().filter { VlessLink.parse(it).ok }.distinct()
         val rescueTunnel = rescue?.takeIf { rescueServers.isNotEmpty() }?.let { r -> liveList.firstOrNull { it.id == r.tunnelId && it.kind == Tunnel.SUB } }
         val rescueTag = rescueTunnel?.let { tagOf(it) }
-        fun dest(id: String) = rescueTag ?: target[id] ?: fallback
+        // The direct slot a rule can name is not in the map: it is no tunnel but the way
+        // out itself — "everything tunnelled except these" when the rest rides a tunnel.
+        fun dest(id: String) = rescueTag ?: (if (id == AppRule.DIRECT) DIRECT else target[id] ?: fallback)
         // With everything going one way the rules say nothing more; what the person named goes the same way as the rest.
         val rules0 = if (rescueTag != null) Rules() else state.rules
 

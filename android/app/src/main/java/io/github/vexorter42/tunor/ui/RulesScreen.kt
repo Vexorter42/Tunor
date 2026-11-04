@@ -79,7 +79,7 @@ private fun Lists(vm: MainViewModel) {
             Panel(Modifier.fillMaxWidth()) {
                 Text("Готовые списки сайтов", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 Text(
-                    "Отметь нужное: список скачается, и эти сайты пойдут через выбранный туннель. " +
+                    "Отметь нужное: список скачается, и эти сайты пойдут через выбранный туннель — или напрямую, мимо всех. " +
                         "Обычно это WARP, а для сервисов, которые не пускают российские адреса, — geo.",
                     color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
                 )
@@ -129,7 +129,7 @@ private fun ListRow(
                 }
             }
         }
-        if (pick != null) TunnelPicker(pick.tunnel, tunnels, { vm.setListTunnel(pick.id, it) })
+        if (pick != null) TunnelPicker(pick.tunnel, tunnels, { vm.setListTunnel(pick.id, it) }, extra = listOf(AppRule.DIRECT to "Напрямую"))
     }
 }
 
@@ -146,7 +146,8 @@ private fun Sites(vm: MainViewModel) {
             Panel(Modifier.fillMaxWidth()) {
                 Text("Свои сайты", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 Text(
-                    "Адрес покрывает и поддомены: youtube.com включает www., m. и всё под ним. Эти сайты важнее готовых списков.",
+                    "Адрес покрывает и поддомены: youtube.com включает www., m. и всё под ним. Эти сайты важнее готовых списков. " +
+                        "Выбор «Напрямую» пускает их мимо всех туннелей — так пишется «всё через туннель, кроме».",
                     color = Palette.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
                 )
                 OutlinedTextField(
@@ -157,7 +158,7 @@ private fun Sites(vm: MainViewModel) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Через", color = Palette.Dim, fontSize = 13.sp)
                     Spacer(Modifier.padding(4.dp))
-                    TunnelPicker(tunnel, state.tunnels, { tunnel = it })
+                    TunnelPicker(tunnel, state.tunnels, { tunnel = it }, extra = listOf(AppRule.DIRECT to "Напрямую"))
                     Spacer(Modifier.weight(1f))
                     Button(onClick = { if (vm.addSites(input, tunnel) > 0) input = "" }) { Text("Добавить") }
                 }
@@ -169,7 +170,7 @@ private fun Sites(vm: MainViewModel) {
         items(state.rules.sites, key = { "site:" + it.domain }) { s ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(s.domain, modifier = Modifier.weight(1f), fontSize = 15.sp)
-                TunnelPicker(s.tunnel, state.tunnels, { vm.setSiteTunnel(s.domain, it) })
+                TunnelPicker(s.tunnel, state.tunnels, { vm.setSiteTunnel(s.domain, it) }, extra = listOf(AppRule.DIRECT to "Напрямую"))
                 IconButton(onClick = { vm.removeSite(s.domain) }) { Icon(Icons.Default.Close, "Убрать", tint = Palette.Dim) }
             }
         }
